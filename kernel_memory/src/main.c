@@ -1,6 +1,91 @@
-#include <utils/hello.h>
+#include <commons/log.h>
+#include <commons/config.h>
+#include <utils/conexiones.h>
 
-int main(int argc, char* argv[]) {
-    saludar("kernel_memory");
+
+int main(int argc, char *argv[]){
+
+    if(argc >1){
+        return EXIT_FAILURE;
+    }
+    char* config_path = argv[1];
+    t_config* config = config_create(config_path);
+    
+    if (config == NULL){
+        return EXIT_FAILURE;
+    }
+
+    char* puerto_km = config_get_string_value(config,"PUERTO");
+    char* str_log_level = config_get_string_value(config, "LOG_LEVEL");
+    
+    if(puerto_km == NULL || str_log_level == NULL){
+        config_destroy(config);
+        return EXIT_FAILURE;
+    }
+    
+    int log_level = log_level_from_string(str_log_level);
+    t_log* log_km = log_create("memory.log", "MEMORY", true, str_log_level); 
+    
+    int server_km = iniciar_servidor(log_km, puerto_km);
+
+     if(server_km == -1){
+        log_error(log_km, "Error al iniciar el servidor en el puerto %s", puerto_km);
+        log_destroy(log_km);
+        config_destroy(config);
+        return EXIT_FAILURE;
+    }
+
+    log_info(log_km, "Kernel Memory iniciado");
+    
+    while(1){
+        pthread_t hilo_cliente;
+        int client_fd = esperar_cliente(server_km, log_km);
+        handshake handshake_modulo = recibir_operacion(cliente_fd);
+        if(client_fd == -1){
+            log_error(log_km, "Error al aceptar cliente");
+            continue;
+        }
+        log_info(log_km, "Cliente conectado: %d", client_fd);
+        //TODO duda: malloc para el socket para que no se pisen?;
+        pthread_create(&hilo_cliente, NULL, handle_conection, socket_cliente);
+        pthread_detach(hilo_cliente);
+    }
+
+    log_destroy(log_ks);
+    config_destroy(config);
+
     return 0;
 }
+
+void* handle_conections(void* arg){
+    int cod_op = recibir_operacion(socket);
+    if(cod_op == -1){
+        log_error(log_km, "Error al recibir operacion del cliente");
+        return -1;
+    }
+
+    switch (cod_op)
+ 		{
+ 			case HANDSHAKE_CPU:
+                //TODO IMPLEMENTAR
+ 				//handle_query(socket);
+ 				break;
+ 			case HANDSHAKE_KS:
+ 				//TODO IMPLEMENTAR
+                //handle_worker(socket);
+ 				break;
+            case HANDSHAKE_MEMORYSTICK;
+                //IMPLEMENTAR
+                break;
+            case HANDSHAKE_SWAP;
+                //IMPLEMENTAR
+                break;
+            default:
+ 				log_warning(log_km, "Handshake no reconocido: %d", cod_op);
+ 				close(socket);
+ 				break;
+ 		}
+}
+    
+
+
