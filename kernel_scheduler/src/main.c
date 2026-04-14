@@ -1,8 +1,4 @@
-#include <pthread.h>
-#include <commons/log.h>
-#include <commons/config.h>
-#include <utils/conexiones.h>
-#include <utils/serializacion.h>
+#include "main.h"
 
 int main(int argc, char *argv[]){
     if(argc < 2){
@@ -21,19 +17,10 @@ int main(int argc, char *argv[]){
     char* str_log_level = config_get_string_value(config, "LOG_LEVEL");
     char* puerto = config_get_string_value(config, "PUERTO");
 
-    if( ip_km == NULL
-        || puerto_km == NULL
-        || str_log_level == NULL
-        || puerto == NULL
-    ){
-        config_destroy(config);
-        return EXIT_FAILURE;
-    }
-
     // LOG CONFIG E INIT
     int log_level = log_level_from_string(str_log_level);
 
-    t_log* log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
+    log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
 
     // INICIAR SERVIDOR
     int server_ks = iniciar_servidor(log_ks, puerto);
@@ -67,7 +54,7 @@ int main(int argc, char *argv[]){
         }
         log_info(log_ks, "Cliente conectado: %d", client_fd);
         //(void*)(intptr_t)client_fd sirve para que no se pisen los client_fd antes de que pthread_create cree efectivamente el hilo.
-        pthread_create(&hilo_cliente, NULL, handle_conection, (void*)(intptr_t)client_fd);
+        pthread_create(&hilo_cliente, NULL, handle_connections, (void*)(intptr_t)client_fd);
         pthread_detach(hilo_cliente);
     }
 
@@ -77,7 +64,7 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
-void* handle_conection(void* arg){
+void* handle_connections(void* arg){
     int cod_op = recibir_operacion(arg);
     if(cod_op == -1){
         //TODO EL LOG TIENE QUE SER GLOBAL O SER PASADA POR PARAMETRO.

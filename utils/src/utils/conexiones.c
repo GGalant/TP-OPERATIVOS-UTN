@@ -26,7 +26,7 @@ int crear_conexion(char *ip, char* puerto){
 
 	if (conexion == -1) {
 	    perror("Error al conectar");
-	    close(socket_cliente);
+	    pclose(socket_cliente);
 		return -1;
 	}
 
@@ -59,20 +59,20 @@ int iniciar_servidor(t_log *logger, char *puerto)
     //Configuramos socket optionns (reusar)
 	int opt = 1;
 	err = setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-	if(err = -1){
+	if(err == -1){
         return -1;
     }
     
     // Asociamos el socket a un puerto
     err = bind(socket_servidor, server_info->ai_addr, server_info->ai_addrlen);
-    if(err = -1){
+    if(err == -1){
         return -1;
     }
 
 	// Escuchamos las conexiones entrantes
 	err = listen(socket_servidor, SOMAXCONN);
-    if(err = -1){
-        return -1
+    if(err == -1){
+        return -1;
     }
 
 	freeaddrinfo(server_info);

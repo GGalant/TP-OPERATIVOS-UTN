@@ -4,6 +4,8 @@
 #include<commons/log.h>
 #include<commons/config.h>
 #include<errno.h>
+#include<netdb.h>
+
 
 typedef enum {  
     HANDSHAKE_SWAP,
@@ -14,8 +16,10 @@ typedef enum {
     HANDSHAKE_MEMORYSTICK
 }handshake;
 
-typedef enum {  
 
+typedef enum {
+    MENSAJE,
+    PAQUETE
 }op_code;
 
 int crear_conexion(char *ip, char* puerto);

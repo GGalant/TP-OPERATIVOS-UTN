@@ -1,6 +1,7 @@
+#include "utils/serializacion.h"
 
-void enviar_mensaje(char* mensaje, int socket_cliente)
-{
+
+void enviar_mensaje(char* mensaje, int socket_cliente){
 	t_paquete* paquete = malloc(sizeof(t_paquete));
 
 	paquete->codigo_operacion = MENSAJE;
@@ -124,8 +125,7 @@ void recibir_mensaje(int socket_cliente, t_log *logger)
 	free(buffer);
 }
 
-void *recibir_buffer(int *size, int socket_cliente)
-{
+void *recibir_buffer(int *size, int socket_cliente){
 	void *buffer;
 
 	recv(socket_cliente, size, sizeof(int), MSG_WAITALL);

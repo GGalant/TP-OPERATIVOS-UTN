@@ -1,3 +1,7 @@
+#include <commons/log.h>
+#include <commons/config.h>
+#include <utils/conexiones.h>
+
 int main(){
 
     char* config_path = argv(1); 

@@ -1,17 +1,15 @@
-#include <commons/log.h>
-#include <commons/config.h>
-#include <utils/conexiones.h>
+#include "main.h"
+//#include "globales.c" idea a desarrollar despues
 
+//t_log* log_km;
 
 int main(int argc, char *argv[]){
 
-    if(argc >1){
-        return EXIT_FAILURE;
-    }
     char* config_path = argv[1];
     t_config* config = config_create(config_path);
     
     if (config == NULL){
+        perror("Error al intentar cargar el config");
         return EXIT_FAILURE;
     }
 
@@ -24,7 +22,7 @@ int main(int argc, char *argv[]){
     }
     
     int log_level = log_level_from_string(str_log_level);
-    t_log* log_km = log_create("memory.log", "MEMORY", true, str_log_level); 
+    log_km = log_create("memory.log", "MEMORY", true, log_level); 
     
     int server_km = iniciar_servidor(log_km, puerto_km);
 
@@ -34,30 +32,29 @@ int main(int argc, char *argv[]){
         config_destroy(config);
         return EXIT_FAILURE;
     }
-
     log_info(log_km, "Kernel Memory iniciado");
     
     while(1){
         pthread_t hilo_cliente;
         int client_fd = esperar_cliente(server_km, log_km);
-        handshake handshake_modulo = recibir_operacion(cliente_fd);
+        handshake handshake_modulo = recibir_operacion(client_fd);
         if(client_fd == -1){
             log_error(log_km, "Error al aceptar cliente");
             continue;
         }
         log_info(log_km, "Cliente conectado: %d", client_fd);
         //TODO duda: malloc para el socket para que no se pisen?;
-        pthread_create(&hilo_cliente, NULL, handle_conection, socket_cliente);
+        pthread_create(&hilo_cliente, NULL, handle_connections, client_fd);
         pthread_detach(hilo_cliente);
     }
 
-    log_destroy(log_ks);
+    log_destroy(log_km);
     config_destroy(config);
 
     return 0;
 }
 
-void* handle_conections(void* arg){
+void* handle_connections(void* arg){
     int cod_op = recibir_operacion(socket);
     if(cod_op == -1){
         log_error(log_km, "Error al recibir operacion del cliente");
@@ -74,10 +71,10 @@ void* handle_conections(void* arg){
  				//TODO IMPLEMENTAR
                 //handle_worker(socket);
  				break;
-            case HANDSHAKE_MEMORYSTICK;
+            case HANDSHAKE_MEMORYSTICK:
                 //IMPLEMENTAR
                 break;
-            case HANDSHAKE_SWAP;
+            case HANDSHAKE_SWAP:
                 //IMPLEMENTAR
                 break;
             default:
