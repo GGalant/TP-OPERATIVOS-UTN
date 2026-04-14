@@ -34,19 +34,11 @@ int main(int argc, char *argv[]){
     }
     log_info(log_km, "Kernel Memory iniciado");
     
-    while(1){
-        pthread_t hilo_cliente;
-        // printf("lo q llega del handshake: %d \n", handshake_modulo);
-
-        // if(client_fd == -1){
-        //     log_error(log_km, "Error al aceptar cliente");
-        //     continue;
-        // }
-        // log_info(log_km, "Cliente conectado: %d", client_fd);
-        //TODO duda: malloc para el socket para que no se pisen?;
-        pthread_create(&hilo_cliente, NULL, handle_connections, NULL);
-        pthread_detach(hilo_cliente);
-    }
+    pthread_t hilo_escucha;
+    
+    //TODO duda: malloc para el socket para que no se pisen?;
+    pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
+    pthread_join(hilo_escucha, NULL);
 
     log_destroy(log_km);
     config_destroy(config);
@@ -55,21 +47,17 @@ int main(int argc, char *argv[]){
 }
 
 void* handle_connections(void* arg){
-    int client_fd = esperar_cliente(server_km, log_km);
-    handshake handshake_modulo = recibir_operacion(client_fd);
-    // if(cod_op == -1){
-    //     log_error(log_km, "Error al recibir operacion del cliente");
-    //     return -1;
-    // }
+    while(1) {  
+        int client_fd = esperar_cliente(server_km, log_km);
+        handshake handshake_modulo = recibir_operacion(client_fd);
 
-    switch (handshake_modulo)
- 		{
+        switch (handshake_modulo) {
  			case HANDSHAKE_CPU:
                 //TODO IMPLEMENTAR
  				//handle_query(socket);
  				break;
  			case HANDSHAKE_KS:
-                log_info(log_km, "Cliente conectado: %d", client_fd);
+                log_info(log_km, "Kernel scheduler conectado: %d", client_fd);
  				//TODO IMPLEMENTAR
                 //handle_worker(socket);
  				break;
@@ -84,7 +72,7 @@ void* handle_connections(void* arg){
  				close(socket);
  				break;
  		}
-}
-    
+    }
+}    
 
 

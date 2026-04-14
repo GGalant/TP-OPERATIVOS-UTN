@@ -61,6 +61,8 @@ int main(int argc, char *argv[]){
         pthread_detach(hilo_cliente);
     }
 
+    
+
     log_destroy(log_ks);
     config_destroy(config);
 
