@@ -6,15 +6,18 @@
 int main(int argc, char *argv[]){
 
     char* config_path = argv[1];
+    char* str_log_level;
+    char* puerto_km;
     t_config* config = config_create(config_path);
+    pthread_t hilo_escucha;
     
     if (config == NULL){
         perror("Error al intentar cargar el config");
         return EXIT_FAILURE;
     }
 
-    char* puerto_km = config_get_string_value(config,"PUERTO");
-    char* str_log_level = config_get_string_value(config, "LOG_LEVEL");
+    puerto_km = config_get_string_value(config,"PUERTO");
+    str_log_level = config_get_string_value(config, "LOG_LEVEL");
     
     if(puerto_km == NULL || str_log_level == NULL){
         config_destroy(config);
@@ -34,8 +37,6 @@ int main(int argc, char *argv[]){
     }
     log_info(log_km, "Kernel Memory iniciado");
     
-    pthread_t hilo_escucha;
-    
     //TODO duda: malloc para el socket para que no se pisen?;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
     pthread_join(hilo_escucha, NULL);
@@ -53,7 +54,7 @@ void* handle_connections(void* arg){
 
         switch (handshake_modulo) {
  			case HANDSHAKE_CPU:
-                //TODO IMPLEMENTAR
+                log_info(log_km, "CPU conectada: %d", client_fd);
  				//handle_query(socket);
  				break;
  			case HANDSHAKE_KS:

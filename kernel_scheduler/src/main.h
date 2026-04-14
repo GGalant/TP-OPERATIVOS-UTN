@@ -9,7 +9,7 @@
 
 
 t_log *log_ks;
-
+int server_ks;
 
 void* handle_connections(void* arg);
 
