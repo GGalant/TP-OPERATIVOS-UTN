@@ -1,9 +1,9 @@
 #include "main.h"
 
 int main(int argc, char *argv[]){
-    if(argc < 2){
-        return EXIT_FAILURE;
-    }
+    // if(argc < 2){
+    //     return EXIT_FAILURE;
+    // }
     char* config_path = argv[1];
 
     t_config* config = config_create(config_path);
@@ -34,8 +34,8 @@ int main(int argc, char *argv[]){
     log_info(log_ks, "Kernel Scheduler iniciado");
     
     // CONEXION CON KERNEL MEMORY
-    int client_km = crear_conexion(ip_km, puerto_km);
-    if(client_km == -1){
+    int conexion_km = crear_conexion(ip_km, puerto_km);
+    if(conexion_km == -1){
         log_error(log_ks, "Error al conectar con Kernel Memory en %s:%s", ip_km, puerto_km);
         log_destroy(log_ks);
         config_destroy(config);
@@ -43,6 +43,9 @@ int main(int argc, char *argv[]){
     }
 
     log_info(log_ks, "Conectado a Kernel Memory");
+    
+    handshake handshake_ks = HANDSHAKE_KS;
+    send(conexion_km, &handshake_ks, sizeof(handshake), 0);
     
     // HILOS PARA ATENDER CLIENTES
     while(1){
@@ -54,7 +57,7 @@ int main(int argc, char *argv[]){
         }
         log_info(log_ks, "Cliente conectado: %d", client_fd);
         //(void*)(intptr_t)client_fd sirve para que no se pisen los client_fd antes de que pthread_create cree efectivamente el hilo.
-        pthread_create(&hilo_cliente, NULL, handle_connections, (void*)(intptr_t)client_fd);
+        pthread_create(&hilo_cliente, NULL, handle_connections, (void*)client_fd);
         pthread_detach(hilo_cliente);
     }
 

@@ -105,8 +105,7 @@ void enviar_paquete_send_all(t_paquete* paquete, int socket_cliente) {
     free(a_enviar);
 }
 
-int recibir_operacion(int socket_cliente)
-{
+int recibir_operacion(int socket_cliente){
 	int cod_op;
 	if (recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL) > 0)
 		return cod_op;
