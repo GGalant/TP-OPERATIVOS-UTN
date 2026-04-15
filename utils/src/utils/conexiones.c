@@ -10,7 +10,10 @@ int crear_conexion(char *ip, char* puerto){
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 
-	getaddrinfo(ip, puerto, &hints, &server_info);
+	if(getaddrinfo(ip, puerto, &hints, &server_info)){
+		perror("Error con getaddrinfo, probablemente por ip o puerto incorrectos");
+		return -1;
+	};
 
 	// crear el socket.
 	int socket_cliente = socket(server_info->ai_family,

@@ -14,7 +14,6 @@ int main(int argc, char *argv[]){
     char* ip_km;
     int log_level;
     t_config* config = config_create(config_path);
-    pthread_t hilo_escucha;
 
     if(config == NULL){
         return EXIT_FAILURE;
@@ -53,6 +52,11 @@ int main(int argc, char *argv[]){
     handshake handshake_ks = HANDSHAKE_KS;
     send(conexion_km, &handshake_ks, sizeof(handshake), 0);
 
+    //TODO mover la creacion de hilos al switch dentro de handle_connections para el siguiente checkpoint
+    //handle_connections();
+    //TODO eliminar esto idem arriba
+    
+    pthread_t hilo_escucha;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
     pthread_join(hilo_escucha, NULL);
 
@@ -67,11 +71,13 @@ void* handle_connections(void* arg){
     while(1) {  
         int client_fd = esperar_cliente(server_ks, log_ks);
         handshake handshake_modulo = recibir_operacion(client_fd);
-
+        //pthread_t hilo_escucha;
         switch (handshake_modulo) {
  			case HANDSHAKE_CPU:
                 log_info(log_ks, "## CPU <ID CPU> Conectada: %d", client_fd);
- 				//handle_query(socket);
+ 				// pthread_create(&hilo_escucha, NULL, rutina_que_ejecuta_el_hilo, NULL);
+                // pthread_detach(hilo_escucha);
+                //Entendemos que los hilos deberían estar creados en el switch para destinar cada operación al hilo correspondiente
  				break;
  			case HANDSHAKE_IO:
                 log_info(log_ks, "IO conectada: %d", client_fd);

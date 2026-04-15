@@ -14,6 +14,7 @@ int main(int argc, char *argv[]){
     char* puerto_scheduler;
     char* ip_km;
     char* puerto_km;
+    char* puerto;
     int log_level;
     int err;
    
@@ -28,7 +29,10 @@ int main(int argc, char *argv[]){
     ip_km = config_get_string_value(config, "IP_KM");
     puerto_km= config_get_string_value(config, "PUERTO_KM");
 
+    puerto = config_get_string_value(config, "PUERTO");
 
+    //iniciar servidor
+    server_ms = iniciar_servidor(log_ms, puerto);
 
     //conexiones con Kernel Memory
     int conexion_km = crear_conexion(ip_km, puerto_km);
@@ -50,7 +54,6 @@ int main(int argc, char *argv[]){
     log_info(log_ms, "Conectado a Kernel Memory");
     
 
-
     while(1) {  
         int codigo_operacion = recibir_operacion(conexion_km);
     }
@@ -58,4 +61,20 @@ int main(int argc, char *argv[]){
     log_destroy(log_ms);
     config_destroy(config);
     return 0;
+}
+
+void* handle_connection(void *arg){
+    while(1){
+        int client_fd = esperar_cliente(server_ms, log_ms);
+        handshake handshake_modulo = recibir_operacion(client_fd);
+
+        switch(handshake_modulo){
+            case HANDSHAKE_CPU:
+                log_info(log_ms, "Handshake recibido de CPU");
+                break;
+            default:
+                log_warning(log_ms, "Handshake recibido de un modulo desconocido");
+                break;
+        }
+    }
 }

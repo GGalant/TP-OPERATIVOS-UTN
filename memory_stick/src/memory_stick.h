@@ -8,3 +8,4 @@
 #include <stdlib.h>
 
 t_log* log_ms;
+int server_ms;

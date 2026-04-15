@@ -2,7 +2,7 @@
 
 int main(int argc, char *argv[]){
 
-    if(argc<2){
+    if(argc<3){
         perror("No se proporcionaron todos los argumentos [Archivo Config] [Identificador]");
         return EXIT_FAILURE;
     }
@@ -14,6 +14,8 @@ int main(int argc, char *argv[]){
     char* puerto_ks;
     char* ip_km;
     char* puerto_km;
+    char* ip_ms;
+    char* puerto_ms;
     int log_level;
     t_config* config = config_create(config_path);
 
@@ -29,6 +31,10 @@ int main(int argc, char *argv[]){
 
     ip_km = config_get_string_value(config, "IP_KM");
     puerto_km = config_get_string_value(config, "PUERTO_KM");
+
+    ip_ms= config_get_string_value(config, "IP_MS");
+    puerto_ms = config_get_string_value(config, "PUERTO_MS");
+
 
 
     log_cpu = log_create("cpu.log", "CPU", 1, log_level);
@@ -62,10 +68,15 @@ int main(int argc, char *argv[]){
     send(conexion_km, &handshake_cpu_km, sizeof(handshake), 0);
     log_info(log_cpu, "Conectado a kernel memory");
 
-    log_destroy(log_cpu);
-    config_destroy(config);
+    int conexion_ms = crear_conexion(ip_ms, puerto_ms);
 
-    
+    if(conexion_ms == -1){
+        log_error(log_cpu, "Error al conectar con Memory Stick en %s:%s", ip_ms, puerto_ms);
+        log_destroy(log_cpu);
+        config_destroy(config);
+        return EXIT_FAILURE;
+    }
+
     handshake handshake_cpu_ms = HANDSHAKE_MS;
     send(conexion_ms, &handshake_cpu_ms, sizeof(handshake), 0);
     log_info(log_cpu, "Conectado a Memory Stick");
