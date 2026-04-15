@@ -4,6 +4,7 @@ int main(int argc, char *argv[]){
 
     if(argc<3){
         perror("No se proporcionaron todos los argumentos [Archivo Config] [Tipo]");
+        return EXIT_FAILURE;
     }
 
     char* config_path = argv[1]; 
@@ -30,21 +31,22 @@ int main(int argc, char *argv[]){
 
        if (conexion_ks == -1) { 
         log_error(log_io, "No se pudo conectar con Kernel Scheduler en IP: <%s> , puerto: <%s>", ip_scheduler, puerto_scheduler);
-
-        close(conexion_ks);
+        log_destroy(log_io);
+        config_destroy(config);
         return EXIT_FAILURE;
+        
     }
 
     handshake handshake_io = HANDSHAKE_IO;
     send(conexion_ks, &handshake_io, sizeof(handshake), 0);
     log_info(log_io, "## Conectado a Kernel Scheduler");
-
+    
+    while(1) {  
+        int codigo_operacion = recibir_operacion(conexion_ks);
+    }
+    
     log_destroy(log_io);
     config_destroy(config);
-
-    while(1) {  
-         int codigo_operacion = recibir_operacion(conexion_ks);
-    }
     
     return 0;
 }
