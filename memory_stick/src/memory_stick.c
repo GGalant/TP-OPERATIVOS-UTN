@@ -53,17 +53,20 @@ int main(int argc, char *argv[]){
     } 
     log_info(log_ms, "Conectado a Kernel Memory");
     
-
-    while(1) {  
-        int codigo_operacion = recibir_operacion(conexion_km);
-    }
+    //TODO mover la creacion de hilos al switch dentro de handle_connections para el siguiente checkpoint
+    //handle_connections();
+    //TODO eliminar esto idem arriba
+    
+    pthread_t hilo_escucha;
+    pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
+    pthread_join(hilo_escucha, NULL);
     
     log_destroy(log_ms);
     config_destroy(config);
     return 0;
 }
 
-void* handle_connection(void *arg){
+void* handle_connections(void *arg){
     while(1){
         int client_fd = esperar_cliente(server_ms, log_ms);
         handshake handshake_modulo = recibir_operacion(client_fd);

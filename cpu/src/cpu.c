@@ -77,7 +77,7 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    handshake handshake_cpu_ms = HANDSHAKE_MS;
+    handshake handshake_cpu_ms = HANDSHAKE_CPU;
     send(conexion_ms, &handshake_cpu_ms, sizeof(handshake), 0);
     log_info(log_cpu, "Conectado a Memory Stick");
     
