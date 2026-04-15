@@ -5,7 +5,6 @@
 #include <pthread.h>
 #include <commons/log.h>
 #include <commons/config.h>
-//#include <utils/conexiones.h> serealizacion tiene a conexiones.h
 
 
 t_log *log_ks;

@@ -1,9 +1,13 @@
-#include "main.h"
+#include "io.h"
 
 int main(int argc, char *argv[]){
 
+    if(argc<3){
+        perror("No se proporcionaron todos los argumentos [Archivo Config] [Tipo]");
+    }
+
     char* config_path = argv[1]; 
-    char* config = config_create(config_path);
+    t_config* config = config_create(config_path);
     char* str_log_level;
     char* tipo = argv[2];
     char* puerto_scheduler;
@@ -39,7 +43,7 @@ int main(int argc, char *argv[]){
     config_destroy(config);
 
     while(1) {  
-        // int codigo_operacion = recibir_operacion(conexion_ks);
+         int codigo_operacion = recibir_operacion(conexion_ks);
     }
     
     return 0;

@@ -1,6 +1,12 @@
-#include "main.h"
+#include "kernel_scheduler.h"
 
 int main(int argc, char *argv[]){
+
+    if(argc<2){
+        perror("No se proporcionaron todos los argumentos [Archivo Config]");
+        return EXIT_FAILURE;
+    }
+
     char* config_path = argv[1];
     char* puerto;
     char* str_log_level;
@@ -8,7 +14,6 @@ int main(int argc, char *argv[]){
     char* ip_km;
     int log_level;
     t_config* config = config_create(config_path);
-    pthread_t hilo_escucha;
 
     if(config == NULL){
         return EXIT_FAILURE;
@@ -42,11 +47,16 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    log_info(log_ks, "Conectado a Kernel Memory");
+    log_info(log_ks, "## Conectado a Kernel Memory");
     
     handshake handshake_ks = HANDSHAKE_KS;
     send(conexion_km, &handshake_ks, sizeof(handshake), 0);
 
+    //TODO mover la creacion de hilos al switch dentro de handle_connections para el siguiente checkpoint
+    //handle_connections();
+    //TODO eliminar esto idem arriba
+    
+    pthread_t hilo_escucha;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
     pthread_join(hilo_escucha, NULL);
 
@@ -61,11 +71,13 @@ void* handle_connections(void* arg){
     while(1) {  
         int client_fd = esperar_cliente(server_ks, log_ks);
         handshake handshake_modulo = recibir_operacion(client_fd);
-
+        //pthread_t hilo_escucha;
         switch (handshake_modulo) {
  			case HANDSHAKE_CPU:
-                log_info(log_ks, "CPU conectada: %d", client_fd);
- 				//handle_query(socket);
+                log_info(log_ks, "## CPU <ID CPU> Conectada: %d", client_fd);
+ 				// pthread_create(&hilo_escucha, NULL, rutina_que_ejecuta_el_hilo, NULL);
+                // pthread_detach(hilo_escucha);
+                //Entendemos que los hilos deberían estar creados en el switch para destinar cada operación al hilo correspondiente
  				break;
  			case HANDSHAKE_IO:
                 log_info(log_ks, "IO conectada: %d", client_fd);
@@ -74,7 +86,7 @@ void* handle_connections(void* arg){
  				break;
             default:
  				log_warning(log_ks, "Handshake no reconocido: %d", handshake_modulo);
- 				close(socket);
+ 				//close(socket);
  				break;
  		}
     }

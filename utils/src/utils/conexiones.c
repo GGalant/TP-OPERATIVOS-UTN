@@ -1,5 +1,6 @@
 #include "utils/conexiones.h"
 
+//Se conecta a un servidor. Devuelve un FileDescriptor o un -1 en caso de error.
 int crear_conexion(char *ip, char* puerto){
 	struct addrinfo hints;
 	struct addrinfo *server_info;
@@ -9,7 +10,10 @@ int crear_conexion(char *ip, char* puerto){
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 
-	getaddrinfo(ip, puerto, &hints, &server_info);
+	if(getaddrinfo(ip, puerto, &hints, &server_info)){
+		perror("Error con getaddrinfo, probablemente por ip o puerto incorrectos");
+		return -1;
+	};
 
 	// crear el socket.
 	int socket_cliente = socket(server_info->ai_family,
@@ -26,7 +30,7 @@ int crear_conexion(char *ip, char* puerto){
 
 	if (conexion == -1) {
 	    perror("Error al conectar");
-	    pclose(socket_cliente);
+	    close(socket_cliente);
 		return -1;
 	}
 
@@ -35,6 +39,7 @@ int crear_conexion(char *ip, char* puerto){
 	return socket_cliente;
 }
 
+//Se disponibiliza un servidor. Devuelve un FileDescriptor en listen o un -1 en caso de error.
 int iniciar_servidor(t_log *logger, char *puerto)
 {
 	int socket_servidor;
@@ -81,13 +86,15 @@ int iniciar_servidor(t_log *logger, char *puerto)
 	return socket_servidor;
 }
 
+//Se espera una conexión de un cliente al socket del servidor mediante accept(socket,,). Devuelve el FileDescriptor o -1 en caso de error
 int esperar_cliente(int socket_servidor, t_log *logger)
 {
 
 	// Aceptamos un nuevo cliente
 	int socket_cliente = accept(socket_servidor, NULL, NULL);
 
-	log_info(logger, "Se conectó un cliente!");
+	//Para loguear esto primero habria que chequear que accept no haya fracasado
+	//log_info(logger, "Se conectó un cliente!");
 
 	return socket_cliente;
 } 

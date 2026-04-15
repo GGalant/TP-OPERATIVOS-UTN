@@ -1,9 +1,14 @@
-#include "main.h"
+#include "kernel_memory.h"
 //#include "globales.c" idea a desarrollar despues
 
 //t_log* log_km;
 
 int main(int argc, char *argv[]){
+
+    if(argc<2){
+        perror("No se proporcionaron todos los argumentos [Archivo Config]");
+        return EXIT_FAILURE;
+    }
 
     char* config_path = argv[1];
     char* str_log_level;
@@ -39,7 +44,7 @@ int main(int argc, char *argv[]){
     
     //TODO duda: malloc para el socket para que no se pisen?;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
-    pthread_join(hilo_escucha, NULL);
+    pthread_join(hilo_escucha, NULL); // Sirve para esperar a que un hilo termine su ejecución
 
     log_destroy(log_km);
     config_destroy(config);
@@ -54,23 +59,23 @@ void* handle_connections(void* arg){
 
         switch (handshake_modulo) {
  			case HANDSHAKE_CPU:
-                log_info(log_km, "CPU conectada: %d", client_fd);
+                log_info(log_km, "CPU <CPU_ID> Conectada");
  				//handle_query(socket);
  				break;
  			case HANDSHAKE_KS:
-                log_info(log_km, "Kernel scheduler conectado: %d", client_fd);
+                log_info(log_km, "Kernel Scheduler Conectado - FD del socket: %d", client_fd);
  				//TODO IMPLEMENTAR
                 //handle_worker(socket);
  				break;
-            case HANDSHAKE_MEMORYSTICK:
-                //IMPLEMENTAR
+            case HANDSHAKE_MS:
+                log_info(log_km, "Memory Stick de <TAMAÑO> bytes Conectada");
                 break;
             case HANDSHAKE_SWAP:
                 //IMPLEMENTAR
                 break;
             default:
  				log_warning(log_km, "Handshake no reconocido: %d", handshake_modulo);
- 				close(socket);
+ 				//close(socket);
  				break;
  		}
     }
