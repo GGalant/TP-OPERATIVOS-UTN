@@ -5,6 +5,10 @@
 
 int main(int argc, char *argv[]){
 
+    if(argc<2){
+        perror("No se proporcionó la ruta del archivo de configuración como argumento");
+    }
+
     char* config_path = argv[1];
     char* str_log_level;
     char* puerto_km;
@@ -39,7 +43,7 @@ int main(int argc, char *argv[]){
     
     //TODO duda: malloc para el socket para que no se pisen?;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
-    pthread_join(hilo_escucha, NULL);
+    pthread_join(hilo_escucha, NULL); // Sirve para esperar a que un hilo termine su ejecución
 
     log_destroy(log_km);
     config_destroy(config);
@@ -70,7 +74,7 @@ void* handle_connections(void* arg){
                 break;
             default:
  				log_warning(log_km, "Handshake no reconocido: %d", handshake_modulo);
- 				close(socket);
+ 				//close(socket);
  				break;
  		}
     }
