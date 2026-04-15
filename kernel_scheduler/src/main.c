@@ -74,7 +74,7 @@ void* handle_connections(void* arg){
  				break;
             default:
  				log_warning(log_ks, "Handshake no reconocido: %d", handshake_modulo);
- 				close(socket);
+ 				//close(socket);
  				break;
  		}
     }

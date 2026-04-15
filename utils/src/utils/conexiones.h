@@ -5,6 +5,8 @@
 #include<commons/config.h>
 #include<errno.h>
 #include<netdb.h>
+#include<string.h>
+#include<unistd.h>
 
 
 typedef enum {  
@@ -16,7 +18,7 @@ typedef enum {
     HANDSHAKE_MEMORYSTICK
 }handshake;
 
-
+        
 typedef enum {
     MENSAJE,
     PAQUETE
@@ -25,3 +27,4 @@ typedef enum {
 int crear_conexion(char *ip, char* puerto);
 int iniciar_servidor(t_log *logger, char *puerto);
 int esperar_cliente(int socket_servidor, t_log* logger);
+    
