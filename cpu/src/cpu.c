@@ -1,6 +1,12 @@
-#include "main.h"
+#include "cpu.h"
 
 int main(int argc, char *argv[]){
+
+    if(argc<2){
+        perror("No se proporcionaron todos los argumentos [Archivo Config] [Identificador]");
+        return EXIT_FAILURE;
+    }
+
     char* config_path = argv[1]; 
     char* id_cpu = argv[2];
     char* str_log_level;
@@ -59,10 +65,18 @@ int main(int argc, char *argv[]){
     log_destroy(log_cpu);
     config_destroy(config);
 
+    
+    handshake handshake_cpu_ms = HANDSHAKE_MS;
+    send(conexion_ms, &handshake_cpu_ms, sizeof(handshake), 0);
+    log_info(log_cpu, "Conectado a Memory Stick");
+    
+    log_destroy(log_cpu);
+    config_destroy(config);
+    
     while(1) {
         // Podriamos ver si podemos implementar hilos para recibir operaciones tanto de KS como de KM  
-        //int codigo_operacion = recibir_operacion()
+        int codigo_operacion = recibir_operacion(conexion_ks);
     }
-
+    
     return 0;
 }

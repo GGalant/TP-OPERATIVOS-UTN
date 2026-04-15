@@ -1,6 +1,11 @@
-#include "main.h"
+#include "swap.h"
 
 int main(int argc, char* argv[]) { 
+
+    if(argc<2){
+        perror("No se proporcionaron todos los argumentos [Archivo Config]");
+        return EXIT_FAILURE;
+    }
 
     char* config_path = argv[1];
     t_config* config = config_create(config_path);

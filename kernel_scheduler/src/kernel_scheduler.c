@@ -1,6 +1,12 @@
-#include "main.h"
+#include "kernel_scheduler.h"
 
 int main(int argc, char *argv[]){
+
+    if(argc<2){
+        perror("No se proporcionaron todos los argumentos [Archivo Config]");
+        return EXIT_FAILURE;
+    }
+
     char* config_path = argv[1];
     char* puerto;
     char* str_log_level;
@@ -42,7 +48,7 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    log_info(log_ks, "Conectado a Kernel Memory");
+    log_info(log_ks, "## Conectado a Kernel Memory");
     
     handshake handshake_ks = HANDSHAKE_KS;
     send(conexion_km, &handshake_ks, sizeof(handshake), 0);
@@ -64,7 +70,7 @@ void* handle_connections(void* arg){
 
         switch (handshake_modulo) {
  			case HANDSHAKE_CPU:
-                log_info(log_ks, "CPU conectada: %d", client_fd);
+                log_info(log_ks, "## CPU <ID CPU> Conectada: %d", client_fd);
  				//handle_query(socket);
  				break;
  			case HANDSHAKE_IO:

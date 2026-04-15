@@ -1,4 +1,4 @@
-#include "main.h"
+#include "kernel_memory.h"
 //#include "globales.c" idea a desarrollar despues
 
 //t_log* log_km;
@@ -6,7 +6,8 @@
 int main(int argc, char *argv[]){
 
     if(argc<2){
-        perror("No se proporcionó la ruta del archivo de configuración como argumento");
+        perror("No se proporcionaron todos los argumentos [Archivo Config]");
+        return EXIT_FAILURE;
     }
 
     char* config_path = argv[1];
@@ -58,16 +59,16 @@ void* handle_connections(void* arg){
 
         switch (handshake_modulo) {
  			case HANDSHAKE_CPU:
-                log_info(log_km, "CPU conectada: %d", client_fd);
+                log_info(log_km, "CPU <CPU_ID> Conectada");
  				//handle_query(socket);
  				break;
  			case HANDSHAKE_KS:
-                log_info(log_km, "Kernel scheduler conectado: %d", client_fd);
+                log_info(log_km, "Kernel Scheduler Conectado - FD del socket: %d", client_fd);
  				//TODO IMPLEMENTAR
                 //handle_worker(socket);
  				break;
-            case HANDSHAKE_MEMORYSTICK:
-                //IMPLEMENTAR
+            case HANDSHAKE_MS:
+                log_info(log_km, "Memory Stick de <TAMAÑO> bytes Conectada");
                 break;
             case HANDSHAKE_SWAP:
                 //IMPLEMENTAR
