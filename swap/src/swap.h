@@ -6,3 +6,5 @@
 #include<errno.h>
 #include<unistd.h>
 
+t_log* log_swap;
+int conexion_kernel_memory; 

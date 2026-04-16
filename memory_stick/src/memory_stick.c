@@ -58,9 +58,13 @@ int main(int argc, char *argv[]){
     //TODO eliminar esto idem arriba
     
     pthread_t hilo_escucha;
+    pthread_t hilo_km;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
+    pthread_create(&hilo_km, NULL, handle_km, (void*)(int)conexion_km);
+
     pthread_join(hilo_escucha, NULL);
-    
+    pthread_join(hilo_km, NULL);
+
     log_destroy(log_ms);
     config_destroy(config);
     return 0;
@@ -69,14 +73,62 @@ int main(int argc, char *argv[]){
 void* handle_connections(void *arg){
     while(1){
         int client_fd = esperar_cliente(server_ms, log_ms);
-        handshake handshake_modulo = recibir_operacion(client_fd);
+
+        int *socket_cliente = malloc(sizeof(int));
+        *socket_cliente = client_fd;
+
+        handshake handshake_modulo = recibir_operacion(*socket_cliente);
 
         switch(handshake_modulo){
             case HANDSHAKE_CPU:
-                log_info(log_ms, "Handshake recibido de CPU");
+                pthread_t hilo_cpu;
+				pthread_create(&hilo_cpu, NULL, handle_cpu, (void*)(int)*socket_cliente);
+				pthread_detach(hilo_cpu);
                 break;
             default:
                 log_warning(log_ms, "Handshake recibido de un modulo desconocido");
+                break;
+        }
+    }
+}
+
+void* handle_km(void* arg) {    
+    int socket_km = (int)(void*)arg;
+    
+    log_info(log_ms, "## Conectado a Kernel Memory");
+    
+    handshake handshake_ks = HANDSHAKE_KS;
+    send(socket_km, &handshake_ks, sizeof(handshake), 0);
+
+    while(true) {   
+        // aca iria la logica de operaciones con Kernel Memory
+        int codigo_operacion = recibir_operacion(socket_km);
+
+        switch(codigo_operacion) {
+            case -1:
+                log_error(log_ms, "El servidor Kernel Memory se desconectó. Terminando hilo.");
+                return NULL;
+            default:
+                log_warning(log_ms, "operacion desconocida: %d", codigo_operacion);
+                break;
+        }
+    }
+}
+
+void* handle_cpu(void* arg) {    
+    int socket_cpu = (int)(void*)arg;
+    
+    log_info(log_ms, "CPU <CPU_ID> Conectada");
+
+    while(true) {   
+        int codigo_operacion = recibir_operacion(socket_cpu);
+
+        switch(codigo_operacion) {
+            case -1:
+                log_error(log_ms, "CPU FD %d se desconectó. Terminando handle", socket_cpu);
+                return NULL;
+            default:
+                log_warning(log_ms, "operacion desconocida: %d", codigo_operacion);
                 break;
         }
     }

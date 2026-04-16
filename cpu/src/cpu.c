@@ -18,6 +18,7 @@ int main(int argc, char *argv[]){
     char* puerto_ms;
     int log_level;
     t_config* config = config_create(config_path);
+    pthread_t hilo_ks;
 
     if(config == NULL){
         return EXIT_FAILURE;
@@ -53,7 +54,9 @@ int main(int argc, char *argv[]){
 
     handshake handshake_cpu_ks = HANDSHAKE_CPU;
     send(conexion_ks, &handshake_cpu_ks, sizeof(handshake), 0);
-    log_info(log_cpu, "Conectado a kernel scheduler");
+
+    pthread_create(&hilo_ks, NULL, handle_ks, (void*)(int)conexion_ks);
+	
 
     int conexion_km = crear_conexion(ip_km, puerto_km);
 
@@ -66,7 +69,6 @@ int main(int argc, char *argv[]){
 
     handshake handshake_cpu_km = HANDSHAKE_CPU;
     send(conexion_km, &handshake_cpu_km, sizeof(handshake), 0);
-    log_info(log_cpu, "Conectado a kernel memory");
 
     int conexion_ms = crear_conexion(ip_ms, puerto_ms);
 
@@ -80,14 +82,44 @@ int main(int argc, char *argv[]){
     handshake handshake_cpu_ms = HANDSHAKE_CPU;
     send(conexion_ms, &handshake_cpu_ms, sizeof(handshake), 0);
     log_info(log_cpu, "Conectado a Memory Stick");
+
+    while(true) {   
+        int codigo_operacion = recibir_operacion(conexion_km);
+
+        switch(codigo_operacion) {  
+            case -1:
+                log_error(log_cpu, "El servidor Kernel Memory se desconectó.");
+                return EXIT_FAILURE;  
+            default:
+                log_warning(log_cpu, "operacion desconocida: %d", codigo_operacion);
+                break;
+        }
+    }
     
+    pthread_join(hilo_ks, NULL);
+
     log_destroy(log_cpu);
     config_destroy(config);
     
-    while(1) {
-        // Podriamos ver si podemos implementar hilos para recibir operaciones tanto de KS como de KM  
-        int codigo_operacion = recibir_operacion(conexion_ks);
-    }
-    
     return 0;
+}
+
+void* handle_ks(void* arg) {    
+    int socket_ks = (int)(void*)arg;
+    
+    log_info(log_cpu, "Conectado a kernel scheduler");
+
+    while(true) {   
+        // aca iria la logica de operaciones con Kernel Schedule
+        int codigo_operacion = recibir_operacion(socket_ks);
+
+        switch(codigo_operacion) {
+            case -1:
+                log_error(log_cpu, "El servidor Kernel Scheduler se desconectó. Terminando hilo.");
+                return NULL;
+            default:
+                log_warning(log_cpu, "operacion desconocida: %d", codigo_operacion);
+                break;
+        }
+    }
 }
