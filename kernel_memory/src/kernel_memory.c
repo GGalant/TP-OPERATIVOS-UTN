@@ -71,7 +71,7 @@ void* handle_connections(void* arg){
                 log_info(log_km, "Memory Stick de <TAMAÑO> bytes Conectada");
                 break;
             case HANDSHAKE_SWAP:
-                //IMPLEMENTAR
+                //TODO IMPLEMENTAR
                 break;
             default:
  				log_warning(log_km, "Handshake no reconocido: %d", handshake_modulo);

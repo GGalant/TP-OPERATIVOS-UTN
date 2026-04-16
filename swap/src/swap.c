@@ -16,10 +16,12 @@ int main(int argc, char* argv[]) {
 
     char* ip_kernel_memory = config_get_string_value(config, "IP_KERNEL_MEMORY");
     char* puerto_kernel_memory = config_get_string_value(config, "PUERTO_KERNEL_MEMORY");
-    char* log_level = config_get_string_value(config, "LOG_LEVEL");
+    char* string_log_level = config_get_string_value(config, "LOG_LEVEL");
     char* file_path = config_get_string_value(config, "SWAP_FILE_PATH");
     char* file_size = config_get_string_value(config, "SWAP_FILE_SIZE");
     int conexion_kernel_memory; 
+
+    t_log_level log_level = log_level_from_string(string_log_level);
     
     t_log* log_swap = log_create("swap.log", "SWAP", true, log_level);
 
@@ -29,7 +31,7 @@ int main(int argc, char* argv[]) {
         log_error(log_swap, "No se pudo conectar con Kernel Memory en IP: <%s> , puerto: <%s>", ip_kernel_memory, puerto_kernel_memory);
 
         close(conexion_kernel_memory);
-        return EXIT_FAILIRE;
+        return EXIT_FAILURE;
     }
 
     log_info(log_swap, "## Conectado a Kernel Memory");

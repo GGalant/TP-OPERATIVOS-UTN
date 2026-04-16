@@ -98,21 +98,3 @@ int esperar_cliente(int socket_servidor, t_log *logger)
 
 	return socket_cliente;
 } 
-
-int conectar_a_master(char* ip_master, char* puerto_master, t_log* logger, t_log* logger_debug, handshake handshake_modulo) {
-    int conexion_master = crear_conexion(ip_master, puerto_master);
-
-    if(conexion_master == -1){
-        log_error(logger, "No se pudo conectar con Master en IP: %s, Puerto: %s", ip_master, puerto_master);
-
-        close(conexion_master);
-        return -1;
-    }
-
-    log_info(logger, "## Conexión establecida con Master en IP: <%s>, Puerto: <%s>", ip_master, puerto_master);
-
-    //handshake_master(conexion_master, logger_debug_query);
-	send(conexion_master, &handshake_modulo, sizeof(handshake), 0);
-
-    return conexion_master;
-}
