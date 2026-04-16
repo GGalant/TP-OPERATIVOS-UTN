@@ -12,3 +12,5 @@ t_log* log_ms;
 int server_ms;
 
 void* handle_connections(void* arg);
+void* handle_km(void* arg);
+void* handle_cpu(void* arg);

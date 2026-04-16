@@ -3,3 +3,5 @@
 #include "utils/serializacion.h"
 
 t_log* log_cpu;
+
+void* handle_ks(void* arg);

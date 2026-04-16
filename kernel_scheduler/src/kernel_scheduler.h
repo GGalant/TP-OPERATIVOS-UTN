@@ -11,5 +11,8 @@ t_log *log_ks;
 int server_ks;
 
 void* handle_connections(void* arg);
+void* handle_km(void* arg);
+void* handle_cpu(void* arg);
+void* handle_io(void* arg);
 
 //#endif /* KERNEL_SCHEDULER_H_ */

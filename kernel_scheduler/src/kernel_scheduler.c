@@ -47,18 +47,18 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    log_info(log_ks, "## Conectado a Kernel Memory");
-    
-    handshake handshake_ks = HANDSHAKE_KS;
-    send(conexion_km, &handshake_ks, sizeof(handshake), 0);
-
     //TODO mover la creacion de hilos al switch dentro de handle_connections para el siguiente checkpoint
     //handle_connections();
     //TODO eliminar esto idem arriba
     
     pthread_t hilo_escucha;
+    pthread_t hilo_km;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
+    pthread_create(&hilo_km, NULL, handle_km, (void*)(int)conexion_km);
+
+    // dejar los pthread_join al final del main para que no bloqueen el main 
     pthread_join(hilo_escucha, NULL);
+    pthread_join(hilo_km, NULL);
 
     log_destroy(log_ks);
     config_destroy(config);
@@ -70,19 +70,25 @@ int main(int argc, char *argv[]){
 void* handle_connections(void* arg){
     while(1) {  
         int client_fd = esperar_cliente(server_ks, log_ks);
-        handshake handshake_modulo = recibir_operacion(client_fd);
-        //pthread_t hilo_escucha;
+
+        int *socket_cliente = malloc(sizeof(int));
+        *socket_cliente = client_fd;
+
+        handshake handshake_modulo = recibir_operacion(*socket_cliente);
+
         switch (handshake_modulo) {
  			case HANDSHAKE_CPU:
-                log_info(log_ks, "## CPU <ID CPU> Conectada: %d", client_fd);
- 				// pthread_create(&hilo_escucha, NULL, rutina_que_ejecuta_el_hilo, NULL);
-                // pthread_detach(hilo_escucha);
+                pthread_t hilo_cpu;
+				pthread_create(&hilo_cpu, NULL, handle_cpu, socket_cliente);
+				pthread_detach(hilo_cpu);
                 //Entendemos que los hilos deberían estar creados en el switch para destinar cada operación al hilo correspondiente
  				break;
  			case HANDSHAKE_IO:
-                log_info(log_ks, "IO conectada: %d", client_fd);
+                // No se si es necesario un hilo para este modulo
+                pthread_t hilo_io;
+				pthread_create(&hilo_io, NULL, handle_io, socket_cliente);
+				pthread_detach(hilo_io);
  				//TODO IMPLEMENTAR
-                //handle_worker(socket);
  				break;
             default:
  				log_warning(log_ks, "Handshake no reconocido: %d", handshake_modulo);
@@ -90,5 +96,67 @@ void* handle_connections(void* arg){
  				break;
  		}
     }
-}    
+}
 
+void* handle_km(void* arg) {    
+    int socket_km = (int)(void*)arg;
+    
+    log_info(log_ks, "## Conectado a Kernel Memory");
+    
+    handshake handshake_ks = HANDSHAKE_KS;
+    send(socket_km, &handshake_ks, sizeof(handshake), 0);
+
+    while(true) {   
+        // aca iria la logica de operaciones con Kernel Memory
+        int codigo_operacion = recibir_operacion(socket_km);
+
+        switch(codigo_operacion) {
+            case -1:
+                log_error(log_ks, "El servidor Kernel Memory se desconectó. Terminando hilo.");
+                return NULL;
+            default:
+                log_warning(log_ks, "operacion desconocida: %d", codigo_operacion);
+                break;
+        }
+    }
+}
+
+void* handle_cpu(void* arg) {    
+    int socket_cpu = *(int*)arg;
+    
+    log_info(log_ks, "## CPU <ID CPU> Conectada: %d", socket_cpu);
+
+    while(true) {   
+        // aca iria la logica de operaciones con CPU 
+        int codigo_operacion = recibir_operacion(socket_cpu);
+
+        switch(codigo_operacion) {
+            case -1:
+                log_error(log_ks, "CPU FD %d se desconectó. Terminando handle", socket_cpu);
+                return NULL;
+            default:
+                log_warning(log_ks, "operacion desconocida: %d", codigo_operacion);
+                break;
+        }
+    }
+}
+
+void* handle_io(void* arg) {    
+    int socket_io = *(int*)arg;
+    
+    log_info(log_ks, "IO conectada: %d", socket_io);
+
+    while(true) {   
+        // aca iria la logica de operaciones con IO 
+        int codigo_operacion = recibir_operacion(socket_io);
+
+        switch(codigo_operacion) {
+            case -1:
+                log_error(log_ks, "IO FD %d se desconectó. Terminando handle", socket_io);
+                return NULL;
+            default:
+                log_warning(log_ks, "operacion desconocida: %d", codigo_operacion);
+                break;
+        }
+    }
+}
