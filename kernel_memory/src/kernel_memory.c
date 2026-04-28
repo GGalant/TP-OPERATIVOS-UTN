@@ -41,6 +41,8 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
     log_info(log_km, "Kernel Memory iniciado");
+
+    diccionario_por_pid = dictionary_create();
     
     //TODO duda: malloc para el socket para que no se pisen?;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
@@ -120,15 +122,88 @@ void* handle_cpu(void* arg) {
     log_info(log_km, "CPU <CPU_ID> Conectada");
 
     while(true) {   
-        int codigo_operacion = recibir_operacion(socket_cpu);
+        //int codigo_operacion = recibir_operacion(socket_cpu);
+        op_code codigo_operacion = recibir_operacion(socket_cpu);
 
         switch(codigo_operacion) {
             case -1:
                 log_error(log_km, "CPU FD %d se desconectó. Terminando handle", socket_cpu);
+                close(socket_cpu);
                 return NULL;
+            
+            case ENVIAR_CONTEXTO:
+                //TODO: *****recibir pid de la cpu******
+                int pid_recibido;
+                char *str_pid_enviado = string_itoa(pid_recibido);
+                t_contextoEjec* contexto_a_enviar = dictionary_get(diccionario_por_pid, str_pid_enviado);
+                if(contexto_a_enviar == NULL){
+                    log_error(log_km,"No hay un contexto guardado para el PID <%d>", pid_recibido);
+                }else{
+                    t_paquete *paquete_contexto = crear_paquete(ENVIAR_CONTEXTO);
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->pid),sizeof(int));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->pc), sizeof(uint32_t));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->ax), sizeof(uint8_t));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->bx), sizeof(uint8_t));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->cx), sizeof(uint8_t));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->dx), sizeof(uint8_t));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->eax), sizeof(uint32_t));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->ebx), sizeof(uint32_t));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->ecx), sizeof(uint32_t));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->edx), sizeof(uint32_t));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->si), sizeof(uint32_t));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->di), sizeof(uint32_t));
+
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->tabla_segmentos),sizeof(t_tabla_segmentos));
+                    enviar_paquete_send_all(paquete_contexto,socket_cpu);
+                    eliminar_paquete(paquete_contexto);
+
+                    }
+
+                    free(str_pid_enviado);
+            break;
+
+
+            case RECIBIR_CONTEXTO:
+            
+                t_list* contexto_cpu = recibir_paquete(socket_cpu);
+                int pid = *(int*)list_get(contexto_cpu, 0);
+                char* str_pid_recibido = string_itoa(pid);
+                t_contextoEjec* contexto = dictionary_get(diccionario_por_pid, str_pid_recibido);
+
+                if (contexto == NULL) {
+                    //si es proceso nuevo
+                    contexto = malloc(sizeof(t_contextoEjec));
+                    contexto->pid = pid;
+                    contexto->tabla_segmentos = NULL; //por ahora
+
+                    dictionary_put(diccionario_por_pid, str_pid_recibido, contexto);
+                    log_info(log_km, "PID <%d> nuevo guardado correctamente!", contexto->pid);
+
+                } else {
+                    //liberamos porque no usamos key nueva, era una ya existente
+                    free(str_pid_recibido);
+                }
+                
+                contexto->pc = *(uint32_t*)list_get(contexto_cpu, 1);
+                contexto->ax = *(uint8_t*)list_get(contexto_cpu, 2);
+                contexto->bx = *(uint8_t*)list_get(contexto_cpu, 3);
+                contexto->cx = *(uint8_t*)list_get(contexto_cpu, 4);
+                contexto->dx = *(uint8_t*)list_get(contexto_cpu, 5);
+                contexto->eax = *(uint32_t*)list_get(contexto_cpu, 6);
+                contexto->ebx = *(uint32_t*)list_get(contexto_cpu, 7);
+                contexto->ecx = *(uint32_t*)list_get(contexto_cpu, 8);
+                contexto->edx = *(uint32_t*)list_get(contexto_cpu, 9);
+                contexto->si = *(uint32_t*)list_get(contexto_cpu, 10);
+                contexto->di = *(uint32_t*)list_get(contexto_cpu, 11);
+
+                log_info(log_km, "PID <%d> y contexto nuevo guardado correctamente", contexto->pid);
+                list_destroy_and_destroy_elements(contexto_cpu, free);
+            break;
+    
             default:
                 log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
-                break;
+            
+            break;
         }
     }
 }

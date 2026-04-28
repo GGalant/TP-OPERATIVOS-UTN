@@ -23,7 +23,9 @@ typedef enum {
         
 typedef enum {
     MENSAJE,
-    PAQUETE
+    PAQUETE,
+    ENVIAR_CONTEXTO, // de kernel memory, para recibir de cpu
+    RECIBIR_CONTEXTO // de kernel memory, para recibir de cpu
 }op_code;
 
 int crear_conexion(char *ip, char* puerto);
