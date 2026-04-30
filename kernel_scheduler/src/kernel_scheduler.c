@@ -1,5 +1,22 @@
 #include "kernel_scheduler.h"
 
+// Definiciones de variables globales
+const int PRIORIDAD_MAXIMA = 0;
+t_list* lista_mutex;
+t_list* cola_ready;
+t_list* cola_block;
+t_list* cola_exec;
+t_list* lista_cpu_conectadas;
+t_log *log_ks;
+int server_ks;
+int pid_inicial = 1;
+pthread_mutex_t mutex_cola_ready;
+pthread_mutex_t mutex_cola_block;
+pthread_mutex_t mutex_lista_cpu_conectadas;
+pthread_cond_t cond_cola_ready;
+pthread_cond_t cond_cola_block;
+pthread_cond_t cond_lista_cpu_conectadas;
+
 int main(int argc, char *argv[]){
 
     if(argc<2){
@@ -8,17 +25,29 @@ int main(int argc, char *argv[]){
     }
 
     char* config_path = argv[1];
+    char* path_proceso_inicial = argv[2];
     char* puerto;
     char* str_log_level;
     char* puerto_km;
     char* ip_km;
     int log_level;
     t_config* config = config_create(config_path);
+    cola_ready = list_create();
+    cola_block = list_create();
+    cola_exec = list_create();
+    lista_mutex = list_create();
+    lista_cpu_conectadas = list_create();
+    pthread_mutex_init(&mutex_cola_ready, NULL);
+    pthread_mutex_init(&mutex_cola_block, NULL);
+    pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
+    pthread_cond_init(&cond_cola_ready, NULL);
+    pthread_cond_init(&cond_cola_block, NULL);
+    pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
 
     if(config == NULL){
         return EXIT_FAILURE;
     }
-
+    
     ip_km = config_get_string_value(config, "IP_KM");
     puerto_km = config_get_string_value(config, "PUERTO_KM");
     str_log_level = config_get_string_value(config, "LOG_LEVEL");
@@ -47,16 +76,20 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    //TODO mover la creacion de hilos al switch dentro de handle_connections para el siguiente checkpoint
-    //handle_connections();
-    //TODO eliminar esto idem arriba
+    log_info(log_ks, "## Conectado a Kernel Memory");
     
+    handshake handshake_ks = HANDSHAKE_KS;
+    send(conexion_km, &handshake_ks, sizeof(handshake), 0);
+
+    crear_proceso_inicial(conexion_km, path_proceso_inicial);
+
     pthread_t hilo_escucha;
     pthread_t hilo_km;
+    int* conexion_km_ptr = malloc(sizeof(int));
+    *conexion_km_ptr = conexion_km;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
-    pthread_create(&hilo_km, NULL, handle_km, (void*)(int)conexion_km);
+    pthread_create(&hilo_km, NULL, handle_km, conexion_km_ptr);
 
-    // dejar los pthread_join al final del main para que no bloqueen el main 
     pthread_join(hilo_escucha, NULL);
     pthread_join(hilo_km, NULL);
 
@@ -99,12 +132,8 @@ void* handle_connections(void* arg){
 }
 
 void* handle_km(void* arg) {    
-    int socket_km = (int)(void*)arg;
-    
-    log_info(log_ks, "## Conectado a Kernel Memory");
-    
-    handshake handshake_ks = HANDSHAKE_KS;
-    send(socket_km, &handshake_ks, sizeof(handshake), 0);
+    int socket_km = *(int*)arg;
+    free(arg);
 
     while(true) {   
         // aca iria la logica de operaciones con Kernel Memory
@@ -123,9 +152,28 @@ void* handle_km(void* arg) {
 
 void* handle_cpu(void* arg) {    
     int socket_cpu = *(int*)arg;
-    
-    log_info(log_ks, "## CPU <ID CPU> Conectada: %d", socket_cpu);
+    free(arg);
+    int cpu_id_recibido;
 
+    cpu_id_recibido = recibir_cpu_id(socket_cpu);
+    if (cpu_id_recibido >= 0) { 
+        t_cpu* cpu = malloc(sizeof(t_cpu));
+        cpu->cpu_id = cpu_id_recibido;
+        cpu->socket_cpu = socket_cpu;
+        cpu->estado = CPU_LIBRE;
+        cpu->pid_actual = -1;
+
+        pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+        list_add(lista_cpu_conectadas, cpu);
+        pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+
+        log_info(log_ks, "## CPU <ID CPU> Conectada: %d", cpu_id_recibido);
+    } else {    
+        perror("No se le pudo asignar un ID a la CPU");
+        close(socket_cpu);
+        return NULL;
+    }
+    
     while(true) {   
         // aca iria la logica de operaciones con CPU 
         int codigo_operacion = recibir_operacion(socket_cpu);
@@ -143,6 +191,7 @@ void* handle_cpu(void* arg) {
 
 void* handle_io(void* arg) {    
     int socket_io = *(int*)arg;
+    free(arg);
     
     log_info(log_ks, "IO conectada: %d", socket_io);
 
@@ -160,3 +209,84 @@ void* handle_io(void* arg) {
         }
     }
 }
+// Kernel memory debería recibir el proceso (Vick y Aylu)
+void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {    
+    
+    enviar_proceso(socket_km, 0, path_proceso_inicial);
+    
+    // Esperamos la confirmación de Kernel Memory
+    op_code codigo_operacion = recibir_operacion(socket_km);
+
+    if (codigo_operacion == INICIALIZAR_PROCESO_OK) {
+        t_proceso_pcb* pcb_proceso_inicial = crear_pcb(0, PRIORIDAD_MAXIMA);
+
+        pcb_proceso_inicial->estado = READY;
+        // aca podriamos proteger la variable global con un mutex de C
+        list_add(cola_ready, pcb_proceso_inicial);
+    } else {
+        log_error(log_ks, "Error al crear el proceso inicial en Kernel Memory. Código de op: %d", codigo_operacion);
+        return; 
+    }
+}
+
+
+// Envia la operacion para que KM cree las estructuras internas para el proceso
+void enviar_proceso(int socket_km, int pid, char* path_proceso) { 
+    op_code codigo_operacion = INICIALIZAR_PROCESO;  
+    
+    t_paquete *paquete_proceso = crear_paquete(codigo_operacion);
+
+    agregar_a_paquete(paquete_proceso, &pid, sizeof(int));
+    agregar_a_paquete(paquete_proceso, path_proceso, strlen(path_proceso) + 1);
+
+    enviar_paquete_send_all(paquete_proceso, socket_km);
+    
+    eliminar_paquete(paquete_proceso);
+}
+
+t_proceso_pcb* crear_pcb(int pid, int prioridad) {
+    t_proceso_pcb* pcb = malloc(sizeof(t_proceso_pcb));
+
+    pcb->pid = pid;
+    pcb->prioridad = prioridad;
+    pcb->estado = NEW;
+    pcb->nombre_mutex = NULL;
+    pcb->pc = 0;
+    pcb->quantum = 0; 
+
+    log_info(log_ks, "## (<%d>) Se crea el proceso - Estado: NEW", pid);
+
+    return pcb;
+}
+
+/**
+ * Obtener el PID de un proceso
+ * obtener_pid() {}
+ */
+
+
+int recibir_cpu_id(int socket){
+	int cpu_id;
+	int tamanio_recibido = recv(socket, &cpu_id, sizeof(int), MSG_WAITALL);
+	if(tamanio_recibido > 0){
+        printf("este es el id que me llega: %d\n",cpu_id);
+	    return cpu_id;
+    } else {
+        perror("No se recibio ningun ID");
+        return -1;
+    }
+
+}
+
+//Algo así debería hacer Gabi, para poder enviarnos el id (id), intentar enviarlo como MENSAJE, no como paquete :)
+// void enviar_cpu_id(int socket_ks) {  
+//     op_code codigo_operacion = ENVIAR_CPU_ID; // debria estar en el enum de op_code
+//     t_paquete paquete = crear_paquete(codigo_operacion);
+//     int cpu_id = cpu_id_config;
+
+//     agregar_a_paquete(paquete, &cpu_id, sizeof(int));
+
+//     enviar_paquete_send_all(paquete, socket_ks);
+
+//     return;
+// }
