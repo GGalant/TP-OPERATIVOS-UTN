@@ -43,15 +43,6 @@ int main(int argc, char *argv[]){
     
     while(1) {  
         int codigo_operacion = recibir_operacion(conexion_ks);
-
-        switch(codigo_operacion) {
-            case -1:
-                log_error(log_io, "El servidor Kernel Scheduler se desconectó. Finalizando IO");
-                return EXIT_FAILURE;
-            default:
-                log_warning(log_io, "operacion desconocida: %d", codigo_operacion);
-                break;
-        }
     }
     
     log_destroy(log_io);
