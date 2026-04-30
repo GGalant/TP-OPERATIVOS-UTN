@@ -23,7 +23,9 @@ typedef enum {
         
 typedef enum {
     MENSAJE,
-    PAQUETE
+    PAQUETE,
+    INICIALIZAR_PROCESO,
+    INICIALIZAR_PROCESO_OK
 }op_code;
 
 int crear_conexion(char *ip, char* puerto);
