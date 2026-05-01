@@ -131,9 +131,9 @@ void* handle_ks(void* arg) {
 
 /*
 Envia un pedido de instruccion a Kernel Memory y la carga en el buffer de instruccion del CPU
-Devuelve -1 ante error, o el buffer estatico ante ejecucion exitosa.
+Devuelve -1 ante error, o el buffer estatico (instruccion_buffer) ante ejecucion exitosa.
 */
-int* fetch(){
+void* fetch(){
 
     log_info(log_cpu, "## PID: %u - FETCH - Program Counter: %u", cpu.pid, cpu.pc);
 
@@ -178,3 +178,130 @@ int* fetch(){
     return instruccion_buffer;
     
 };
+
+/*
+Lee del Buffer Estatico de Instruccion (instruccion_buffer) y escribe la instruccion decodificada en el struct estatico instruccion_actual
+Siempre devuelve exito, pero el icode de la instruccion puede ser ERROR.
+*/
+int decode(){
+
+    log_debug(log_cpu, "Decode: Iniciando decodificacion");
+
+    char ** splitted_instruction = string_split(instruccion_buffer, " ");
+
+    if (splitted_instruction[0] == NULL) {
+        instruccion_actual.icode = ERROR;
+        return 0;
+    }
+
+    instruccion_actual.icode = string_to_instruction_code(splitted_instruction[0]);
+
+    int i = 0;
+    while(splitted_instruction[i] != NULL && i < MAX_INSTRUCTION_PARAMS){
+        strncpy(instruccion_actual.params[i], splitted_instruction[i], MAX_INSTRUCTION_PARAM_SIZE);
+        instruccion_actual.params[i][MAX_INSTRUCTION_PARAM_SIZE - 1] = '\0';
+        i++;
+    }
+    instruccion_actual.cant_params++;
+
+    string_array_destroy(splitted_instruction);
+
+    log_debug(log_cpu, "Decode: Finalizado exitosamente");
+
+    return 0;
+
+};
+
+void* execute(){
+    switch(instruccion_actual.icode){
+    case NOOP:
+    break;
+    case SET:
+    break;
+    case MOV_IN:
+    break;
+    case MOV_OUT:
+    break;
+    case SUM:
+    break;
+    case SUB:
+    break;
+    case JNZ:
+    break;
+    case COPY_MEM:
+    break;
+    case MUTEX_CREATE:
+    break;
+    case MUTEX_LOCK:
+    break;
+    case MUTEX_UNLOCK:
+    break;
+    case MEM_ALLOC:
+    break;
+    case MEM_FREE:
+    break;
+    case SLEEP:
+    break;
+    case STDOUT:
+    break;
+    case STDIN:
+    break;
+    case INIT_PROC:
+    break;
+    case EXIT:
+    break;
+    case ERROR:
+    break;
+    }
+
+};
+
+void* check_interrupt(){
+
+};
+
+
+
+InstrucionCode string_to_instruction_code(char* s){
+
+    if (strcmp(s, "SET") == 0) return SET;
+    if (strcmp(s, "SUM") == 0) return SUM;
+    if (strcmp(s, "SUB") == 0) return SUB;
+    if (strcmp(s, "JNZ") == 0) return JNZ;
+    if (strcmp(s, "MOV_IN") == 0) return MOV_IN;
+    if (strcmp(s, "MOV_OUT") == 0) return MOV_OUT;
+    if (strcmp(s, "COPY_MEM") == 0) return COPY_MEM;
+    if (strcmp(s, "NOOP") == 0) return NOOP;
+    if (strcmp(s, "MUTEX_CREATE") == 0) return MUTEX_CREATE;
+    if (strcmp(s, "MUTEX_LOCK") == 0) return MUTEX_LOCK;
+    if (strcmp(s, "MUTEX_UNLOCK") == 0) return MUTEX_UNLOCK;
+    if (strcmp(s, "MEM_ALLOC") == 0) return MEM_ALLOC;
+    if (strcmp(s, "MEM_FREE") == 0) return MEM_FREE;
+    if (strcmp(s, "SLEEP") == 0) return SLEEP;
+    if (strcmp(s, "STDOUT") == 0) return STDOUT;
+    if (strcmp(s, "STDIN") == 0) return STDIN;
+    if (strcmp(s, "INIT_PROC") == 0) return INIT_PROC;
+    if (strcmp(s, "EXIT") == 0) return EXIT;
+
+    return ERROR;
+
+}
+
+/*
+Devuelve un puntero al registro de la CPU que coincida con la string o NULL en caso default.
+*/
+void * string_to_registro(char* s){
+
+    if (strcmp(s, "AX") == 0) return &cpu.ax;
+    if (strcmp(s, "BX") == 0) return &cpu.bx;
+    if (strcmp(s, "CX") == 0) return &cpu.cx;
+    if (strcmp(s, "DX") == 0) return &cpu.dx;
+    if (strcmp(s, "EAX") == 0) return &cpu.eax;
+    if (strcmp(s, "EBX") == 0) return &cpu.ebx;
+    if (strcmp(s, "ECX") == 0) return &cpu.ecx;
+    if (strcmp(s, "EDX") == 0) return &cpu.edx;
+    if (strcmp(s, "SI") == 0) return &cpu.si;
+    if (strcmp(s, "DI") == 0) return &cpu.di;
+
+    return NULL;
+}

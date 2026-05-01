@@ -4,6 +4,8 @@
 #include "utils/serializacion.h"
 
 #define MAX_BUFFER_INSTRUCCION 128
+#define MAX_INSTRUCTION_PARAMS 5
+#define MAX_INSTRUCTION_PARAM_SIZE 128
 
 t_log* log_cpu;
 
@@ -51,11 +53,12 @@ typedef enum {
 
 typedef struct {
     InstrucionCode icode;
-    char** params;
+    char params[MAX_INSTRUCTION_PARAMS][MAX_INSTRUCTION_PARAM_SIZE];
+    int cant_params;
 } t_instruccion;
 
 t_instruccion instruccion_actual;
 
 static char instruccion_buffer[128];
-
+void * string_to_registro(char* s);
 void* handle_ks(void* arg);
