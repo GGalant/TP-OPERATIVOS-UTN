@@ -1,4 +1,4 @@
-#include "kernel_memory.h"
+ #include "kernel_memory.h"
 //#include "globales.c" idea a desarrollar despues
 
 //t_log* log_km;
@@ -42,7 +42,8 @@ int main(int argc, char *argv[]){
     }
     log_info(log_km, "Kernel Memory iniciado");
 
-    diccionario_por_pid = dictionary_create();
+    diccionario_contextos_ejecucion = dictionary_create();
+    diccionario_paths = dictionary_create();
     
     //TODO duda: malloc para el socket para que no se pisen?;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
@@ -109,6 +110,44 @@ void* handle_ks(void* arg) {
             case -1:
                 log_error(log_km, "Kernel Scheduler FD %d se desconectó. Terminando handle", socket_ks);
                 return NULL;
+            
+            case INICIALIZAR_PROCESO:
+                t_list *proceso_inicial = recibir_paquete(socket_ks);
+                int pid_recibido = *(int*)list_get(proceso_inicial, 0);
+                char* path_recibido = (char*)list_get(proceso_inicial, 1);
+                char *str_pid_recibido = string_itoa(pid_recibido);
+
+                
+                // TODO Inicializar contexto en 0
+                
+                t_contextoEjec* contexto_proceso_inicial = malloc(sizeof(t_contextoEjec));
+                contexto_proceso_inicial->pid = pid_recibido;
+                contexto_proceso_inicial->pc = 0;
+                contexto_proceso_inicial->ax = 0;
+                contexto_proceso_inicial->bx = 0;
+                contexto_proceso_inicial->cx = 0;
+                contexto_proceso_inicial->dx = 0;                
+                contexto_proceso_inicial->eax = 0;
+                contexto_proceso_inicial->ebx = 0;
+                contexto_proceso_inicial->ecx = 0;
+                contexto_proceso_inicial->edx = 0;
+                contexto_proceso_inicial->si = 0;
+                contexto_proceso_inicial->di = 0;
+                contexto_proceso_inicial->tabla_segmentos = list_create();
+
+                log_info(log_km, "Contexto de ejecución del proceso inicial creado!");
+                
+                dictionary_put(diccionario_contextos_ejecucion, str_pid_recibido, contexto_proceso_inicial);
+                dictionary_put(diccionario_paths,str_pid_recibido, strdup(path_recibido));
+
+                log_info(log_km, "Path del archivo de instrucciones guardado!");
+
+                op_code inicializar_proceso_ok = INICIALIZAR_PROCESO_OK;
+                send(socket_ks, &inicializar_proceso_ok, sizeof(inicializar_proceso_ok),0);
+                
+                list_destroy_and_destroy_elements(proceso_inicial, free);
+
+                break;
             default:
                 log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
                 break;
@@ -135,7 +174,7 @@ void* handle_cpu(void* arg) {
                 //TODO: *****recibir pid de la cpu******
                 int pid_recibido;
                 char *str_pid_enviado = string_itoa(pid_recibido);
-                t_contextoEjec* contexto_a_enviar = dictionary_get(diccionario_por_pid, str_pid_enviado);
+                t_contextoEjec* contexto_a_enviar = dictionary_get(diccionario_contextos_ejecucion, str_pid_enviado);
                 if(contexto_a_enviar == NULL){
                     log_error(log_km,"No hay un contexto guardado para el PID <%d>", pid_recibido);
                 }else{
@@ -153,7 +192,7 @@ void* handle_cpu(void* arg) {
                     agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->si), sizeof(uint32_t));
                     agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->di), sizeof(uint32_t));
 
-                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->tabla_segmentos),sizeof(t_tabla_segmentos));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->tabla_segmentos),sizeof(&(contexto_a_enviar->tabla_segmentos)));
                     enviar_paquete_send_all(paquete_contexto,socket_cpu);
                     eliminar_paquete(paquete_contexto);
 
@@ -168,15 +207,15 @@ void* handle_cpu(void* arg) {
                 t_list* contexto_cpu = recibir_paquete(socket_cpu);
                 int pid = *(int*)list_get(contexto_cpu, 0);
                 char* str_pid_recibido = string_itoa(pid);
-                t_contextoEjec* contexto = dictionary_get(diccionario_por_pid, str_pid_recibido);
+                t_contextoEjec* contexto = dictionary_get(diccionario_contextos_ejecucion, str_pid_recibido);
 
                 if (contexto == NULL) {
                     //si es proceso nuevo
                     contexto = malloc(sizeof(t_contextoEjec));
                     contexto->pid = pid;
-                    contexto->tabla_segmentos = NULL; //por ahora
+                    contexto->tabla_segmentos = list_create(); 
 
-                    dictionary_put(diccionario_por_pid, str_pid_recibido, contexto);
+                    dictionary_put(diccionario_contextos_ejecucion, str_pid_recibido, contexto);
                     log_info(log_km, "PID <%d> nuevo guardado correctamente!", contexto->pid);
 
                 } else {
@@ -205,5 +244,9 @@ void* handle_cpu(void* arg) {
             
             break;
         }
+
     }
+
+    
 }
+
