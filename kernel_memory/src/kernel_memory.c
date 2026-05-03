@@ -5,6 +5,9 @@
 
 int main(int argc, char *argv[]){
 
+    int contador_sticks = 0;
+    int posicion_memoria = 0;
+
     if(argc<2){
         perror("No se proporcionaron todos los argumentos [Archivo Config]");
         return EXIT_FAILURE;
@@ -42,8 +45,11 @@ int main(int argc, char *argv[]){
     }
     log_info(log_km, "Kernel Memory iniciado");
 
+    //inicializamos estructuras
     diccionario_contextos_ejecucion = dictionary_create();
     diccionario_paths = dictionary_create();
+    sticks_conectados = list_create();
+    huecos = list_create();
     
     //TODO duda: malloc para el socket para que no se pisen?;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
@@ -81,6 +87,7 @@ void* handle_connections(void* arg){
             case HANDSHAKE_MS:
                 log_info(log_km, "Memory Stick Conectado. Guardando socket.");
                 // Guardamos el socket de MS de forma global y NO CREAMOS HILO, ya que no es necesariamente asincrono.
+                handle_ms();
                 socket_memory_stick = *socket_cliente;
                 free(socket_cliente);
                 break;
@@ -247,6 +254,39 @@ void* handle_cpu(void* arg) {
 
     }
 
-    
 }
 
+void* handle_ms(void* arg){
+
+    int socket_ms = *(int*)arg;
+    
+    log_info(log_km, "Memory Stick <ID> se ha conectado!");
+
+    while(true) {   
+        op_code codigo_operacion = recibir_operacion(socket_ms);
+        switch(codigo_operacion){
+            
+            case CONECTAR_MS:
+
+                contador_sticks += 1;
+                
+                int tamanio_stick;
+                recv(socket_ms, tamanio_stick, sizeof(int),0);
+
+                //tamanio_stick =
+                t_memory_stick* nuevo_memory_stick = malloc(sizeof(t_memory_stick));
+
+                nuevo_memory_stick->id = contador_sticks;
+                nuevo_memory_stick->tamanio = tamanio_stick;
+                
+                posicion_memoria += tamanio_stick + 1;
+
+    
+                list_add(sticks_conectados, nuevo_memory_stick);
+
+                break;
+        
+        }
+
+    }
+}
