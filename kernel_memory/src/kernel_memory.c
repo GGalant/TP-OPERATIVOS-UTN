@@ -87,7 +87,7 @@ void* handle_connections(void* arg){
             case HANDSHAKE_MS:
                 log_info(log_km, "Memory Stick Conectado. Guardando socket.");
                 // Guardamos el socket de MS de forma global y NO CREAMOS HILO, ya que no es necesariamente asincrono.
-                handle_ms();
+                //handle_ms();
                 socket_memory_stick = *socket_cliente;
                 free(socket_cliente);
                 break;
@@ -177,7 +177,7 @@ void* handle_cpu(void* arg) {
                 close(socket_cpu);
                 return NULL;
             
-            case ENVIAR_CONTEXTO:
+            case ENVIAR_CONTEXTO:{
                 //TODO: *****recibir pid de la cpu******
                 int pid_recibido;
                 char *str_pid_enviado = string_itoa(pid_recibido);
@@ -207,9 +207,10 @@ void* handle_cpu(void* arg) {
 
                     free(str_pid_enviado);
             break;
+            }
 
 
-            case RECIBIR_CONTEXTO:
+            case RECIBIR_CONTEXTO: {
             
                 t_list* contexto_cpu = recibir_paquete(socket_cpu);
                 int pid = *(int*)list_get(contexto_cpu, 0);
@@ -245,6 +246,18 @@ void* handle_cpu(void* arg) {
                 log_info(log_km, "PID <%d> y contexto nuevo guardado correctamente", contexto->pid);
                 list_destroy_and_destroy_elements(contexto_cpu, free);
             break;
+            }
+            
+            case PEDIDO_INSTRUCCION: {
+                t_list* instruccion_pedida = recibir_paquete(socket_cpu);
+                int pid_recibido = *(int*)list_get(instruccion_pedida, 0);
+                uint32_t pc = *(int*)list_get(instruccion_pedida,1);
+                
+                char* str_pid_recibido = string_itoa(pid_recibido);
+                //Deberíamos tener algo más o menos así.
+                buscar_instruccion(str_pid_recibido, pc);
+                break;
+            }
     
             default:
                 log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
@@ -267,11 +280,12 @@ void* handle_ms(void* arg){
         switch(codigo_operacion){
             
             case CONECTAR_MS:
+            {
 
                 contador_sticks += 1;
                 
                 int tamanio_stick;
-                recv(socket_ms, tamanio_stick, sizeof(int),0);
+                recv(socket_ms, (void*)tamanio_stick, sizeof(int),0);
 
                 //tamanio_stick =
                 t_memory_stick* nuevo_memory_stick = malloc(sizeof(t_memory_stick));
@@ -286,7 +300,89 @@ void* handle_ms(void* arg){
 
                 break;
         
+            }
+
+        }
+    }
+}
+
+void buscar_instruccion(char* str_pid_recibido, uint32_t pc_nuevo) {
+        
+    t_contextoEjec* contexto = dictionary_get (diccionario_contextos_ejecucion , str_pid_recibido);
+    uint32_t pc_actual = contexto -> pc;
+
+    
+    char* path_instrucciones = dictionary_get(diccionario_paths, str_pid_recibido);
+
+    if(path_instrucciones == NULL){
+        log_error(log_km, "No se encontró un path de instrucciones asociado al PID <%d>", str_pid_recibido);
+    }else{
+        char* instruccion = buscar_en_archivo(path_instrucciones,pc_actual); //TODO: implementar esta funcion
+        if (instruccion == NULL){
+            log_error(log_km, "No se encontró la instrucción %d para el PID <%d>", instruccion, str_pid_recibido);
+        } else {
+           /*  t_paquete* rta_instruccion = crear_paquete(RTA_PEDIDO_INSTRUCCION);
+            agregar_a_paquete(rta_instruccion,instruccion,strlen(instruccion)+1);
+            enviar_paquete_send_all(rta_instruccion,socket_cpu); // sugerir a gabi q reciba como paquete
+            eliminar_paquete(rta_instruccion); */
+            
+            //envío sin paquete
+            op_code codigo = RTA_PEDIDO_INSTRUCCION;
+            send(socket_cpu, &codigo,sizeof(op_code),0);
+
+            // verificar si recibe esto ---------------------- !!!
+            int tamanio_instr = strlen(instruccion) + 1;
+            //send(socket_cpu, &tamanio_instr, sizeof(int), 0);
+
+            send(socket_cpu, instruccion, tamanio_instr,0);
+
+        }
+    }  
+    
+    if (path_instrucciones == NULL) {
+        log_error(log_km, "No se pudo abrir el archivo");
+        return;
+    }
+
+    contexto->pc = pc_nuevo + 1;
+
+    dictionary_put(diccionario_contextos_ejecucion,str_pid_recibido, contexto);
+
+
+}
+        
+    
+char* buscar_en_archivo(char* path_instrucciones,uint32_t pc_actual){
+    
+    FILE* archivo = fopen(path_instrucciones, "r");
+
+    if (archivo == NULL) {
+        log_error(log_km, "No se pudo abrir el archivo de instrucciones");
+        return NULL;
+    }
+
+    char buffer[256];
+
+    uint32_t linea_actual = 0;
+
+    // avanzar hasta la linea del PC
+    while (linea_actual < pc_actual) {
+
+        if (fgets(buffer, sizeof(buffer), archivo) == NULL) {
+            fclose(archivo);
+            return NULL;
         }
 
+        linea_actual++;
     }
+
+    // leer la instruccion buscada
+    if (fgets(buffer, sizeof(buffer), archivo) == NULL) {
+        fclose(archivo);
+        return NULL;
+    }
+
+    fclose(archivo);
+
+    return strdup(buffer);
 }

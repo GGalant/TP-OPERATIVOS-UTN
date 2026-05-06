@@ -9,11 +9,14 @@ t_log* log_km;
 int server_km;
 int socket_memory_stick;
 int socket_swap;
+int socket_cpu;
 
 void* handle_connections(void* arg);
 void* handle_ks(void* arg);
 void* handle_cpu(void* arg);
 void* handle_ms(void* arg);
+void buscar_instruccion(char* str_pid_recibido, uint32_t pc_nuevo);
+char* buscar_en_archivo(char* path_instrucciones,uint32_t pc_actual);
 
 
 

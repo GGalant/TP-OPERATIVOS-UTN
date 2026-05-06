@@ -28,7 +28,9 @@ typedef enum {
     RECIBIR_CONTEXTO, // de kernel memory, para recibir de cpu
     INICIALIZAR_PROCESO,
     INICIALIZAR_PROCESO_OK,
-    CONECTAR_MS
+    CONECTAR_MS,
+    PEDIDO_INSTRUCCION,
+    RTA_PEDIDO_INSTRUCCION
 }op_code;
 
 int crear_conexion(char *ip, char* puerto);
