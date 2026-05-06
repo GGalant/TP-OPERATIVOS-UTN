@@ -155,6 +155,54 @@ void* handle_ks(void* arg) {
                 list_destroy_and_destroy_elements(proceso_inicial, free);
 
                 break;
+
+            case STDOUT_LECTURA:
+            { //por pedido del ks
+                t_list* pedido_lectura = recibir_paquete(socket_ks); //esperamos (PID), dirLogica y tamaño a leer
+                int pid = list_get(pedido_lectura,0);
+                char* direccion_logica = list_get(direccion_logica; 1);
+                void* bytes_a_leer = list_get(pedido_lectura,2);
+                
+                char* direccion_fisica; //entrada --> magia -->traduccion
+                
+                /* AÚN MÁS MAGIA */
+                solicitar_lectura(direccion_fisica, socket_memory_stick);
+                enviar_mensaje("LECTURA OK!", socket_ks);
+
+                log_info(log_km,"## PID: <PID> - <Escritura/Lectura> - Dir. Física: <DIRECCIÓN FÍSICA> - Tamaño: <TAMAÑO>");
+
+
+                /* t_paquete* paquete_lectura = crear_paquete(RTA_STDOUT_LECTURA);
+                
+                // retorna los bytes leidos que despues ks envia a IO
+
+                enviar_paquete_send_all(paquete_lectura, socket_ks); */
+            }
+            break;
+
+            case STDIN_ESCRITURA:
+            { //por pedido del ks
+                t_list* pedido_escritura = recibir_paquete(socket_ks); //esperamos (PID), dirLogica y tamaño a ESCRIBIR
+                int pid = list_get(pedido_escritura,0);
+                char* direccion_logica = list_get(direccion_logica; 1);
+                void* bytes_a_leer = list_get(pedido_escritura,2);
+
+                char* direccion_fisica; //entrada --> magia -->traduccion
+                
+                /* AÚN MÁS MAGIA */
+                solicitar_escritura(direccion_fisica,socket_memory_stick);
+
+                enviar_mensaje("ESCRITURA OK!", socket_ks);
+
+                log_info(log_km,"## PID: <PID> - <Escritura/Lectura> - Dir. Física: <DIRECCIÓN FÍSICA> - Tamaño: <TAMAÑO>");
+                
+                /*t_paquete* paquete_lectura = crear_paquete(RTA_STDOUT_LECTURA);
+                
+                // retorna los bytes leidos que despues ks envia a IO
+
+                enviar_paquete_send_all(paquete_lectura, socket_ks); */
+            }
+            break;
             default:
                 log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
                 break;
@@ -264,9 +312,7 @@ void* handle_cpu(void* arg) {
             
             break;
         }
-
     }
-
 }
 
 void* handle_ms(void* arg){
