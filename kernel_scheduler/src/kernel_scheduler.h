@@ -5,8 +5,6 @@
 #include <pthread.h>
 #include <commons/log.h>
 #include <commons/config.h>
-
-extern const int PRIORIDAD_MAXIMA;
 typedef enum {  
     NEW,
     READY,
@@ -47,21 +45,7 @@ typedef struct {
     t_estado_cpu estado;
 } t_cpu;
 
-extern t_list* lista_mutex;
-extern t_list* cola_ready;
-extern t_list* cola_block;
-extern t_list* cola_exec;
-extern t_list* lista_cpu_conectadas;
-extern t_log *log_ks;
-extern int server_ks;
-extern int pid_inicial;
-extern pthread_mutex_t mutex_cola_ready;
-extern pthread_mutex_t mutex_cola_block;
-extern pthread_mutex_t mutex_lista_cpu_conectadas;
-extern pthread_cond_t cond_cola_ready;
-extern pthread_cond_t cond_cola_block;
-extern pthread_cond_t cond_lista_cpu_conectadas;
-
+void inicializar_ks(int argc, char* argv[]);
 void* handle_connections(void* arg);
 void* handle_km(void* arg);
 void* handle_cpu(void* arg);

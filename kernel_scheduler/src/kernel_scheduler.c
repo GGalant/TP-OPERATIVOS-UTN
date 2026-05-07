@@ -1,71 +1,9 @@
 #include "kernel_scheduler.h"
-
-// Definiciones de variables globales
-const int PRIORIDAD_MAXIMA = 0;
-t_list* lista_mutex;
-t_list* cola_ready;
-t_list* cola_block;
-t_list* cola_exec;
-t_list* lista_cpu_conectadas;
-t_log *log_ks;
-int server_ks;
-int pid_inicial = 1;
-pthread_mutex_t mutex_cola_ready;
-pthread_mutex_t mutex_cola_block;
-pthread_mutex_t mutex_lista_cpu_conectadas;
-pthread_cond_t cond_cola_ready;
-pthread_cond_t cond_cola_block;
-pthread_cond_t cond_lista_cpu_conectadas;
+#include "globales.h"
 
 int main(int argc, char *argv[]){
 
-    if(argc<2){
-        perror("No se proporcionaron todos los argumentos [Archivo Config]");
-        return EXIT_FAILURE;
-    }
-
-    char* config_path = argv[1];
-    char* path_proceso_inicial = argv[2];
-    char* puerto;
-    char* str_log_level;
-    char* puerto_km;
-    char* ip_km;
-    int log_level;
-    t_config* config = config_create(config_path);
-    cola_ready = list_create();
-    cola_block = list_create();
-    cola_exec = list_create();
-    lista_mutex = list_create();
-    lista_cpu_conectadas = list_create();
-    pthread_mutex_init(&mutex_cola_ready, NULL);
-    pthread_mutex_init(&mutex_cola_block, NULL);
-    pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
-    pthread_cond_init(&cond_cola_ready, NULL);
-    pthread_cond_init(&cond_cola_block, NULL);
-    pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
-
-    if(config == NULL){
-        return EXIT_FAILURE;
-    }
-    
-    ip_km = config_get_string_value(config, "IP_KM");
-    puerto_km = config_get_string_value(config, "PUERTO_KM");
-    str_log_level = config_get_string_value(config, "LOG_LEVEL");
-    puerto = config_get_string_value(config, "PUERTO");
-    log_level = log_level_from_string(str_log_level);
-
-    log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
-
-    // INICIAR SERVIDOR
-    server_ks = iniciar_servidor(log_ks, puerto);
-    if(server_ks == -1){
-        log_error(log_ks, "Error al iniciar el servidor en el puerto %s", puerto);
-        log_destroy(log_ks);
-        config_destroy(config);
-        return EXIT_FAILURE;
-    }
-    
-    log_info(log_ks, "Kernel Scheduler iniciado");
+    inicializar_ks(argc, argv);
     
     // CONEXION CON KERNEL MEMORY
     int conexion_km = crear_conexion(ip_km, puerto_km);
@@ -97,6 +35,55 @@ int main(int argc, char *argv[]){
     config_destroy(config);
 
     return 0;
+}
+
+void inicializar_ks(int argc, char *argv[]) {  
+    
+    if(argc<3){
+        perror("No se proporcionaron todos los argumentos: [Archivo Config] [Path Proceso Inicial]");
+        exit(EXIT_FAILURE);
+    }
+
+    config_path = argv[1];
+    path_proceso_inicial = argv[2];
+
+    config = config_create(config_path);
+    if(config == NULL){
+        perror("No se pudo crear el config");
+        exit(EXIT_FAILURE);
+    }
+
+    ip_km = config_get_string_value(config, "IP_KM");
+    puerto_km = config_get_string_value(config, "PUERTO_KM");
+    str_log_level = config_get_string_value(config, "LOG_LEVEL");
+    puerto = config_get_string_value(config, "PUERTO");
+    log_level = log_level_from_string(str_log_level);
+
+    log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
+
+    cola_ready = list_create();
+    cola_block = list_create();
+    cola_exec = list_create();
+    lista_mutex = list_create();
+    lista_cpu_conectadas = list_create();
+
+    pthread_mutex_init(&mutex_cola_ready, NULL);
+    pthread_mutex_init(&mutex_cola_block, NULL);
+    pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
+    pthread_cond_init(&cond_cola_ready, NULL);
+    pthread_cond_init(&cond_cola_block, NULL);
+    pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
+
+    // INICIAR SERVIDOR
+    server_ks = iniciar_servidor(log_ks, puerto);
+    if(server_ks == -1){
+        log_error(log_ks, "Error al iniciar el servidor en el puerto %s", puerto);
+        log_destroy(log_ks);
+        config_destroy(config);
+        exit(EXIT_FAILURE);
+    }
+    
+    log_info(log_ks, "Kernel Scheduler iniciado");
 }
 
 
