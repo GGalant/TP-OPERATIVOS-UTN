@@ -60,6 +60,7 @@ void inicializar_ks(int argc, char *argv[]) {
     log_level = log_level_from_string(str_log_level);
 
     log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
+    log_debug_ks = log_create("scheduler_debug.log", "SCHEDULER_DEBUG", true, DEBUG);
 
     cola_ready = list_create();
     cola_block = list_create();
@@ -69,6 +70,7 @@ void inicializar_ks(int argc, char *argv[]) {
 
     pthread_mutex_init(&mutex_cola_ready, NULL);
     pthread_mutex_init(&mutex_cola_block, NULL);
+    pthread_mutex_init(&mutex_cola_exec, NULL);
     pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
     pthread_cond_init(&cond_cola_ready, NULL);
     pthread_cond_init(&cond_cola_block, NULL);
@@ -139,12 +141,13 @@ void* handle_km(void* arg) {
 
 void* handle_cpu(void* arg) {    
     int socket_cpu = *(int*)arg;
+    t_cpu* cpu; // liberar memoria cuando se desconecte
     free(arg);
     int cpu_id_recibido;
 
     cpu_id_recibido = recibir_cpu_id(socket_cpu);
     if (cpu_id_recibido >= 0) { 
-        t_cpu* cpu = malloc(sizeof(t_cpu));
+        cpu = malloc(sizeof(t_cpu));
         cpu->cpu_id = cpu_id_recibido;
         cpu->socket_cpu = socket_cpu;
         cpu->estado = CPU_LIBRE;
@@ -154,7 +157,7 @@ void* handle_cpu(void* arg) {
         list_add(lista_cpu_conectadas, cpu);
         pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
 
-        log_info(log_ks, "## CPU <ID CPU> Conectada: %d", cpu_id_recibido);
+        log_info(log_ks, "## CPU ID<%d> Conectada", cpu_id_recibido);
     } else {    
         perror("No se le pudo asignar un ID a la CPU");
         close(socket_cpu);
@@ -163,9 +166,31 @@ void* handle_cpu(void* arg) {
     
     while(true) {   
         // aca iria la logica de operaciones con CPU 
-        int codigo_operacion = recibir_operacion(socket_cpu);
+        op_code_ks_cpu codigo_operacion = recibir_operacion(socket_cpu);
+
+        log_info(log_ks, "## Proceso ID(<%d>) - Solicitó syscall: <%s>", cpu->pid_actual, operacion_to_string(codigo_operacion));
 
         switch(codigo_operacion) {
+             case SYSCALL_EXIT:
+                log_info(log_debug_ks, "Finaliza el proceso %d - Motivo: EXIT", cpu->pid_actual);
+                //Cpu queda libre, liberar el struct del pcb
+                break;
+            case SYSCALL_SLEEP:
+                 log_info(log_debug_ks, "PID: %d - Bloqueado por: SLEEP", cpu->pid_actual);
+                break;
+            case SYSCALL_STDOUT:
+                // log_info();
+                break;
+            case INTERRUPCION_FIN_QUANTUM:
+                break;
+            case INTERRUPCION_DESALOJO:
+                break;
+            case SYSCALL_MUTEX_LOCK:
+                break;
+            case SYSCALL_MUTEX_UNLOCK:
+                break;
+            case SYSCALL_INIT_PROC:
+                break;
             case -1:
                 log_error(log_ks, "CPU FD %d se desconectó. Terminando handle", socket_cpu);
                 return NULL;
@@ -207,9 +232,11 @@ void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {
     if (codigo_operacion == INICIALIZAR_PROCESO_OK) {
         t_proceso_pcb* pcb_proceso_inicial = crear_pcb(0, PRIORIDAD_MAXIMA);
 
-        pcb_proceso_inicial->estado = READY;
+        pthread_mutex_lock(&mutex_cola_ready);
+        cambiar_estado_proceso(pcb_proceso_inicial, READY);
         // aca podriamos proteger la variable global con un mutex de C
         list_add(cola_ready, pcb_proceso_inicial);
+        pthread_mutex_unlock(&mutex_cola_ready);
     } else {
         log_error(log_ks, "Error al crear el proceso inicial en Kernel Memory. Código de op: %d", codigo_operacion);
         return; 
@@ -265,6 +292,42 @@ int recibir_cpu_id(int socket){
 
 }
 
+const char* estado_to_string(t_estado_proceso estado) {
+    switch (estado) {
+        case NEW: return "NEW";
+        case READY: return "READY";
+        case BLOCK: return "BLOCK";
+        case EXEC: return "EXEC";
+        case EXIT: return "EXIT";
+        case SUSP_READY: return "SUSPENDED-READY";
+        case SUSP_BLOCK: return "SUSPENDED-BLOCKED";
+        default: return "DESCONOCIDO";
+    }
+}
+
+const char* operacion_to_string(op_code_ks_cpu operacion) {
+    switch (operacion) {
+        case SYSCALL_EXIT: return "SYSCALL_EXIT";
+        case SYSCALL_SLEEP: return "SYSCALL_SLEEP";
+        case SYSCALL_STDIN: return "SYSCALL_STDIN";
+        case SYSCALL_STDOUT: return "SYSCALL_STDOUT";
+        case INTERRUPCION_FIN_QUANTUM: return "INTERRUPCION_FIN_QUANTUM";  
+        case INTERRUPCION_DESALOJO: return "INTERRUPCION_DESALOJO";
+        case SYSCALL_MUTEX_LOCK: return "SYSCALL_MUTEX_LOCK";
+        case SYSCALL_MUTEX_UNLOCK: return "SYSCALL_MUTEX_UNLOCK";
+        case SYSCALL_INIT_PROC: return "SYSCALL_INIT_PROC";
+        default: return "DESCONOCIDO";
+    }
+}
+
+void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_siguiente) {    
+    t_estado_proceso estado_anterior = proceso->estado;
+    proceso->estado = estado_siguiente;
+
+    log_info(log_ks, "## (<%d>) Pasa del estado <%s> al estado <%s>", proceso->pid, estado_to_string(estado_anterior), estado_to_string(estado_siguiente));
+    return;
+}
+
 //Algo así debería hacer Gabi, para poder enviarnos el id (id), intentar enviarlo como MENSAJE, no como paquete :)
 // void enviar_cpu_id(int socket_ks) {  
 //     op_code codigo_operacion = ENVIAR_CPU_ID; // debria estar en el enum de op_code
@@ -274,6 +337,9 @@ int recibir_cpu_id(int socket){
 //     agregar_a_paquete(paquete, &cpu_id, sizeof(int));
 
 //     enviar_paquete_send_all(paquete, socket_ks);
+
+//     return;
+// }   enviar_paquete_send_all(paquete, socket_ks);
 
 //     return;
 // }

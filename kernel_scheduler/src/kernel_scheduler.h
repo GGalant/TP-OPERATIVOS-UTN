@@ -54,5 +54,8 @@ void enviar_proceso(int socket_km, int pid, char* path_proceso);
 void crear_proceso_inicial(int socket_km, char* path_proceso_inicial);
 t_proceso_pcb* crear_pcb(int pid, int prioridad);
 int recibir_cpu_id(int socket);
+const char* estado_to_string(t_estado_proceso estado);
+const char* operacion_to_string(op_code_ks_cpu operacion);
+void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_siguiente);
 
 #endif /* KERNEL_SCHEDULER_H_ */
