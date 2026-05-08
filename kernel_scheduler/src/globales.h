@@ -1,7 +1,18 @@
 #ifndef GLOBALES_H_
 #define GLOBALES_H_
 
-#include "kernel_scheduler.h"
+#include <commons/collections/list.h>
+#include <commons/config.h>
+#include <commons/log.h>
+#include <pthread.h>
+#include <stdint.h>
+
+typedef struct {
+    char* nombre_mutex;
+    int estado; // 0 "libre" o 1 "ocupado"
+    int pid_proceso;
+    t_list* cola_procesos; // Habria que ver si es solo el pid del proceso o todo el pcb (por ahora asumimos que es el pid)
+} t_mutex;
 
 // Declaraciones de variables globales
 extern t_list* lista_mutex;
@@ -32,5 +43,9 @@ extern pthread_mutex_t mutex_lista_cpu_conectadas;
 extern pthread_cond_t cond_cola_ready;
 extern pthread_cond_t cond_cola_block;
 extern pthread_cond_t cond_lista_cpu_conectadas;
+
+void wait_mutex(t_mutex *mutex, int pid_proceso);
+void signal_mutex(t_mutex *mutex);
+
 
 #endif /* GLOBALES_H_ */

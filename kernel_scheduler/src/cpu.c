@@ -60,6 +60,8 @@ void* handle_cpu(void* arg) {
                 break;
         }
     }
+
+    free(cpu);
 }
 
 int recibir_cpu_id(int socket){

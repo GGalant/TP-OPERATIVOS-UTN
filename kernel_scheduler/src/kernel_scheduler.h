@@ -18,13 +18,6 @@ typedef enum {
     SUSP_BLOCK 
 } t_estado_proceso;
 
-typedef struct {    
-    char* nombre_mutex;
-    int estado; // 0 "libre" o 1 "ocupado"
-    int pid_proceso;
-    t_list* cola_procesos; 
-} t_mutex;
-
 typedef struct {
     int pid;
     int prioridad;
