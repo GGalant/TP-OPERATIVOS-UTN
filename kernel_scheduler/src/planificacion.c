@@ -1,21 +1,22 @@
 #include "planificacion.h"
 
-void *hilo_planificacion(void *arg) {
-    t_algoritmo_planificacion algortimo_planificacion = *(int*)arg;  
+void *handle_planificacion(void *arg) {
+    t_algoritmo_planificacion algoritmo_planificacion = string_to_algoritmo((char*)arg);  
     
-    switch (algortimo_planificacion) {    
+    switch (algoritmo_planificacion) {    
         case FIFO:
             planificacion_fifo();
             break;
         case RR:
             //planificacion_rr()
             break;
-        case COLAS_MULTINIVEL:
+        case CMN:
             //planificacion_multinivel()
             break;
         default:
-            perror("Algortimo de planificacion invalido");
+            perror("Algoritmo de planificacion invalido");
     }
+    return NULL;
 }
 
 void planificacion_fifo() { 
@@ -70,8 +71,6 @@ t_cpu* buscar_cpu_libre() {
 }
 
 void enviar_proceso_a_cpu(int socket_cpu, int pid_proceso, int pc, int prioridad) {   
-    op_code codigo_operacion = EJECUTAR_PROCESO;
-
     t_paquete* paquete_proceso = crear_paquete(EJECUTAR_PROCESO);
     agregar_a_paquete(paquete_proceso, &pid_proceso, sizeof(int));
     agregar_a_paquete(paquete_proceso, &pc, sizeof(int));
@@ -83,3 +82,18 @@ void enviar_proceso_a_cpu(int socket_cpu, int pid_proceso, int pc, int prioridad
     return;
 }
 
+t_algoritmo_planificacion string_to_algoritmo(const char* algoritmo) {
+
+    if (strcmp(algoritmo, "FIFO") == 0) {
+        return FIFO;
+    } 
+    else if (strcmp(algoritmo, "RR") == 0) {
+        return RR;
+    }
+    else if (strcmp(algoritmo, "CMN") == 0) {
+        return CMN;
+    }
+    else {
+        return INVALIDO;
+    }
+}

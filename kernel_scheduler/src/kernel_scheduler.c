@@ -1,12 +1,12 @@
 #include "kernel_scheduler.h"
-#include "globales.h"
 
 int main(int argc, char *argv[]){
 
     inicializar_ks(argc, argv);
     
     // CONEXION CON KERNEL MEMORY
-    int conexion_km = crear_conexion(ip_km, puerto_km);
+    conexion_km_ptr = malloc(sizeof(int));
+    conexion_km = crear_conexion(ip_km, puerto_km);
     if(conexion_km == -1){
         log_error(log_ks, "Error al conectar con Kernel Memory en %s:%s", ip_km, puerto_km);
         log_destroy(log_ks);
@@ -18,21 +18,22 @@ int main(int argc, char *argv[]){
     
     handshake handshake_ks = HANDSHAKE_KS;
     send(conexion_km, &handshake_ks, sizeof(handshake), 0);
+    *conexion_km_ptr = conexion_km;
 
     crear_proceso_inicial(conexion_km, path_proceso_inicial);
 
     pthread_t hilo_escucha;
     pthread_t hilo_km;
-    int* conexion_km_ptr = malloc(sizeof(int));
-    *conexion_km_ptr = conexion_km;
+    pthread_t hilo_planificacion;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
     pthread_create(&hilo_km, NULL, handle_km, conexion_km_ptr);
+    pthread_create(&hilo_planificacion, NULL, handle_planificacion, algoritmo_planificacion);
 
     pthread_join(hilo_escucha, NULL);
     pthread_join(hilo_km, NULL);
+    pthread_join(hilo_planificacion, NULL);
 
-    log_destroy(log_ks);
-    config_destroy(config);
+    liberar_recursos();
 
     return 0;
 }
@@ -57,6 +58,7 @@ void inicializar_ks(int argc, char *argv[]) {
     puerto_km = config_get_string_value(config, "PUERTO_KM");
     str_log_level = config_get_string_value(config, "LOG_LEVEL");
     puerto = config_get_string_value(config, "PUERTO");
+    algoritmo_planificacion = config_get_string_value(config, "PLANIFICATION_ALGORITHM");
     log_level = log_level_from_string(str_log_level);
 
     log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
@@ -131,68 +133,6 @@ void* handle_km(void* arg) {
         switch(codigo_operacion) {
             case -1:
                 log_error(log_ks, "El servidor Kernel Memory se desconectó. Terminando hilo.");
-                return NULL;
-            default:
-                log_warning(log_ks, "operacion desconocida: %d", codigo_operacion);
-                break;
-        }
-    }
-}
-
-void* handle_cpu(void* arg) {    
-    int socket_cpu = *(int*)arg;
-    t_cpu* cpu; // liberar memoria cuando se desconecte
-    free(arg);
-    int cpu_id_recibido;
-
-    cpu_id_recibido = recibir_cpu_id(socket_cpu);
-    if (cpu_id_recibido >= 0) { 
-        cpu = malloc(sizeof(t_cpu));
-        cpu->cpu_id = cpu_id_recibido;
-        cpu->socket_cpu = socket_cpu;
-        cpu->estado = CPU_LIBRE;
-        cpu->pid_actual = -1;
-
-        pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-        list_add(lista_cpu_conectadas, cpu);
-        pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-
-        log_info(log_ks, "## CPU ID<%d> Conectada", cpu_id_recibido);
-    } else {    
-        perror("No se le pudo asignar un ID a la CPU");
-        close(socket_cpu);
-        return NULL;
-    }
-    
-    while(true) {   
-        // aca iria la logica de operaciones con CPU 
-        op_code_ks_cpu codigo_operacion = recibir_operacion(socket_cpu);
-
-        log_info(log_ks, "## Proceso ID(<%d>) - Solicitó syscall: <%s>", cpu->pid_actual, operacion_to_string(codigo_operacion));
-
-        switch(codigo_operacion) {
-             case SYSCALL_EXIT:
-                log_info(log_debug_ks, "Finaliza el proceso %d - Motivo: EXIT", cpu->pid_actual);
-                //Cpu queda libre, liberar el struct del pcb
-                break;
-            case SYSCALL_SLEEP:
-                 log_info(log_debug_ks, "PID: %d - Bloqueado por: SLEEP", cpu->pid_actual);
-                break;
-            case SYSCALL_STDOUT:
-                // log_info();
-                break;
-            case INTERRUPCION_FIN_QUANTUM:
-                break;
-            case INTERRUPCION_DESALOJO:
-                break;
-            case SYSCALL_MUTEX_LOCK:
-                break;
-            case SYSCALL_MUTEX_UNLOCK:
-                break;
-            case SYSCALL_INIT_PROC:
-                break;
-            case -1:
-                log_error(log_ks, "CPU FD %d se desconectó. Terminando handle", socket_cpu);
                 return NULL;
             default:
                 log_warning(log_ks, "operacion desconocida: %d", codigo_operacion);
@@ -279,19 +219,6 @@ t_proceso_pcb* crear_pcb(int pid, int prioridad) {
  */
 
 
-int recibir_cpu_id(int socket){
-	int cpu_id;
-	int tamanio_recibido = recv(socket, &cpu_id, sizeof(int), MSG_WAITALL);
-	if(tamanio_recibido > 0){
-        printf("este es el id que me llega: %d\n",cpu_id);
-	    return cpu_id;
-    } else {
-        perror("No se recibio ningun ID");
-        return -1;
-    }
-
-}
-
 const char* estado_to_string(t_estado_proceso estado) {
     switch (estado) {
         case NEW: return "NEW";
@@ -305,26 +232,41 @@ const char* estado_to_string(t_estado_proceso estado) {
     }
 }
 
-const char* operacion_to_string(op_code_ks_cpu operacion) {
-    switch (operacion) {
-        case SYSCALL_EXIT: return "SYSCALL_EXIT";
-        case SYSCALL_SLEEP: return "SYSCALL_SLEEP";
-        case SYSCALL_STDIN: return "SYSCALL_STDIN";
-        case SYSCALL_STDOUT: return "SYSCALL_STDOUT";
-        case INTERRUPCION_FIN_QUANTUM: return "INTERRUPCION_FIN_QUANTUM";  
-        case INTERRUPCION_DESALOJO: return "INTERRUPCION_DESALOJO";
-        case SYSCALL_MUTEX_LOCK: return "SYSCALL_MUTEX_LOCK";
-        case SYSCALL_MUTEX_UNLOCK: return "SYSCALL_MUTEX_UNLOCK";
-        case SYSCALL_INIT_PROC: return "SYSCALL_INIT_PROC";
-        default: return "DESCONOCIDO";
-    }
-}
-
 void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_siguiente) {    
     t_estado_proceso estado_anterior = proceso->estado;
     proceso->estado = estado_siguiente;
 
     log_info(log_ks, "## (<%d>) Pasa del estado <%s> al estado <%s>", proceso->pid, estado_to_string(estado_anterior), estado_to_string(estado_siguiente));
+    return;
+}
+
+void liberar_recursos() {   
+    log_destroy(log_ks);
+    log_destroy(log_debug_ks);
+    config_destroy(config);
+    pthread_mutex_destroy(&mutex_cola_ready);
+    pthread_mutex_destroy(&mutex_cola_block);
+    pthread_mutex_destroy(&mutex_cola_exec);
+    pthread_mutex_destroy(&mutex_lista_cpu_conectadas);
+    pthread_cond_destroy(&cond_cola_ready);
+    pthread_cond_destroy(&cond_cola_block);
+    pthread_cond_destroy(&cond_lista_cpu_conectadas);
+    free(conexion_km_ptr);
+    free(config_path);
+    free(path_proceso_inicial);
+    free(puerto);
+    free(str_log_level);
+    free(puerto_km);
+    free(ip_km);
+    free(algoritmo_planificacion);
+    list_destroy(cola_ready);
+    list_destroy(cola_block);
+    list_destroy(cola_exec);
+    list_destroy(lista_mutex);
+    list_destroy(lista_cpu_conectadas);
+    close(server_ks);
+    close(conexion_km);
+    
     return;
 }
 
