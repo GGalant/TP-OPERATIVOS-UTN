@@ -15,8 +15,9 @@ void* handle_connections(void* arg);
 void* handle_ks(void* arg);
 void* handle_cpu(void* arg);
 void* handle_ms(void* arg);
-void buscar_instruccion(char* str_pid_recibido, uint32_t pc_nuevo);
-char* buscar_en_archivo(char* path_instrucciones,uint32_t pc_actual);
+
+t_list* cargar_instrucciones(char* path_instrucciones);
+char* obtener_instruccion(t_list* instrucciones, uint32_t pc_actual);
 
 
 

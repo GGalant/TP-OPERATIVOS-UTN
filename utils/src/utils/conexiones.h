@@ -32,7 +32,8 @@ typedef enum {
     PEDIDO_INSTRUCCION,
     RTA_PEDIDO_INSTRUCCION,
     STDOUT_LECTURA,
-    STDIN_ESCRITURA
+    STDIN_ESCRITURA,
+    CREACION_DE_PROCESO
 }op_code;
 
 int crear_conexion(char *ip, char* puerto);

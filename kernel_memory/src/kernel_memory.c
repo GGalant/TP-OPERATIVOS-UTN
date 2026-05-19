@@ -156,20 +156,20 @@ void* handle_ks(void* arg) {
 
                 break;
 
-            case STDOUT_LECTURA:
-            { //por pedido del ks
-                t_list* pedido_lectura = recibir_paquete(socket_ks); //esperamos (PID), dirLogica y tamaño a leer
-                int pid = list_get(pedido_lectura,0);
-                char* direccion_logica = list_get(direccion_logica; 1);
-                void* bytes_a_leer = list_get(pedido_lectura,2);
-                
-                char* direccion_fisica; //entrada --> magia -->traduccion
+//            case STDOUT_LECTURA:{ 
+                //por pedido del ks
+//                t_list* pedido_lectura = recibir_paquete(socket_ks); //esperamos (PID), dirLogica y tamaño a leer
+//                int* pid = list_get(pedido_lectura,0);
+//                char* direccion_logica = list_get(pedido_lectura, 1);
+//                void* bytes_a_leer = list_get(pedido_lectura,2);
+//                
+//                char* direccion_fisica; //entrada --> magia -->traduccion
                 
                 /* AÚN MÁS MAGIA */
-                solicitar_lectura(direccion_fisica, socket_memory_stick);
-                enviar_mensaje("LECTURA OK!", socket_ks);
+                // solicitar_lectura(direccion_fisica, socket_memory_stick); //TODO: FALTA IMPLEMENTARRRRR
+//                enviar_mensaje("LECTURA OK!", socket_ks);
 
-                log_info(log_km,"## PID: <PID> - <Escritura/Lectura> - Dir. Física: <DIRECCIÓN FÍSICA> - Tamaño: <TAMAÑO>");
+//                log_info(log_km,"## PID: <PID> - <Escritura/Lectura> - Dir. Física: <DIRECCIÓN FÍSICA> - Tamaño: <TAMAÑO>");
 
 
                 /* t_paquete* paquete_lectura = crear_paquete(RTA_STDOUT_LECTURA);
@@ -177,20 +177,21 @@ void* handle_ks(void* arg) {
                 // retorna los bytes leidos que despues ks envia a IO
 
                 enviar_paquete_send_all(paquete_lectura, socket_ks); */
-            }
-            break;
+//            }
+//                break;
+            
 
             case STDIN_ESCRITURA:
             { //por pedido del ks
                 t_list* pedido_escritura = recibir_paquete(socket_ks); //esperamos (PID), dirLogica y tamaño a ESCRIBIR
                 int pid = list_get(pedido_escritura,0);
-                char* direccion_logica = list_get(direccion_logica; 1);
+                char* direccion_logica = list_get(direccion_logica, 1);
                 void* bytes_a_leer = list_get(pedido_escritura,2);
 
                 char* direccion_fisica; //entrada --> magia -->traduccion
                 
                 /* AÚN MÁS MAGIA */
-                solicitar_escritura(direccion_fisica,socket_memory_stick);
+              //  solicitar_escritura(direccion_fisica,socket_memory_stick);
 
                 enviar_mensaje("ESCRITURA OK!", socket_ks);
 
@@ -202,7 +203,9 @@ void* handle_ks(void* arg) {
 
                 enviar_paquete_send_all(paquete_lectura, socket_ks); */
             }
-            break;
+                break;
+
+
             default:
                 log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
                 break;
@@ -232,6 +235,9 @@ void* handle_cpu(void* arg) {
                 t_contextoEjec* contexto_a_enviar = dictionary_get(diccionario_contextos_ejecucion, str_pid_enviado);
                 if(contexto_a_enviar == NULL){
                     log_error(log_km,"No hay un contexto guardado para el PID <%d>", pid_recibido);
+                    free(str_pid_enviado);
+                    free(contexto_a_enviar);
+                    return EXIT_FAILURE;
                 }else{
                     t_paquete *paquete_contexto = crear_paquete(ENVIAR_CONTEXTO);
                     agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->pid),sizeof(int));
@@ -265,19 +271,27 @@ void* handle_cpu(void* arg) {
                 char* str_pid_recibido = string_itoa(pid);
                 t_contextoEjec* contexto = dictionary_get(diccionario_contextos_ejecucion, str_pid_recibido);
 
+                // caso de error si se intenta guardar el pcb de un proceso no creado
                 if (contexto == NULL) {
-                    //si es proceso nuevo
+                    
+                    log_info(log_km, "El proceso con id: <%d> nunca fue creado en Kernel Memory", contexto->pid);
+
+                   /*  //si es proceso nuevo
                     contexto = malloc(sizeof(t_contextoEjec));
                     contexto->pid = pid;
                     contexto->tabla_segmentos = list_create(); 
 
                     dictionary_put(diccionario_contextos_ejecucion, str_pid_recibido, contexto);
-                    log_info(log_km, "PID <%d> nuevo guardado correctamente!", contexto->pid);
+                    log_info(log_km, "PID <%d> nuevo guardado correctamente!", contexto->pid); */
 
-                } else {
+                
                     //liberamos porque no usamos key nueva, era una ya existente
                     free(str_pid_recibido);
+                    free(contexto);
+                    return EXIT_FAILURE;
                 }
+                
+                free(str_pid_recibido);
                 
                 contexto->pc = *(uint32_t*)list_get(contexto_cpu, 1);
                 contexto->ax = *(uint8_t*)list_get(contexto_cpu, 2);
@@ -303,9 +317,55 @@ void* handle_cpu(void* arg) {
                 
                 char* str_pid_recibido = string_itoa(pid_recibido);
                 //Deberíamos tener algo más o menos así.
-                buscar_instruccion(str_pid_recibido, pc);
+
+                t_list* instrucciones = dictionary_get(diccionario_paths, str_pid_recibido);
+                
+                char* instruccion = obtener_instruccion(instrucciones,pc);
+                int tam_instruccion = strlen(instruccion) + 1;
+                
+                op_code rta_pedido_instruccion = RTA_PEDIDO_INSTRUCCION;
+                send(socket_cpu, &rta_pedido_instruccion, sizeof(op_code),0);
+                send(socket_cpu, tam_instruccion, sizeof(int),0);
+
+
+                //buscar_instruccion(str_pid_recibido, pc);
                 break;
             }
+
+            case CREACION_DE_PROCESO: {
+                int pid;
+                char* str_pid_recibido = string_itoa(pid);
+                char* path_archivo_instrucciones;
+                t_contextoEjec* contexto;
+
+                contexto = malloc(sizeof(t_contextoEjec));
+                contexto->pid = pid;
+                contexto->tabla_segmentos = list_create(); 
+
+                contexto->pc = 0;
+                contexto->ax = 0;
+                contexto->bx = 0;
+                contexto->cx = 0;
+                contexto->dx = 0;
+                contexto->eax = 0;
+                contexto->ebx = 0;
+                contexto->ecx = 0;
+                contexto->edx = 0;
+                contexto->si = 0;
+                contexto->di = 0;
+                
+
+                dictionary_put(diccionario_contextos_ejecucion, str_pid_recibido, contexto);
+                log_info(log_km, "PID <%d> nuevo guardado correctamente!", contexto->pid); 
+                
+                t_list* instrucciones = cargar_instrucciones(path_archivo_instrucciones);
+                
+                dictionary_put(diccionario_paths,str_pid_recibido,instrucciones);                
+
+                
+                break;
+            }
+
     
             default:
                 log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
@@ -314,6 +374,10 @@ void* handle_cpu(void* arg) {
         }
     }
 }
+
+
+////////////////////////////////////////
+
 
 void* handle_ms(void* arg){
 
@@ -352,83 +416,53 @@ void* handle_ms(void* arg){
     }
 }
 
-void buscar_instruccion(char* str_pid_recibido, uint32_t pc_nuevo) {
-        
-    t_contextoEjec* contexto = dictionary_get (diccionario_contextos_ejecucion , str_pid_recibido);
-    uint32_t pc_actual = contexto -> pc;
 
-    
-    char* path_instrucciones = dictionary_get(diccionario_paths, str_pid_recibido);
-
-    if(path_instrucciones == NULL){
-        log_error(log_km, "No se encontró un path de instrucciones asociado al PID <%d>", str_pid_recibido);
-    }else{
-        char* instruccion = buscar_en_archivo(path_instrucciones,pc_actual); //TODO: implementar esta funcion
-        if (instruccion == NULL){
-            log_error(log_km, "No se encontró la instrucción %d para el PID <%d>", instruccion, str_pid_recibido);
-        } else {
-           /*  t_paquete* rta_instruccion = crear_paquete(RTA_PEDIDO_INSTRUCCION);
-            agregar_a_paquete(rta_instruccion,instruccion,strlen(instruccion)+1);
-            enviar_paquete_send_all(rta_instruccion,socket_cpu); // sugerir a gabi q reciba como paquete
-            eliminar_paquete(rta_instruccion); */
-            
-            //envío sin paquete
-            op_code codigo = RTA_PEDIDO_INSTRUCCION;
-            send(socket_cpu, &codigo,sizeof(op_code),0);
-
-            // verificar si recibe esto ---------------------- !!!
-            int tamanio_instr = strlen(instruccion) + 1;
-            //send(socket_cpu, &tamanio_instr, sizeof(int), 0);
-
-            send(socket_cpu, instruccion, tamanio_instr,0);
-
-        }
-    }  
-    
-    if (path_instrucciones == NULL) {
-        log_error(log_km, "No se pudo abrir el archivo");
-        return;
-    }
-
-    contexto->pc = pc_nuevo + 1;
-
-    dictionary_put(diccionario_contextos_ejecucion,str_pid_recibido, contexto);
-
-
-}
-        
-    
-char* buscar_en_archivo(char* path_instrucciones,uint32_t pc_actual){
-    
+t_list* cargar_instrucciones(char* path_instrucciones) {
     FILE* archivo = fopen(path_instrucciones, "r");
 
     if (archivo == NULL) {
-        log_error(log_km, "No se pudo abrir el archivo de instrucciones");
+        log_error(log_km, "No se pudo abrir el archivo de instrucciones: %s", path_instrucciones);
         return NULL;
     }
+    t_list* instrucciones = list_create();
 
-    char buffer[256];
+        char buffer[256];
+        
 
-    uint32_t linea_actual = 0;
+        /* while (fgets(buffer, sizeof(buffer), archivo) != NULL) {
+            // Sacamos el \n final si existe
+            char* instruccion = string_trim(buffer);
+            // Guardamos una copia de la instrucción en la lista
+            list_add(instrucciones, instruccion);
 
-    // avanzar hasta la linea del PC
-    while (linea_actual < pc_actual) {
+        } */
 
-        if (fgets(buffer, sizeof(buffer), archivo) == NULL) {
-            fclose(archivo);
-            return NULL;
+        while (fgets(buffer, sizeof(buffer), archivo) != NULL) {
+            char* instruccion = strdup(buffer);
+
+            string_trim(&instruccion);
+
+            list_add(instrucciones, instruccion);
         }
 
-        linea_actual++;
+        fclose(archivo);
+
+        return instrucciones;
     }
 
-    // leer la instruccion buscada
-    if (fgets(buffer, sizeof(buffer), archivo) == NULL) {
-        fclose(archivo);
+
+char* obtener_instruccion(t_list* instrucciones, uint32_t pc_actual) {
+    if (pc_actual >= list_size(instrucciones)) {
+        log_error(log_km, "PC fuera de rango. PC: %d - Cantidad instrucciones: %d",
+                  pc_actual, list_size(instrucciones));
         return NULL;
     }
 
-    fclose(archivo);
-
-    return strdup(buffer);
+    return list_get(instrucciones, pc_actual);
 }
+
+    
+//no abrir el archivo cada vez que cpu quiere una instruccion,
+//sino que abrirlo una sola vez y tener una lista de instrucciones
+
+// SI, la mmu tiene que realizar la traduccion de direc logica a fisica.
