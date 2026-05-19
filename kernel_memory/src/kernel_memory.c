@@ -156,29 +156,34 @@ void* handle_ks(void* arg) {
 
                 break;
 
-//            case STDOUT_LECTURA:{ 
+            case STDOUT_LECTURA:{ 
                 //por pedido del ks
-//                t_list* pedido_lectura = recibir_paquete(socket_ks); //esperamos (PID), dirLogica y tamaño a leer
-//                int* pid = list_get(pedido_lectura,0);
-//                char* direccion_logica = list_get(pedido_lectura, 1);
-//                void* bytes_a_leer = list_get(pedido_lectura,2);
-//                
-//                char* direccion_fisica; //entrada --> magia -->traduccion
+                t_list* pedido_lectura = recibir_paquete(socket_ks); //esperamos (PID), dirLogica y tamaño a leer
+                int pid = *(int*)list_get(pedido_lectura,0);
+                char* direccion_logica = list_get(pedido_lectura, 1);
+                void* bytes_a_leer = list_get(pedido_lectura,2);
                 
-                /* AÚN MÁS MAGIA */
+                op_code solicitud_traduccion = SOLICITUD_TRADUCCION;
+                int tam_dirLogica = strlen(direccion_logica) + 1;
+                
+                send(socket_cpu, &solicitud_traduccion, sizeof(solicitud_traduccion),0);
+                send(socket_cpu, direccion_logica,sizeof(tam_dirLogica),0);
+                
+                //recibimos la dirección traducida
+                int size_dirFisica;
+                char* direccion_fisica = recibir_buffer(size_dirFisica,socket_cpu);
+                
+                
+                /* LEER EL BLOQUE FISICO*/
+                
+                
                 // solicitar_lectura(direccion_fisica, socket_memory_stick); //TODO: FALTA IMPLEMENTARRRRR
-//                enviar_mensaje("LECTURA OK!", socket_ks);
+                enviar_mensaje("LECTURA OK!", socket_ks);
 
-//                log_info(log_km,"## PID: <PID> - <Escritura/Lectura> - Dir. Física: <DIRECCIÓN FÍSICA> - Tamaño: <TAMAÑO>");
+                log_info(log_km,"## PID: <PID> - <Escritura/Lectura> - Dir. Física: <DIRECCIÓN FÍSICA> - Tamaño: <TAMAÑO>");
 
-
-                /* t_paquete* paquete_lectura = crear_paquete(RTA_STDOUT_LECTURA);
-                
-                // retorna los bytes leidos que despues ks envia a IO
-
-                enviar_paquete_send_all(paquete_lectura, socket_ks); */
-//            }
-//                break;
+            }
+                break;
             
 
             case STDIN_ESCRITURA:
