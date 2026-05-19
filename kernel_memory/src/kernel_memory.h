@@ -18,9 +18,7 @@ void* handle_ms(void* arg);
 
 t_list* cargar_instrucciones(char* path_instrucciones);
 char* obtener_instruccion(t_list* instrucciones, uint32_t pc_actual);
-
-
-
+char* armar_argumentos(char** tokens);
 typedef struct {
     int id_segmento;
     uint32_t base;

@@ -327,6 +327,17 @@ void* handle_cpu(void* arg) {
                 
                 char* instruccion = obtener_instruccion(instrucciones,pc);
                 int tam_instruccion = strlen(instruccion) + 1;
+
+                char** instruccion_separada = string_split(instruccion, " ");
+                char* argumentos = armar_argumentos(instruccion_separada);
+
+                if(strlen(argumentos) > 0){
+                log_info(log_km, "## PID: <%d> - Obtener instrucción: <%d> - Instrucción: <%s> <%s>", pid_recibido, pc, instruccion, argumentos);
+                } else {                
+                    //maneja caso exit, noop
+                    log_info(log_km, "## PID: <%d> - Obtener instrucción: <%d> - Instrucción: <%s>", pid_recibido, pc, instruccion);
+                }
+
                 
                 op_code rta_pedido_instruccion = RTA_PEDIDO_INSTRUCCION;
                 send(socket_cpu, &rta_pedido_instruccion, sizeof(op_code),0);
@@ -462,10 +473,25 @@ char* obtener_instruccion(t_list* instrucciones, uint32_t pc_actual) {
                   pc_actual, list_size(instrucciones));
         return NULL;
     }
-
     return list_get(instrucciones, pc_actual);
 }
 
+
+char* armar_argumentos(char** tokens) {
+    char* argumentos = string_new();
+
+    for (int i = 1; tokens[i] != NULL; i++) {
+        string_append(&argumentos, tokens[i]);
+
+        if (tokens[i + 1] != NULL) {
+            string_append(&argumentos, " ");
+        }
+    }
+
+    return argumentos;
+
+    free(argumentos);
+}
     
 //no abrir el archivo cada vez que cpu quiere una instruccion,
 //sino que abrirlo una sola vez y tener una lista de instrucciones
