@@ -87,7 +87,7 @@ void* handle_ks(void* arg) {
 
 /*
 Envia un pedido de instruccion a Kernel Memory y la carga en el buffer de instruccion del CPU
-Devuelve -1 ante error, o el buffer estatico (instruccion_buffer) ante ejecucion exitosa.
+Devuelve NULL ante error, o el buffer estatico (instruccion_buffer) ante ejecucion exitosa.
 */
 void* fetch(){
 
@@ -104,12 +104,12 @@ void* fetch(){
     
     if(operacion == -1){
         log_error(log_cpu, "Fetch: Error al recibir_operacion");
-        return -1;
+        return NULL;
     }
 
     if(operacion != RTA_PEDIDO_INSTRUCCION){
         log_error(log_cpu, "Fetch: La operacion recibida de Kernel Memory no fue la esperada, se recibio: %d", operacion);
-        return -1;
+        return NULL;
     }
 
     int size;
@@ -117,7 +117,7 @@ void* fetch(){
 
     if(temp == NULL){
         log_error(log_cpu, "Fetch: El buffer recibido de KM es NULL o el tamanio es invalido");
-        return -1;
+        return NULL;
     }
 
     if(size <= 0){
@@ -126,7 +126,7 @@ void* fetch(){
 
     if(size >= MAX_BUFFER_INSTRUCCION){
         log_error(log_cpu, "Fetch: La instruccion recibida de KM supera el tamanio maximo para una instruccion");
-        return -1;
+        return NULL;
     }
 
     memcpy(instruccion_buffer, temp, size);
