@@ -5,6 +5,9 @@ void ejecutar_noop(){
     return;
 };
 
+/*
+Asigna al registro el valor pasado como parámetro.
+*/
 void ejecutar_set(char* registro_set, char* valor_set) {
 
     void* cpu_reg = string_to_registro(registro_set);
@@ -24,6 +27,9 @@ void ejecutar_set(char* registro_set, char* valor_set) {
     return;
 }
 
+/*
+Suma al Registro Destino el Registro Origen y deja el resultado en el Registro Destino.
+*/
 void ejecutar_sum(char* registro_destino, char* registro_origen){
 
     void * cpu_reg_destino = string_to_registro(registro_destino);
@@ -51,8 +57,7 @@ void ejecutar_sum(char* registro_destino, char* registro_origen){
 };
 
 /*
-Si el valor del registro es distinto de cero, 
-actualiza el program counter al número de instrucción pasada por parámetro.v
+Resta al Registro Destino el Registro Origen y deja el resultado en el Registro Destino.
 */
 void ejecutar_sub(char* registro_destino, char* registro_origen){
 
@@ -80,6 +85,10 @@ void ejecutar_sub(char* registro_destino, char* registro_origen){
 
 };
 
+/*
+Si el valor del registro es distinto de cero, 
+actualiza el program counter al número de instrucción pasada por parámetro.v
+*/
 void ejecutar_jnz(char* registro_jnz, char* str_nuevo_valor_pc){
     void * cpu_reg = string_to_registro(registro_jnz);
 
