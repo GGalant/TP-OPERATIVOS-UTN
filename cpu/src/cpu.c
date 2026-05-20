@@ -18,13 +18,15 @@ int main(int argc, char *argv[]){
     char* ip_ms;
     char* puerto_ms;
     int log_level;
+
+    //crear config
     t_config* config = config_create(config_path);
-    pthread_t hilo_ks;
 
     if(config == NULL){
         return EXIT_FAILURE;
     }
 
+    //Obtener variables de configuracion
     str_log_level = config_get_string_value(config, "LOG_LEVEL");
     log_level = log_level_from_string(str_log_level);
 
@@ -42,47 +44,17 @@ int main(int argc, char *argv[]){
     log_cpu = log_create(("cpu_%d.log", id_cpu), ("CPU <%d>", id_cpu), 1, log_level);
     log_info(log_cpu, "Iniciando CPU <%d>", id_cpu);
 
+    //conexion_km = crear_conexion(ip_km, puerto_km); forma de conectar sin loguear
     //conexiones con modulos
-
-    conexion_ks = crear_conexion(ip_ks, puerto_ks);
-
-    if(conexion_ks == -1){
-        log_error(log_cpu, "Error al conectar con Kernel Scheduler en %s:%s", ip_ks, puerto_ks);
-        log_destroy(log_cpu);
-        config_destroy(config);
-        return EXIT_FAILURE;
-    }
-
-    handshake handshake_cpu_ks = HANDSHAKE_CPU;
-    send(conexion_ks, &handshake_cpu_ks, sizeof(handshake), 0);
-
-    pthread_create(&hilo_ks, NULL, handle_ks, (void*)(int)conexion_ks);
-	
-
-    conexion_km = crear_conexion(ip_km, puerto_km);
-
-    if(conexion_km == -1){
-        log_error(log_cpu, "Error al conectar con Kernel Memory en %s:%s", ip_km, puerto_km);
-        log_destroy(log_cpu);
-        config_destroy(config);
-        return EXIT_FAILURE;
-    }
-
-    handshake handshake_cpu_km = HANDSHAKE_CPU;
-    send(conexion_km, &handshake_cpu_km, sizeof(handshake), 0);
-
-    conexion_ms = crear_conexion(ip_ms, puerto_ms);
-
-    if(conexion_ms == -1){
-        log_error(log_cpu, "Error al conectar con Memory Stick en %s:%s", ip_ms, puerto_ms);
-        log_destroy(log_cpu);
-        config_destroy(config);
-        return EXIT_FAILURE;
-    }
-
-    handshake handshake_cpu_ms = HANDSHAKE_CPU;
-    send(conexion_ms, &handshake_cpu_ms, sizeof(handshake), 0);
-    log_info(log_cpu, "Conectado a Memory Stick");
+    conexion_ks = conextar_modulo(ip_ks, puerto_ks, "Kernel Scheduler");
+    conexion_km = conectar_modulo(ip_km, puerto_km, "Kernel Memory");
+    conexion_ms = conectar_modulo(ip_ms, puerto_ms, "Memory Stick");
+    
+    //Envio de handshakes
+    handshake handshake_cpu = HANDSHAKE_CPU;
+    send(conexion_ks, &handshake_cpu, sizeof(handshake), 0);	
+    send(conexion_km, &handshake_cpu, sizeof(handshake), 0);
+    send(conexion_ms, &handshake_cpu, sizeof(handshake), 0);
 
     while(true) {   
         op_code codigo_operacion = recibir_operacion(conexion_km);
@@ -304,4 +276,19 @@ void * string_to_registro(char* s){
     if (strcmp(s, "DI") == 0) return &cpu.di;
 
     return NULL;
+}
+
+
+//Conexion con modulo + log,
+int conectar_modulo_logueado(char* ip, char* puerto, char* nombre_modulo) {
+    int socket_conexion = crear_conexion(ip, puerto);
+
+    if(socket_conexion == -1) {
+        log_error(log_cpu, "Error al conectar con %s en %s:%s", nombre_modulo, ip, puerto);
+        return -1; // Retornamos -1 para que el main sepa que falló
+    
+
+    log_info(log_cpu, "Conectado exitosamente a %s", nombre_modulo);
+
+    return socket_conexion;
 }
