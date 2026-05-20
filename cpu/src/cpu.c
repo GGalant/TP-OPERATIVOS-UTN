@@ -10,45 +10,29 @@ int main(int argc, char *argv[]){
     char* config_path = argv[1]; 
     char* id_cpu_str = argv[2];
     int id_cpu = atoi(id_cpu_str);
-    char* str_log_level;
-    char* ip_ks;
-    char* puerto_ks;
-    char* ip_km;
-    char* puerto_km;
-    char* ip_ms;
-    char* puerto_ms;
     int log_level;
 
-    //crear config
     t_config* config = config_create(config_path);
 
     if(config == NULL){
         return EXIT_FAILURE;
     }
 
-    //Obtener variables de configuracion
-    str_log_level = config_get_string_value(config, "LOG_LEVEL");
-    log_level = log_level_from_string(str_log_level);
+    map_config_variables(config);
 
-    ip_ks = config_get_string_value(config, "IP_KS");
-    puerto_ks = config_get_string_value(config, "PUERTO_KS");
-
-    ip_km = config_get_string_value(config, "IP_KM");
-    puerto_km = config_get_string_value(config, "PUERTO_KM");
-
-    ip_ms= config_get_string_value(config, "IP_MS");
-    puerto_ms = config_get_string_value(config, "PUERTO_MS");
-
-
-
+    log_level = log_level_from_string(env_str_log_level);
     log_cpu = log_create(("cpu_%d.log", id_cpu), ("CPU <%d>", id_cpu), 1, log_level);
     log_info(log_cpu, "Iniciando CPU <%d>", id_cpu);
 
-    //conexion_km = crear_conexion(ip_km, puerto_km); forma de conectar sin loguear
     //conexiones con modulos
-    conexion_ks = conextar_modulo(ip_ks, puerto_ks, "Kernel Scheduler");
-    conexion_km = conectar_modulo(ip_km, puerto_km, "Kernel Memory");
-    conexion_ms = conectar_modulo(ip_ms, puerto_ms, "Memory Stick");
+    conexion_ks = conextar_modulo(env_ip_ks, env_puerto_ks, "Kernel Scheduler");
+    conexion_km = conectar_modulo(env_ip_km, env_puerto_km, "Kernel Memory");
+    conexion_ms = conectar_modulo(env_ip_ms, env_puerto_ms, "Memory Stick");
+
+    if(conexion_ks == -1 || conexion_km == -1 || conexion_ms == -1 ){
+        log_destroy(log_cpu);
+        return EXIT_FAILURE;
+    }
     
     //Envio de handshakes
     handshake handshake_cpu = HANDSHAKE_CPU;
@@ -286,9 +270,27 @@ int conectar_modulo_logueado(char* ip, char* puerto, char* nombre_modulo) {
     if(socket_conexion == -1) {
         log_error(log_cpu, "Error al conectar con %s en %s:%s", nombre_modulo, ip, puerto);
         return -1; // Retornamos -1 para que el main sepa que falló
-    
+    }
 
     log_info(log_cpu, "Conectado exitosamente a %s", nombre_modulo);
 
     return socket_conexion;
+
+}
+
+//Mapea las variables del config a las variables delfinidas en el header
+int map_config_variables(t_config* config){
+
+    env_str_log_level = config_get_string_value(config, "LOG_LEVEL");
+
+    env_ip_ks = config_get_string_value(config, "IP_KS");
+    env_puerto_ks = config_get_string_value(config, "PUERTO_KS");
+
+    env_ip_km = config_get_string_value(config, "IP_KM");
+    env_puerto_km = config_get_string_value(config, "PUERTO_KM");
+
+    env_ip_ms= config_get_string_value(config, "IP_MS");
+    env_puerto_ms = config_get_string_value(config, "PUERTO_MS");
+
+    return 0;
 }

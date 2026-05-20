@@ -1,6 +1,5 @@
 #include <commons/log.h>
 #include <commons/config.h>
-#include <pthread.h>
 #include "utils/serializacion.h"
 
 #define MAX_BUFFER_INSTRUCCION 128
@@ -12,6 +11,15 @@ t_log* log_cpu;
 int conexion_ms;
 int conexion_ks;
 int conexion_km;
+
+//Variables de configuracion:
+char* env_str_log_level;
+char* env_ip_ks;
+char* env_puerto_ks;
+char* env_ip_km;
+char* env_puerto_km;
+char* env_ip_ms;
+char* env_puerto_ms;
 
 struct cpu {
 int pid;
