@@ -50,6 +50,10 @@ void ejecutar_sum(char* registro_destino, char* registro_origen){
     
 };
 
+/*
+Si el valor del registro es distinto de cero, 
+actualiza el program counter al número de instrucción pasada por parámetro.v
+*/
 void ejecutar_sub(char* registro_destino, char* registro_origen){
 
     void * cpu_reg_destino = string_to_registro(registro_destino);
