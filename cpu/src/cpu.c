@@ -151,6 +151,7 @@ int decode(){
 
     if (splitted_instruction[0] == NULL) {
         instruccion_actual.icode = ERROR;
+        string_array_destroy(splitted_instruction);
         return 0;
     }
 
@@ -161,8 +162,10 @@ int decode(){
         strncpy(instruccion_actual.params[i], splitted_instruction[i], MAX_INSTRUCTION_PARAM_SIZE);
         instruccion_actual.params[i][MAX_INSTRUCTION_PARAM_SIZE - 1] = '\0';
         i++;
-    }
-    instruccion_actual.cant_params++;
+    } 
+    //i vale 1 mas que el numero de parametros al salir del while
+    //el comando es el parametro 0
+    instruccion_actual.cant_params = i;
 
     string_array_destroy(splitted_instruction);
 
