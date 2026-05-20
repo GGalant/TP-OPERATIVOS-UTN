@@ -136,7 +136,25 @@ void ejecutar_mov_in(char* registro){
 }
 
 // Escribe en memoria desde el registro pasado por parametro (usa DI como destino)
-void ejecutar_mov_out(char* registro_datos);
+void ejecutar_mov_out(char* registro){
+    void * cpu_reg_origen = string_to_registro(registro);
+    
+    if (cpu_reg_origen == NULL) {
+        log_error(log_cpu, "MOV_OUT: Registro origen invalido (%s)", registro);
+        return;
+    }
+
+    size_t reg_size = get_registro_size(registro);
+    
+    uint32_t valor_a_escribir = get_registro_value(reg_size, cpu_reg_origen);
+
+    uint32_t direccion_logica = cpu.di;
+
+    //TODO implementar MMU y acceso a memoria
+    uint32_t direccion_fisica = 0; 
+
+    log_debug(log_cpu, "MOV_OUT: Ejecutado");
+}
 
 /*
 Toma la dirección apuntada por el registro SI y 
