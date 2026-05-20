@@ -141,26 +141,6 @@ void* handle_km(void* arg) {
     }
 }
 
-void* handle_io(void* arg) {    
-    int socket_io = *(int*)arg;
-    free(arg);
-    
-    log_info(log_ks, "IO conectada: %d", socket_io);
-
-    while(true) {   
-        // aca iria la logica de operaciones con IO 
-        int codigo_operacion = recibir_operacion(socket_io);
-
-        switch(codigo_operacion) {
-            case -1:
-                log_error(log_ks, "IO FD %d se desconectó. Terminando handle", socket_io);
-                return NULL;
-            default:
-                log_warning(log_ks, "operacion desconocida: %d", codigo_operacion);
-                break;
-        }
-    }
-}
 // Kernel memory debería recibir el proceso (Vick y Aylu)
 void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {    
     
@@ -177,6 +157,7 @@ void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {
         // aca podriamos proteger la variable global con un mutex de C
         list_add(cola_ready, pcb_proceso_inicial);
         pthread_mutex_unlock(&mutex_cola_ready);
+        pthread_cond_signal(&cond_cola_ready);
     } else {
         log_error(log_ks, "Error al crear el proceso inicial en Kernel Memory. Código de op: %d", codigo_operacion);
         return; 

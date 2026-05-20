@@ -25,10 +25,28 @@ typedef enum {
     MENSAJE,
     PAQUETE,
     ENVIAR_CONTEXTO, // de kernel memory, para recibir de cpu
-    RECIBIR_CONTEXTO,  // de kernel memory, para recibir de cpu
+    RECIBIR_CONTEXTO, // de kernel memory, para recibir de cpu
     INICIALIZAR_PROCESO,
     INICIALIZAR_PROCESO_OK
 }op_code;
+
+/* typedef enum {
+    INICIALIZAR_PROCESO,
+    INICIALIZAR_PROCESO_OK
+} op_code_ks_km; */
+ 
+typedef enum {  
+    EJECUTAR_PROCESO,
+    SYSCALL_EXIT,
+    SYSCALL_SLEEP,
+    SYSCALL_STDIN,
+    SYSCALL_STDOUT,
+    INTERRUPCION_FIN_QUANTUM,
+    INTERRUPCION_DESALOJO,
+    SYSCALL_MUTEX_LOCK,
+    SYSCALL_MUTEX_UNLOCK,
+    SYSCALL_INIT_PROC
+} op_code_ks_cpu;
 
 int crear_conexion(char *ip, char* puerto);
 int iniciar_servidor(t_log *logger, char *puerto);

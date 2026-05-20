@@ -30,7 +30,6 @@ typedef struct {
 void inicializar_ks(int argc, char* argv[]);
 void* handle_connections(void* arg);
 void* handle_km(void* arg);
-void* handle_io(void* arg);
 void enviar_proceso(int socket_km, int pid, char* path_proceso);
 void crear_proceso_inicial(int socket_km, char* path_proceso_inicial);
 t_proceso_pcb* crear_pcb(int pid, int prioridad);
