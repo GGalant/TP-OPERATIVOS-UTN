@@ -22,14 +22,17 @@ char* env_ip_ms;
 char* env_puerto_ms;
 
 struct cpu {
+//Process Id
 int pid;
+//Program Counter
 uint32_t pc;
+//Registro Numerico de propósito general
 uint8_t ax, bx, cx, dx;
-uint32_t eax;
-uint32_t ebx;
-uint32_t ecx;
-uint32_t edx;
+//Registro Numérico de propósito general
+uint32_t eax, ebx, ecx, edx;
+//Direccion logica de memoria de origen
 uint32_t si;
+//Direccion logica de memoria de destino
 uint32_t di;
 } cpu;
 
