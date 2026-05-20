@@ -8,13 +8,13 @@ void ejecutar_noop(){
 /*
 Asigna al registro el valor pasado como parámetro.
 */
-void ejecutar_set(char* registro_set, char* valor_set) {
+void ejecutar_set(char* registro, char* valor_set) {
 
-    void* cpu_reg = string_to_registro(registro_set);
-    size_t reg_size = get_registro_size(registro_set);
+    void* cpu_reg = string_to_registro(registro);
+    size_t reg_size = get_registro_size(registro);
     
     if (cpu_reg == NULL) {
-        log_error(log_cpu, "Set: Registro inválido %s", registro_set);
+        log_error(log_cpu, "SET: Registro invalido %s", registro);
         return;
     }
 
@@ -22,7 +22,7 @@ void ejecutar_set(char* registro_set, char* valor_set) {
 
     set_reg_value(reg_size, cpu_reg, valor);
 
-    log_debug(log_cpu, "Set: Ejecutado");  
+    log_debug(log_cpu, "SET: Ejecutado");  
 
     return;
 }
@@ -39,7 +39,7 @@ void ejecutar_sum(char* registro_destino, char* registro_origen){
 
 
     if (cpu_reg_destino == NULL || cpu_reg_origen == NULL) {
-        log_error(log_cpu, "Sum: Registro invalido (Dest: %s, Orig: %s)", registro_destino, registro_origen);
+        log_error(log_cpu, "SUM: Registro invalido (Dest: %s, Orig: %s)", registro_destino, registro_origen);
         return;
     }
 
@@ -50,7 +50,7 @@ void ejecutar_sum(char* registro_destino, char* registro_origen){
 
     set_reg_value(reg_size_dest, cpu_reg_destino, resultado);
 
-    log_debug(log_cpu, "Sum: Ejecutado");
+    log_debug(log_cpu, "SUM: Ejecutado");
 
     return;
     
@@ -79,7 +79,7 @@ void ejecutar_sub(char* registro_destino, char* registro_origen){
 
     set_reg_value(reg_size_dest, cpu_reg_destino, resultado);
 
-    log_debug(log_cpu, "Sub: Ejecutado");
+    log_debug(log_cpu, "SUB: Ejecutado");
 
     return;
 
@@ -89,32 +89,51 @@ void ejecutar_sub(char* registro_destino, char* registro_origen){
 Si el valor del registro es distinto de cero, 
 actualiza el program counter al número de instrucción pasada por parámetro.v
 */
-void ejecutar_jnz(char* registro_jnz, char* str_nuevo_valor_pc){
-    void * cpu_reg = string_to_registro(registro_jnz);
+void ejecutar_jnz(char* registro, char* str_nuevo_valor_pc){
+    void * cpu_reg = string_to_registro(registro);
 
     if (cpu_reg == NULL) {
-        log_error(log_cpu, "JNZ: Registro invalido (%s)", registro_jnz);
+        log_error(log_cpu, "JNZ: Registro invalido (%s)", registro);
         return;
     }
 
-    size_t reg_size = get_registro_size(registro_jnz);
+    size_t reg_size = get_registro_size(registro);
     
     uint32_t val_reg = get_registro_value(reg_size, cpu_reg);
 
     //Si el valor es distinto de 0, entonces salta
     if (val_reg != 0) {
-        uint32_t nuevo_pc = (uint32_t) atoi(str_nuevo_valor_pc);
+        uint32_t nuevo_valor_pc = (uint32_t) atoi(str_nuevo_valor_pc);
         
-        cpu.pc = nuevo_pc;
+        cpu.pc = nuevo_valor_pc;
         
-        log_debug(log_cpu, "JNZ: Salto tomado. Nuevo PC = %u", nuevo_pc);
+        log_debug(log_cpu, "JNZ: Salto tomado. Nuevo PC = %u", nuevo_valor_pc);
     } else {
-        log_debug(log_cpu, "JNZ: Salto ignorado.", registro_jnz);
+        log_debug(log_cpu, "JNZ: Salto ignorado");
     }
 }
 
 // Lee de memoria hacia el registro pasado por parametro (usa SI como origen)
-void ejecutar_mov_in(char* registro_datos);
+void ejecutar_mov_in(char* registro){
+    void * cpu_reg_destino = string_to_registro(registro);
+    
+    if (cpu_reg_destino == NULL) {
+        log_error(log_cpu, "MOV_IN: Registro destino invalido (%s)", registro);
+        return;
+    }
+
+    size_t reg_size = get_registro_size(registro);
+
+    uint32_t direccion_logica = cpu.si;
+
+    //TODO implementar MMU y acceso a memoria
+    uint32_t direccion_fisica = 0;
+    uint32_t valor_leido = 0; 
+
+    set_reg_value(reg_size, cpu_reg_destino, valor_leido);
+
+    log_debug(log_cpu, "MOV_IN: Ejecutado");
+}
 
 // Escribe en memoria desde el registro pasado por parametro (usa DI como destino)
 void ejecutar_mov_out(char* registro_datos);
