@@ -116,8 +116,12 @@ void* fetch(){
     void* temp = recibir_buffer(&size, conexion_km);
 
     if(temp == NULL){
-        log_error(log_cpu, "Fetch: El buffer recibido de KM es NULL");
+        log_error(log_cpu, "Fetch: El buffer recibido de KM es NULL o el tamanio es invalido");
         return -1;
+    }
+
+    if(size <= 0){
+        log_error(log_cpu, "Fetch: El size obtenido es invalido");
     }
 
     if(size >= MAX_BUFFER_INSTRUCCION){
