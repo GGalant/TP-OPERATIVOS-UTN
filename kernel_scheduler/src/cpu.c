@@ -37,7 +37,27 @@ void* handle_cpu(void* arg) {
                 //Cpu queda libre, liberar el struct del pcb
                 break;
             case SYSCALL_SLEEP:
-                 log_info(log_debug_ks, "PID: %d - Bloqueado por: SLEEP", cpu->pid_actual);
+                log_info(log_debug_ks, "PID: %d - Bloqueado por: SLEEP", cpu->pid_actual);
+
+                //Aca deberiamos recibir pcb actualizado (o por lo menos pc del proceso) y tiempo sleep
+                t_list* paquete_sleep = recibir_paquete(socket_cpu); 
+                int pid = *(int*)list_get(paquete_sleep, 0);
+                int pc_actualizado = *(int*)list_get(paquete_sleep, 1);
+                int tiempo_sleep = *(int*)list_get(paquete_sleep, 2);
+                list_destroy_and_destroy_elements(paquete_sleep, free);
+                
+                // *** TERMINAR: deberia sacar el proceso que esta ejecutando la cola exec y ponerlo en la cola block 
+                // pthread_mutex_lock(&mutex_cola_exec);
+                // t_proceso_pcb* proceso = buscar_proceso_por_id(pid, cola_exec);
+                // list_remove(cola_exec, proceso);
+
+                // cambiar_estado_proceso(proceso, BLOCK);
+
+                // pthread_mutex_unlock(&mutex_cola_exec);
+                
+                //enviar_peticion_io()
+
+                
                 break;
             case SYSCALL_STDOUT:
                 // log_info();
@@ -90,4 +110,13 @@ const char* operacion_to_string(op_code_ks_cpu operacion) {
         case SYSCALL_INIT_PROC: return "SYSCALL_INIT_PROC";
         default: return "DESCONOCIDO";
     }
+}
+
+t_proceso_pcb* buscar_proceso_por_id(int pid, t_list* cola) { 
+    for (int i = 0; i < list_size(cola); i++) {
+        t_proceso_pcb* proceso = list_get(cola, i);
+        if (proceso->pid == pid);
+            return proceso;
+    }
+    return NULL; 
 }
