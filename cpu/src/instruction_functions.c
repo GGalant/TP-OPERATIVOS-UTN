@@ -53,15 +53,15 @@ void ejecutar_sum(char* registro_destino, char* registro_origen){
 void ejecutar_sub(char* registro_destino, char* registro_origen){
 
     void * cpu_reg_destino = string_to_registro(registro_destino);
-    size_t reg_size_dest = get_registro_size(registro_destino);
     void * cpu_reg_origen = string_to_registro(registro_origen);
-    size_t reg_size_orig = get_registro_size(registro_origen);
-
 
     if (cpu_reg_destino == NULL || cpu_reg_origen == NULL) {
         log_error(log_cpu, "Sub: Registro invalido (Dest: %s, Orig: %s)", registro_destino, registro_origen);
         return;
     }
+
+    size_t reg_size_orig = get_registro_size(registro_origen);
+    size_t reg_size_dest = get_registro_size(registro_destino);
 
     uint32_t val_orig = get_registro_value(get_registro_size(registro_origen), cpu_reg_origen);
     uint32_t val_dest = get_registro_value(get_registro_size(registro_destino), cpu_reg_destino);
@@ -76,7 +76,29 @@ void ejecutar_sub(char* registro_destino, char* registro_origen){
 
 };
 
-void ejecutar_jnz(char* registro_jnz, char* nuevo_valor_pc);
+void ejecutar_jnz(char* registro_jnz, char* str_nuevo_valor_pc){
+    void * cpu_reg = string_to_registro(registro_jnz);
+
+    if (cpu_reg == NULL) {
+        log_error(log_cpu, "JNZ: Registro invalido (%s)", registro_jnz);
+        return;
+    }
+
+    size_t reg_size = get_registro_size(registro_jnz);
+    
+    uint32_t val_reg = get_registro_value(reg_size, cpu_reg);
+
+    //Si el valor es distinto de 0, entonces salta
+    if (val_reg != 0) {
+        uint32_t nuevo_pc = (uint32_t) atoi(str_nuevo_valor_pc);
+        
+        cpu.pc = nuevo_pc;
+        
+        log_debug(log_cpu, "JNZ: Salto tomado. Nuevo PC = %u", nuevo_pc);
+    } else {
+        log_debug(log_cpu, "JNZ: Salto ignorado.", registro_jnz);
+    }
+}
 
 // Lee de memoria hacia el registro pasado por parametro (usa SI como origen)
 void ejecutar_mov_in(char* registro_datos);
