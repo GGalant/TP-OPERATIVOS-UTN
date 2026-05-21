@@ -36,8 +36,12 @@ int main(int argc, char *argv[]){
     
     //Envio de handshakes
     handshake handshake_cpu = HANDSHAKE_CPU;
-    send(conexion_ks, &handshake_cpu, sizeof(handshake), 0);	
+    
+    send(conexion_ks, &handshake_cpu, sizeof(handshake), 0);
+    send(conexion_ks, &id_cpu,        sizeof(handshake), 0);
+
     send(conexion_km, &handshake_cpu, sizeof(handshake), 0);
+    
     send(conexion_ms, &handshake_cpu, sizeof(handshake), 0);
 
     while(true) {
@@ -72,7 +76,6 @@ void* handle_ks(void* arg) {
     log_info(log_cpu, "Conectado a kernel scheduler");
 
     while(true) {   
-        // aca iria la logica de operaciones con Kernel Schedule
         int codigo_operacion = recibir_operacion(socket_ks);
 
         switch(codigo_operacion) {
