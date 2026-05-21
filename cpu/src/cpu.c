@@ -25,11 +25,12 @@ int main(int argc, char *argv[]){
     log_info(log_cpu, "Iniciando CPU <%d>", id_cpu);
 
     //conexiones con modulos
-    conexion_ks = conectar_modulo(env_ip_ks, env_puerto_ks, "Kernel Scheduler");
-    conexion_km = conectar_modulo(env_ip_km, env_puerto_km, "Kernel Memory");
-    conexion_ms = conectar_modulo(env_ip_ms, env_puerto_ms, "Memory Stick");
+    conexion_ks = conectar_modulo_logueando(env_ip_ks, env_puerto_ks, "Kernel Scheduler");
+    conexion_km = conectar_modulo_logueando(env_ip_km, env_puerto_km, "Kernel Memory");
+    conexion_ms = conectar_modulo_logueando(env_ip_ms, env_puerto_ms, "Memory Stick");
 
     if(conexion_ks == -1 || conexion_km == -1 || conexion_ms == -1 ){
+        config_destroy(config);
         log_destroy(log_cpu);
         return EXIT_FAILURE;
     }
@@ -47,12 +48,6 @@ int main(int argc, char *argv[]){
     while(true) {
 
         op_code codigo_operacion = recibir_operacion(conexion_ks);
-
-        //* 1. Esperar PID de Kernel Scheduler
-        //* 2. Solicitar Context al Memory Kernel con el PID
-        //* 3. Recibir paquete del Memory Kernel
-        //* 4. Deserializar paquete y popular los registros
-        //* 5. Iniciar ciclo de instruccion
 
         switch(codigo_operacion) {  
             case -1:
@@ -145,9 +140,9 @@ void* fetch(){
 
 /*
 Lee del Buffer Estatico de Instruccion (instruccion_buffer) y escribe la instruccion decodificada en el struct estatico instruccion_actual
-Siempre devuelve exito, pero el icode de la instruccion puede ser ERROR.
+el icode de la instruccion puede ser ERROR.
 */
-int decode(){
+void decode(){
 
     log_debug(log_cpu, "Decode: Iniciando decodificacion");
 
@@ -156,7 +151,7 @@ int decode(){
     if (splitted_instruction[0] == NULL) {
         instruccion_actual.icode = ERROR;
         string_array_destroy(splitted_instruction);
-        return 0;
+        return;
     }
 
     instruccion_actual.icode = string_to_instruction_code(splitted_instruction[0]);
@@ -175,7 +170,7 @@ int decode(){
 
     log_debug(log_cpu, "Decode: Finalizado exitosamente");
 
-    return 0;
+    return;
 
 };
 
@@ -275,7 +270,7 @@ void * string_to_registro(char* s){
 
 
 //Conexion con modulo + log,
-int conectar_modulo_logueado(char* ip, char* puerto, char* nombre_modulo) {
+int conectar_modulo_logueando(char* ip, char* puerto, char* nombre_modulo) {
     int socket_conexion = crear_conexion(ip, puerto);
 
     if(socket_conexion == -1) {

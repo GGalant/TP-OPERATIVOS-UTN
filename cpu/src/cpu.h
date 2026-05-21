@@ -73,3 +73,12 @@ t_instruccion instruccion_actual;
 static char instruccion_buffer[128];
 void * string_to_registro(char* s);
 void* handle_ks(void* arg);
+InstrucionCode string_to_instruction_code(char* s);
+
+void* fetch();
+void decode();
+void* execute();
+void* check_interrupt();
+
+int conectar_modulo_logueando(char* ip, char* puerto, char* nombre_modulo);
+int map_config_variables(t_config* config);
