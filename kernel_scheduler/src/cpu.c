@@ -73,7 +73,6 @@ void* handle_cpu(void* arg) {
                 log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
 
                 //enviar_peticion_io();
-
                 
                 break;
             case SYSCALL_STDOUT:
@@ -108,8 +107,8 @@ void* handle_cpu(void* arg) {
 
                 enviar_direccion_km();
                 t_paquete* paquete_= recibir_direccion_km();
-                
-                enviar_peticion_io();
+                //enviar_peticion_io();
+
                 break;
             case INTERRUPCION_FIN_QUANTUM:
                 break;
@@ -168,4 +167,9 @@ t_proceso_pcb* buscar_proceso_por_id(int pid, t_list* cola) {
             return proceso;
     }
     return NULL; 
+}
+
+bool es_proceso_buscado(void* elemento, void* pid_buscado) {
+    t_proceso_pcb* pcb = (t_proceso_pcb*)elemento;
+    return pcb->pid == *(int*)pid_buscado;
 }

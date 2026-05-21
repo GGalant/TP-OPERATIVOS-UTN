@@ -74,6 +74,7 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_mutex_init(&mutex_cola_block, NULL);
     pthread_mutex_init(&mutex_cola_exec, NULL);
     pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
+    pthread_mutex_init(&mutex_lista_io_conectadas, NULL);
     pthread_cond_init(&cond_cola_ready, NULL);
     pthread_cond_init(&cond_cola_block, NULL);
     pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
@@ -232,6 +233,7 @@ void liberar_recursos() {
     pthread_cond_destroy(&cond_cola_ready);
     pthread_cond_destroy(&cond_cola_block);
     pthread_cond_destroy(&cond_lista_cpu_conectadas);
+    pthread_mutex_destroy(&mutex_lista_io_conectadas);
     free(conexion_km_ptr);
     free(config_path);
     free(path_proceso_inicial);
@@ -245,6 +247,7 @@ void liberar_recursos() {
     list_destroy(cola_exec);
     list_destroy(lista_mutex);
     list_destroy(lista_cpu_conectadas);
+    list_destroy(lista_io_conectadas);
     close(server_ks);
     close(conexion_km);
     
