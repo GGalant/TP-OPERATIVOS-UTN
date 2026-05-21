@@ -222,6 +222,40 @@ void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_sigu
     return;
 }
 
+char* solicitar_contenido_a_km(int socket_km, int pid, int direccion_logica, int tamanio){  
+    op_code_ks_km codigo_operacion = SOLICITAR_CONTENIDO_MEMORIA;  
+    
+    t_paquete *paquete_contexto = crear_paquete(codigo_operacion);
+
+    agregar_a_paquete(paquete_contexto, &pid, sizeof(int));
+    agregar_a_paquete(paquete_contexto, &direccion_logica, sizeof(int));
+    agregar_a_paquete(paquete_contexto, &tamanio, sizeof(int));
+
+    enviar_paquete_send_all(paquete_contexto, socket_km);
+    
+    eliminar_paquete(paquete_contexto);
+
+    op_code respuesta = recibir_operacion(socket_km);
+    if (respuesta != RESPUESTA_CONTENIDO_MEMORIA) {
+        log_error(log_ks, "Error al recibir contenido de Kernel Memory");
+        return NULL;
+    }
+
+    t_list* paquete_respuesta = recibir_paquete(socket_km);
+
+    void* contenido_recibido = list_get(paquete_respuesta, 0);
+
+    char* contenido = malloc(tamanio + 1);
+    memcpy(contenido, contenido_recibido, tamanio);
+    contenido[tamanio] = '\0';
+
+    list_destroy_and_destroy_elements(paquete_respuesta, free);
+
+    return contenido;
+}
+
+
+
 void liberar_recursos() {   
     log_destroy(log_ks);
     log_destroy(log_debug_ks);

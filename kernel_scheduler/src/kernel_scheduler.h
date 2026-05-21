@@ -8,6 +8,7 @@
 #include "globales.h"
 #include "cpu.h"
 #include "planificacion.h"
+#include "io.h"
 typedef enum {  
     NEW,
     READY,

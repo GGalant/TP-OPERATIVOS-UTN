@@ -48,6 +48,11 @@ typedef enum {
     SYSCALL_INIT_PROC
 } op_code_ks_cpu;
 
+typedef enum {
+    SOLICITAR_CONTENIDO_MEMORIA,
+    RESPUESTA_CONTENIDO_MEMORIA
+} op_code_ks_km;
+
 int crear_conexion(char *ip, char* puerto);
 int iniciar_servidor(t_log *logger, char *puerto);
 int esperar_cliente(int socket_servidor, t_log* logger);

@@ -80,7 +80,7 @@ void* handle_cpu(void* arg) {
 
                 t_list* paquete_stdout = recibir_paquete(socket_cpu);
                 uint32_t direccion_logica = *(uint32_t*)list_get(paquete_stdout, 0);
-                uint32_t tamanio = *(uint_t*)list_get(paquete_stdout, 1);
+                uint32_t tamanio = *(uint32_t*)list_get(paquete_stdout, 1);
                 list_destroy_and_destroy_elements(paquete_stdout, free);
 
                 pthread_mutex_lock(&mutex_cola_exec);
@@ -104,9 +104,8 @@ void* handle_cpu(void* arg) {
                 pthread_cond_signal(&cond_lista_cpu_conectadas);
                 pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
                 log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
-
-                enviar_direccion_km();
-                t_paquete* paquete_= recibir_direccion_km();
+                
+                char* contenido = solicitar_contenido_a_km(conexion_km, proceso->pid, direccion_logica, tamanio);
                 //enviar_peticion_io();
 
                 break;
