@@ -25,7 +25,7 @@ int main(int argc, char *argv[]){
     log_info(log_cpu, "Iniciando CPU <%d>", id_cpu);
 
     //conexiones con modulos
-    conexion_ks = conextar_modulo(env_ip_ks, env_puerto_ks, "Kernel Scheduler");
+    conexion_ks = conectar_modulo(env_ip_ks, env_puerto_ks, "Kernel Scheduler");
     conexion_km = conectar_modulo(env_ip_km, env_puerto_km, "Kernel Memory");
     conexion_ms = conectar_modulo(env_ip_ms, env_puerto_ms, "Memory Stick");
 
@@ -40,8 +40,9 @@ int main(int argc, char *argv[]){
     send(conexion_km, &handshake_cpu, sizeof(handshake), 0);
     send(conexion_ms, &handshake_cpu, sizeof(handshake), 0);
 
-    while(true) {   
-        op_code codigo_operacion = recibir_operacion(conexion_km);
+    while(true) {
+
+        op_code codigo_operacion = recibir_operacion(conexion_ks);
 
         //* 1. Esperar PID de Kernel Scheduler
         //* 2. Solicitar Context al Memory Kernel con el PID
