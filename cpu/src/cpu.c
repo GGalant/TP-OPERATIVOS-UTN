@@ -65,25 +65,6 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
-void* handle_ks(void* arg) {    
-    int socket_ks = (int)(void*)arg;
-    
-    log_info(log_cpu, "Conectado a kernel scheduler");
-
-    while(true) {   
-        int codigo_operacion = recibir_operacion(socket_ks);
-
-        switch(codigo_operacion) {
-            case -1:
-                log_error(log_cpu, "El servidor Kernel Scheduler se desconectó. Terminando hilo.");
-                return NULL;
-            default:
-                log_warning(log_cpu, "operacion desconocida: %d", codigo_operacion);
-                break;
-        }
-    }
-}
-
 /*
 Envia un pedido de instruccion a Kernel Memory y la carga en el buffer de instruccion del CPU
 Devuelve NULL ante error, o el buffer estatico (instruccion_buffer) ante ejecucion exitosa.
