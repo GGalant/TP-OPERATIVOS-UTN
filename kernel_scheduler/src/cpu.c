@@ -45,22 +45,71 @@ void* handle_cpu(void* arg) {
                 int pc_actualizado = *(int*)list_get(paquete_sleep, 1);
                 int tiempo_sleep = *(int*)list_get(paquete_sleep, 2);
                 list_destroy_and_destroy_elements(paquete_sleep, free);
-                
-                // *** TERMINAR: deberia sacar el proceso que esta ejecutando la cola exec y ponerlo en la cola block 
-                // pthread_mutex_lock(&mutex_cola_exec);
-                // t_proceso_pcb* proceso = buscar_proceso_por_id(pid, cola_exec);
-                // list_remove(cola_exec, proceso);
 
-                // cambiar_estado_proceso(proceso, BLOCK);
+                // Sacar el proceso de la cola de EXEC
+                pthread_mutex_lock(&mutex_cola_exec);
+                t_proceso_pcb* proceso = list_remove_by_condition(cola_exec, es_proceso_buscado, &pid);
+                pthread_mutex_unlock(&mutex_cola_exec);
 
-                // pthread_mutex_unlock(&mutex_cola_exec);
-                
-                //enviar_peticion_io()
+                if (proceso == NULL) {
+                    log_error(log_ks, "Error: No se encontró el proceso con PID %d en la cola de EXEC.", pid);
+                    break;
+                }
+
+                // Actualizar PCB, cambiar estado y mover a la cola de BLOCK
+                // la cola de block es gestionada por el planificador de mediano plazo
+                proceso->pc = pc_actualizado;
+                cambiar_estado_proceso(proceso, BLOCK);
+                pthread_mutex_lock(&mutex_cola_block);
+                list_add(cola_block, proceso);
+                pthread_mutex_unlock(&mutex_cola_block);
+
+                // Liberar la CPU
+                pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+                cpu->estado = CPU_LIBRE;
+                cpu->pid_actual = -1;
+                pthread_cond_signal(&cond_lista_cpu_conectadas);
+                pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+                log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
+
+                //enviar_peticion_io();
 
                 
                 break;
             case SYSCALL_STDOUT:
-                // log_info();
+                log_info(log_ks, "## (%d) - Solicitó syscall: STDOUT", cpu->pid_actual);
+
+                t_list* paquete_stdout = recibir_paquete(socket_cpu);
+                uint32_t direccion_logica = *(uint32_t*)list_get(paquete_stdout, 0);
+                uint32_t tamanio = *(uint_t*)list_get(paquete_stdout, 1);
+                list_destroy_and_destroy_elements(paquete_stdout, free);
+
+                pthread_mutex_lock(&mutex_cola_exec);
+                t_proceso_pcb* proceso = list_remove_by_condition(cola_exec, es_proceso_buscado, &cpu->pid_actual);
+                pthread_mutex_unlock(&mutex_cola_exec);
+
+                if (proceso == NULL) {
+                    log_error(log_ks, "Error: No se encontró el proceso con PID %d en la cola de EXEC.", pid);
+                    break;
+                }
+
+                proceso->pc = pc_actualizado;
+                cambiar_estado_proceso(proceso, BLOCK);
+                pthread_mutex_lock(&mutex_cola_block);
+                list_add(cola_block, proceso);
+                pthread_mutex_unlock(&mutex_cola_block);
+
+                pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+                cpu->estado = CPU_LIBRE;
+                cpu->pid_actual = -1;
+                pthread_cond_signal(&cond_lista_cpu_conectadas);
+                pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+                log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
+
+                enviar_direccion_km();
+                t_paquete* paquete_= recibir_direccion_km();
+                
+                enviar_peticion_io();
                 break;
             case INTERRUPCION_FIN_QUANTUM:
                 break;
