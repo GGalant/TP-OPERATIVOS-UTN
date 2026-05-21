@@ -161,7 +161,29 @@ Toma la dirección apuntada por el registro SI y
 copia la cantidad de bytes indicadas en el registro tamaño 
 a la posición de memoria apuntada por el registro DI
 */
-void ejecutar_copy_mem(char* registro_tamanio);
+void ejecutar_copy_mem(char* registro_tamanio) {
+    void * cpu_reg_tamanio = string_to_registro(registro_tamanio);
+    
+    if (cpu_reg_tamanio == NULL) {
+        log_error(log_cpu, "COPY_MEM: Registro de tamaño invalido (%s)", registro_tamanio);
+        return;
+    }
+
+    size_t reg_size = get_registro_size(registro_tamanio);
+    
+    uint32_t bytes_a_copiar = get_registro_value(reg_size, cpu_reg_tamanio);
+
+    uint32_t dir_logica_origen = cpu.si;
+    uint32_t dir_logica_destino = cpu.di;
+
+    // TODO: Implementar MMU y acceso a memoria
+    
+    uint32_t dir_fisica_origen = 0;
+    uint32_t dir_fisica_destino = 0;
+    uint32_t valor = 0; 
+
+    log_debug(log_cpu, "COPY_MEM: Ejecutado");
+}
 
 
 void ejecutar_mutex_create(char* nombre_mutex);
