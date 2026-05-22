@@ -17,7 +17,7 @@ typedef enum {
     HANDSHAKE_MS,
     HANDSHAKE_CPU,
     HANDSHAKE_IO,
-    HANDSHAKE_MEMORYSTICK
+    HANDSHAKE_MEMORYSTICK,
 }handshake;
 
         
@@ -27,7 +27,14 @@ typedef enum {
     ENVIAR_CONTEXTO, // de kernel memory, para recibir de cpu
     RECIBIR_CONTEXTO, // de kernel memory, para recibir de cpu
     INICIALIZAR_PROCESO,
-    INICIALIZAR_PROCESO_OK
+    INICIALIZAR_PROCESO_OK,
+    CONECTAR_MS,
+    PEDIDO_INSTRUCCION,
+    RTA_PEDIDO_INSTRUCCION,
+    STDOUT_LECTURA,
+    STDIN_ESCRITURA,
+    CREACION_DE_PROCESO,
+    SOLICITUD_TRADUCCION
 }op_code;
 
 /* typedef enum {
