@@ -1,0 +1,53 @@
+#ifndef GLOBALES_H_
+#define GLOBALES_H_
+
+#include <commons/collections/list.h>
+#include <commons/config.h>
+#include <commons/log.h>
+#include <pthread.h>
+#include <stdint.h>
+
+typedef struct {
+    char* nombre_mutex;
+    int estado; // 0 "libre" o 1 "ocupado"
+    int pid_proceso;
+    t_list* cola_procesos; // Habria que ver si es solo el pid del proceso o todo el pcb (por ahora asumimos que es el pid)
+} t_mutex;
+
+// Declaraciones de variables globales
+extern t_list* lista_mutex;
+extern t_list* cola_ready;
+extern t_list* cola_block;
+extern t_list* cola_exec;
+extern t_list* lista_cpu_conectadas;
+extern t_list* lista_io_conectadas;
+extern const int PRIORIDAD_MAXIMA;
+extern t_log *log_ks;
+extern t_log *log_debug_ks;
+extern t_config* config;
+extern char* config_path;
+extern char* path_proceso_inicial;
+extern char* puerto;
+extern char* str_log_level;
+extern char* puerto_km;
+extern char* ip_km;
+extern char* algoritmo_planificacion;
+extern int* conexion_km_ptr;
+extern int server_ks;
+extern int conexion_km;
+extern int pid_inicial;
+extern int log_level;
+extern pthread_mutex_t mutex_cola_ready;
+extern pthread_mutex_t mutex_cola_block;
+extern pthread_mutex_t mutex_cola_exec;
+extern pthread_mutex_t mutex_lista_cpu_conectadas;
+extern pthread_mutex_t mutex_lista_io_conectadas;
+extern pthread_cond_t cond_cola_ready;
+extern pthread_cond_t cond_cola_block;
+extern pthread_cond_t cond_lista_cpu_conectadas;
+
+void wait_mutex(t_mutex *mutex, int pid_proceso);
+void signal_mutex(t_mutex *mutex);
+
+
+#endif /* GLOBALES_H_ */
