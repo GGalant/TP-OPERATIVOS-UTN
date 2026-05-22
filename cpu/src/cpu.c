@@ -208,7 +208,6 @@ void* execute(){
     break;
     case JNZ:
         ejecutar_jnz(instruccion_actual.params[1], instruccion_actual.params[2]);
-        cpu.pc++;
     break;
     case COPY_MEM:
         ejecutar_copy_mem(instruccion_actual.params[1]);
