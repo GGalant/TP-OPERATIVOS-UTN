@@ -39,7 +39,7 @@ int main(int argc, char *argv[]){
     handshake handshake_cpu = HANDSHAKE_CPU;
     
     send(conexion_ks, &handshake_cpu, sizeof(handshake), 0);
-    send(conexion_ks, &id_cpu,        sizeof(handshake), 0);
+    send(conexion_ks, &id_cpu,        sizeof(int), 0);
 
     send(conexion_km, &handshake_cpu, sizeof(handshake), 0);
     
@@ -50,6 +50,31 @@ int main(int argc, char *argv[]){
         op_code codigo_operacion = recibir_operacion(conexion_ks);
 
         switch(codigo_operacion) {  
+            case ENVIO_PID:
+                pid_t pid_recibido;
+                recv(conexion_ks, &pid_recibido, sizeof(pid_t), MSG_WAITALL);
+
+                if(pid_recibido == -1){
+                    log_debug(log_cpu, "Error al recibir el PID de Kernel Scheduler");
+                    config_destroy(config);
+                    log_destroy(log_cpu);
+                    return EXIT_FAILURE;
+                }
+
+                log_debug(log_cpu, "Recibido el PID: %u", pid_recibido);
+
+                cpu.pid = pid_recibido;
+
+                pull_contexto();
+
+                do {
+                    //Map context
+                fetch();
+                decode();
+                execute();
+                } while (!check_interrupt());
+
+                break;
             case -1:
                 log_error(log_cpu, "El servidor Kernel Memory se desconectó.");
                 return EXIT_FAILURE;  
@@ -158,20 +183,36 @@ void decode(){
 void* execute(){
     switch(instruccion_actual.icode){
     case NOOP:
+        ejecutar_noop();
+        cpu.pc++;
     break;
     case SET:
+        ejecutar_set(instruccion_actual.params[1], instruccion_actual.params[2]);
+        cpu.pc++;
     break;
     case MOV_IN:
+        ejecutar_mov_in(instruccion_actual.params[1]);
+        cpu.pc++;
     break;
     case MOV_OUT:
+        ejecutar_mov_out(instruccion_actual.params[1]);
+        cpu.pc++;
     break;
     case SUM:
+        ejecutar_sum(instruccion_actual.params[1], instruccion_actual.params[2]);
+        cpu.pc++;
     break;
     case SUB:
+        ejecutar_sub(instruccion_actual.params[1], instruccion_actual.params[2]);
+        cpu.pc++;
     break;
     case JNZ:
+        ejecutar_jnz(instruccion_actual.params[1], instruccion_actual.params[2]);
+        cpu.pc++;
     break;
     case COPY_MEM:
+        ejecutar_copy_mem(instruccion_actual.params[1]);
+        cpu.pc++;
     break;
     case MUTEX_CREATE:
     break;
@@ -199,7 +240,7 @@ void* execute(){
 
 };
 
-void* check_interrupt(){
+bool check_interrupt(){
 
 };
 
@@ -278,6 +319,56 @@ int map_config_variables(t_config* config){
 
     env_ip_ms= config_get_string_value(config, "IP_MS");
     env_puerto_ms = config_get_string_value(config, "PUERTO_MS");
+
+    return 0;
+}
+
+void integrar_contexto(t_list* paquete_contexto) {
+
+    cpu.pid = *(uint32_t*)list_get(paquete_contexto, 0); //TODO PID PARA MI DEBERIA SER PID_ID
+    cpu.pc = *(uint32_t*)list_get(paquete_contexto, 1);
+    cpu.ax = *(uint8_t*) list_get(paquete_contexto, 2);
+    cpu.bx = *(uint8_t*) list_get(paquete_contexto, 3);
+    cpu.cx = *(uint8_t*) list_get(paquete_contexto, 4);
+    cpu.dx = *(uint8_t*) list_get(paquete_contexto, 5);
+    cpu.eax = *(uint32_t*)list_get(paquete_contexto, 6);
+    cpu.ebx = *(uint32_t*)list_get(paquete_contexto, 7);
+    cpu.ecx = *(uint32_t*)list_get(paquete_contexto, 8);
+    cpu.edx = *(uint32_t*)list_get(paquete_contexto, 9);
+    cpu.si = *(uint32_t*)list_get(paquete_contexto, 10);
+    cpu.di = *(uint32_t*)list_get(paquete_contexto, 11);
+
+}
+
+int pull_contexto() {
+    pid_t pid_a_pedir = cpu.pid;
+
+    send(conexion_km, ENVIAR_CONTEXTO, sizeof(op_code), 0);
+    send(conexion_km, pid_a_pedir, sizeof(pid_t), 0);
+
+    op_code resp_km = recibir_operacion(conexion_km);
+
+    if (resp_km == -1) {
+        log_error(log_cpu, "Error: Kernel Memory se desconectó al pedir contexto.");
+        return -1;
+    }
+
+    if (resp_km != ENVIAR_CONTEXTO) {
+        log_error(log_cpu, "Error: KM devolvió operacion %d en vez del contexto", resp_km);
+        return -1;
+    }
+
+    int size_contexto = 0;
+    t_list* paquete_contexto = recibir_paquete(conexion_km);
+
+    if (paquete_contexto == NULL) {
+        log_error(log_cpu, "Error al recibir el buffer del contexto de Kernel Memory");
+        return -1;
+    }
+
+    integrar_contexto(paquete_contexto);
+
+    list_destroy_and_destroy_elements(paquete_contexto, free);
 
     return 0;
 }
