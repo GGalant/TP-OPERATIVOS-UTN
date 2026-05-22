@@ -70,6 +70,8 @@ typedef struct {
 
 t_instruccion instruccion_actual;
 
+bool interrupcion_activa;
+
 static char instruccion_buffer[128];
 void * string_to_registro(char* s);
 void* handle_ks(void* arg);
@@ -83,6 +85,8 @@ void* check_interrupt();
 int conectar_modulo_logueando(char* ip, char* puerto, char* nombre_modulo);
 int map_config_variables(t_config* config);
 
+//INSTRUCCIONES ORDINARIAS:
+
 void ejecutar_noop();
 void ejecutar_set(char* registro, char* valor_set);
 void ejecutar_sum(char* registro_destino, char* registro_origen);
@@ -91,3 +95,14 @@ void ejecutar_jnz(char* registro, char* str_nuevo_valor_pc);
 void ejecutar_mov_in(char* registro);
 void ejecutar_mov_out(char* registro);
 void ejecutar_copy_mem(char* registro_tamanio);
+
+//INSTRUCCIONES SYSCALLS:
+
+void ejecutar_mutex_create(char* nombre_mutex);
+void ejecutar_mutex_lock(char* nombre_mutex);
+void ejecutar_mutex_unlock(char* nombre_mutex);
+void ejecutar_mem_alloc(char* id_segmento, char* tamanio);
+void ejecutar_mem_free(char* id_segmento);
+void ejecutar_stdin(char* reg_direccion_logica, char* reg_tamanio);
+void ejecutar_init_proc(char* path_instrucciones, char* prioridad);
+void ejecutar_exit();
