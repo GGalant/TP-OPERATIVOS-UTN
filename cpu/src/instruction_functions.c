@@ -110,6 +110,8 @@ void ejecutar_jnz(char* registro, char* str_nuevo_valor_pc){
         
         log_debug(log_cpu, "JNZ: Salto tomado. Nuevo PC = %u", nuevo_valor_pc);
     } else {
+        //TODO revisar si este ++ puede dar problemas
+        cpu.pc++;
         log_debug(log_cpu, "JNZ: Salto ignorado");
     }
 }
