@@ -56,6 +56,10 @@ typedef enum {
 } op_code_ks_cpu;
 
 typedef enum {
+    FIN_IO
+} op_code_ks_io;
+
+typedef enum {
     SOLICITAR_CONTENIDO_MEMORIA,
     RESPUESTA_CONTENIDO_MEMORIA
 } op_code_ks_km;

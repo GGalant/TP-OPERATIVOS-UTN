@@ -8,6 +8,19 @@
 #include "globales.h"
 #include "cpu.h"
 #include "planificacion.h"
+#include "../../io/src/io.h"
+
+typedef enum {  
+  LIBRE,
+  OCUPADA
+} t_estado_io;
+
+typedef struct {  
+  int socket_io;
+  int io_id;
+  tipo_io tipo;
+  t_estado_io estado;
+} t_io;
 
 void* handle_io(void* arg);
 
