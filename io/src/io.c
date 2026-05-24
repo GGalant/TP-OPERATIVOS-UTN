@@ -5,7 +5,7 @@ int main(int argc, char *argv[]){
   inicializar_io(argc, argv);
 
   //conexiones con scheduler
-  int conexion_ks = crear_conexion(ip_scheduler, puerto_scheduler);
+  conexion_ks = crear_conexion(ip_scheduler, puerto_scheduler);
      if (conexion_ks == -1) { 
       log_error(log_io, "No se pudo conectar con Kernel Scheduler en IP: <%s> , puerto: <%s>", ip_scheduler, puerto_scheduler);
       log_destroy(log_io);

@@ -4,6 +4,7 @@
 
 t_log* log_io;
 t_config* config;
+int conexion_ks;
 char* ip_scheduler;
 char* puerto_scheduler;
 char* str_log_level;
