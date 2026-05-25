@@ -11,15 +11,16 @@
 #include "../../io/src/io.h"
 
 typedef enum {  
-  LIBRE,
-  OCUPADA
+    LIBRE,
+    OCUPADA
 } t_estado_io;
 
 typedef struct {  
-  int socket_io;
-  int io_id;
-  tipo_io tipo;
-  t_estado_io estado;
+    int socket_io;
+    int io_id;
+    int pid_actual; // PID del proceso que esta utilizando la IO, -1 si no hay ninguno
+    tipo_io tipo;
+    t_estado_io estado;
 } t_io;
 
 void* handle_io(void* arg);

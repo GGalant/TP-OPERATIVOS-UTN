@@ -69,15 +69,18 @@ void inicializar_ks(int argc, char *argv[]) {
     cola_exec = list_create();
     lista_mutex = list_create();
     lista_cpu_conectadas = list_create();
+    cola_espera_sleep = list_create();
 
     pthread_mutex_init(&mutex_cola_ready, NULL);
     pthread_mutex_init(&mutex_cola_block, NULL);
     pthread_mutex_init(&mutex_cola_exec, NULL);
     pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
     pthread_mutex_init(&mutex_lista_io_conectadas, NULL);
+    pthread_mutex_init(&mutex_sleep, NULL);
     pthread_cond_init(&cond_cola_ready, NULL);
     pthread_cond_init(&cond_cola_block, NULL);
     pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
+    pthread_cond_init(&cond_sleep, NULL);
 
     // INICIAR SERVIDOR
     server_ks = iniciar_servidor(log_ks, puerto);
@@ -215,6 +218,7 @@ const char* estado_to_string(t_estado_proceso estado) {
 }
 
 void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_siguiente) {    
+    // *IMPORTANTE* esta funcion tiene que llamarse con el mutex de la cola correspondiente bloqueado
     t_estado_proceso estado_anterior = proceso->estado;
     proceso->estado = estado_siguiente;
 
@@ -264,10 +268,14 @@ void liberar_recursos() {
     pthread_mutex_destroy(&mutex_cola_block);
     pthread_mutex_destroy(&mutex_cola_exec);
     pthread_mutex_destroy(&mutex_lista_cpu_conectadas);
+    pthread_mutex_destroy(&mutex_lista_io_conectadas);
+    pthread_mutex_destroy(&mutex_generador_id_io);
+    pthread_mutex_destroy(&mutex_sleep);
     pthread_cond_destroy(&cond_cola_ready);
     pthread_cond_destroy(&cond_cola_block);
     pthread_cond_destroy(&cond_lista_cpu_conectadas);
-    pthread_mutex_destroy(&mutex_lista_io_conectadas);
+    pthread_cond_destroy(&cond_sleep);
+    list_destroy(cola_espera_sleep);
     free(conexion_km_ptr);
     free(config_path);
     free(path_proceso_inicial);

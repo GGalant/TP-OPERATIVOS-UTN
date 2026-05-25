@@ -72,7 +72,7 @@ void* handle_cpu(void* arg) {
                 pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
                 log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
 
-                //enviar_proceso_a_io_sleep(SLEEP, pid, tiempo_sleep);
+                enviar_proceso_a_io_sleep(pid, tiempo_sleep);
                 
                 break;
             case SYSCALL_STDOUT:
@@ -174,28 +174,36 @@ bool es_proceso_buscado(void* elemento, void* pid_buscado) {
     return pcb->pid == *(int*)pid_buscado;
 }
 
-// void enviar_proceso_a_io_sleep(tipo_io tipo, int pid, int tiempo_sleep) {  
-//     // esta funcion se llamaria desde el handle_cpu cuando se recibe la syscall de sleep
-//     // el proceso ya estaria bloqueado y la CPU liberada en el handle_cpu
+// REFACTOR: estas funciones de enviar peticiones a IO podrían unificarse en una sola función que reciba el tipo de IO y los parametros necesarios, y dentro de la función se encargue de buscar la IO correspondiente y enviar la petición, algo así como enviar_peticion_io(tipo_io tipo, ...parametros restantes, donde parametros restantes sea un paquete con los datos necesarios)
 
-//     // aca deberiamos tener alguna forma de identificar a que IO enviar la peticion, por ahora asumimos que hay una sola IO de sleep
-//     pthread_mutex_lock(&mutex_lista_io_conectadas);
-//     if (list_is_empty(lista_io_conectadas)) {
-//         log_error(log_ks, "No hay IO conectadas para manejar la petición de SLEEP del proceso %d", pid);
-//         pthread_mutex_unlock(&mutex_lista_io_conectadas);
-//         return;
-//     }
-//     // podriamos hacer un list_remove_by_condition para encontrar una IO de tipo SLEEP
-//     t_io* io_sleep = list_get(lista_io_conectadas, 0); // por ahora asumimos que la primera IO es la de sleep
-//     pthread_mutex_unlock(&mutex_lista_io_conectadas);
+void enviar_proceso_a_io_sleep(int pid, int tiempo_sleep) {  
+    t_peticion_sleep* peticion = malloc(sizeof(t_peticion_sleep));
+    peticion->pid = pid;
+    peticion->tiempo_sleep = tiempo_sleep;
 
-//     t_paquete* paquete_sleep = crear_paquete(SOLICITUD_IO_SLEEP); //Crear este codigo de operacion si es que hace falta 
-//     agregar_a_paquete(paquete_sleep, &pid, sizeof(int));
-//     agregar_a_paquete(paquete_sleep, &tiempo_sleep, sizeof(int));
-
-//     enviar_paquete_send_all(paquete_sleep, io_sleep->socket_io);
-//     eliminar_paquete(paquete_sleep);
-// }
+    pthread_mutex_lock(&mutex_sleep);
+    list_add(cola_espera_sleep, peticion); 
+        
+    // avisamos a algun hilo IO Sleep 
+    pthread_cond_signal(&cond_sleep); 
+    
+    pthread_mutex_unlock(&mutex_sleep);
+}
 
 // void enviar_peticion_io_stdout(tipo_io tipo, ...parametros restantes)
 // void enviar_peticion_io_stdin(tipo_io tipo, ...parametros restantes)
+
+t_io *buscar_io_libre(tipo_io tipo, int pid) {  
+    // *IMPORTANTE* esta funcion tiene que llamarse con el mutex de la lista de IO conectadas bloqueado
+    t_io *io_libre = NULL;
+    for (int i = 0; i < list_size(lista_io_conectadas); i++) {
+          t_io* io = list_get(lista_io_conectadas, i);
+          if (io->tipo == tipo && io->estado == LIBRE) {
+              io->estado = OCUPADA;
+              io->pid_actual = pid;     
+              io_libre = io;
+              break;
+          }
+    }    
+    return io_libre;
+}

@@ -14,6 +14,11 @@ typedef struct {
     t_list* cola_procesos; // Habria que ver si es solo el pid del proceso o todo el pcb (por ahora asumimos que es el pid)
 } t_mutex;
 
+typedef struct {
+    int pid;
+    int tiempo_sleep;
+} t_peticion_sleep;
+
 // Declaraciones de variables globales
 extern t_list* lista_mutex;
 extern t_list* cola_ready;
@@ -42,9 +47,13 @@ extern pthread_mutex_t mutex_cola_block;
 extern pthread_mutex_t mutex_cola_exec;
 extern pthread_mutex_t mutex_lista_cpu_conectadas;
 extern pthread_mutex_t mutex_lista_io_conectadas;
+extern pthread_mutex_t mutex_generador_id_io;
+extern pthread_mutex_t mutex_sleep;
 extern pthread_cond_t cond_cola_ready;
 extern pthread_cond_t cond_cola_block;
 extern pthread_cond_t cond_lista_cpu_conectadas;
+extern pthread_cond_t cond_sleep;
+extern t_list* cola_espera_sleep;
 
 void wait_mutex(t_mutex *mutex, int pid_proceso);
 void signal_mutex(t_mutex *mutex);

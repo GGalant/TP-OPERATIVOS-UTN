@@ -7,10 +7,12 @@ t_list* cola_block;
 t_list* cola_exec;
 t_list* lista_cpu_conectadas;
 t_list* lista_io_conectadas;
-const int PRIORIDAD_MAXIMA = 0;
+t_list* cola_espera_sleep;
 t_log *log_ks;
 t_log *log_debug_ks;
 t_config* config;
+const int PRIORIDAD_MAXIMA = 0;
+int id_io_global = -1;
 char* config_path;
 char* path_proceso_inicial;
 char* puerto;
@@ -28,9 +30,12 @@ pthread_mutex_t mutex_cola_block;
 pthread_mutex_t mutex_cola_exec;
 pthread_mutex_t mutex_lista_cpu_conectadas;
 pthread_mutex_t mutex_lista_io_conectadas;
+pthread_mutex_t mutex_generador_id_io;
+pthread_mutex_t mutex_sleep;
 pthread_cond_t cond_cola_ready;
 pthread_cond_t cond_cola_block;
 pthread_cond_t cond_lista_cpu_conectadas;
+pthread_cond_t cond_sleep;
 
 void wait_mutex(t_mutex *mutex, int pid_proceso) {  
    if (mutex->estado == 0) {

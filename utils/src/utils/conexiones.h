@@ -56,6 +56,8 @@ typedef enum {
 } op_code_ks_cpu;
 
 typedef enum {
+    CREAR_IO,
+    SOLICITUD_IO_SLEEP,
     FIN_IO
 } op_code_ks_io;
 
