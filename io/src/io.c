@@ -112,10 +112,6 @@ void enviar_fin_io(int pid) {
     return;
 }
 
-int generar_id_io() {
-    return id_io_global++;
-}
-
 tipo_io obtener_tipo_io(char* tipo) {
     if (strcmp(tipo, "STDIN") == 0) return STDIN;
     if (strcmp(tipo, "STDOUT") == 0) return STDOUT;

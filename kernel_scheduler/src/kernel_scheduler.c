@@ -76,6 +76,7 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_mutex_init(&mutex_cola_exec, NULL);
     pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
     pthread_mutex_init(&mutex_lista_io_conectadas, NULL);
+    pthread_mutex_init(&mutex_generador_id_io, NULL);
     pthread_mutex_init(&mutex_sleep, NULL);
     pthread_cond_init(&cond_cola_ready, NULL);
     pthread_cond_init(&cond_cola_block, NULL);
