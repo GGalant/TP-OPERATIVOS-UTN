@@ -8,6 +8,9 @@ t_list* cola_exec;
 t_list* lista_cpu_conectadas;
 t_list* lista_io_conectadas;
 t_list* cola_espera_sleep;
+//Para plani de mediano plazo
+t_list* cola_susp_block;
+t_list* cola_susp_ready;
 t_log *log_ks;
 t_log *log_debug_ks;
 t_config* config;
@@ -25,6 +28,7 @@ int server_ks;
 int conexion_km;
 int pid_inicial;
 int log_level;
+int suspension_timeout;
 pthread_mutex_t mutex_cola_ready;
 pthread_mutex_t mutex_cola_block;
 pthread_mutex_t mutex_cola_exec;
@@ -36,6 +40,11 @@ pthread_cond_t cond_cola_ready;
 pthread_cond_t cond_cola_block;
 pthread_cond_t cond_lista_cpu_conectadas;
 pthread_cond_t cond_sleep;
+//Para plani de mediano plazo
+pthread_mutex_t mutex_cola_susp_block;
+pthread_cond_t cond_cola_susp_ready; 
+pthread_cond_t cond_cola_susp_block;
+pthread_mutex_t mutex_cola_susp_ready;
 
 void wait_mutex(t_mutex *mutex, int pid_proceso) {  
    if (mutex->estado == 0) {

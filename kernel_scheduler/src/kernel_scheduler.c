@@ -53,7 +53,7 @@ void inicializar_ks(int argc, char *argv[]) {
         perror("No se pudo crear el config");
         exit(EXIT_FAILURE);
     }
-
+    suspension_timeout = config_get_int_value(config, "SUSPENSION_TIMEOUT");
     ip_km = config_get_string_value(config, "IP_KM");
     puerto_km = config_get_string_value(config, "PUERTO_KM");
     str_log_level = config_get_string_value(config, "LOG_LEVEL");
@@ -70,6 +70,9 @@ void inicializar_ks(int argc, char *argv[]) {
     lista_mutex = list_create();
     lista_cpu_conectadas = list_create();
     cola_espera_sleep = list_create();
+    lista_io_conectadas = list_create();
+    cola_susp_block = list_create();
+    cola_susp_ready = list_create();
 
     pthread_mutex_init(&mutex_cola_ready, NULL);
     pthread_mutex_init(&mutex_cola_block, NULL);
@@ -82,6 +85,11 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_cond_init(&cond_cola_block, NULL);
     pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
     pthread_cond_init(&cond_sleep, NULL);
+    pthread_mutex_init(&mutex_cola_susp_block, NULL);
+    pthread_mutex_init(&mutex_cola_susp_ready, NULL);
+
+    pthread_cond_init(&cond_cola_susp_block, NULL);
+    pthread_cond_init(&cond_cola_susp_ready, NULL);
 
     // INICIAR SERVIDOR
     server_ks = iniciar_servidor(log_ks, puerto);

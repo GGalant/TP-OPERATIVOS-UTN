@@ -26,6 +26,11 @@ extern t_list* cola_block;
 extern t_list* cola_exec;
 extern t_list* lista_cpu_conectadas;
 extern t_list* lista_io_conectadas;
+extern t_list* cola_susp_block;
+extern t_list* cola_susp_ready;
+
+extern int suspension_timeout;
+
 extern const int PRIORIDAD_MAXIMA;
 extern t_log *log_ks;
 extern t_log *log_debug_ks;
@@ -49,11 +54,18 @@ extern pthread_mutex_t mutex_lista_cpu_conectadas;
 extern pthread_mutex_t mutex_lista_io_conectadas;
 extern pthread_mutex_t mutex_generador_id_io;
 extern pthread_mutex_t mutex_sleep;
+extern pthread_mutex_t mutex_cola_susp_block;
+extern pthread_mutex_t mutex_cola_susp_ready;
+
 extern pthread_cond_t cond_cola_ready;
 extern pthread_cond_t cond_cola_block;
 extern pthread_cond_t cond_lista_cpu_conectadas;
 extern pthread_cond_t cond_sleep;
 extern t_list* cola_espera_sleep;
+
+extern pthread_cond_t cond_cola_susp_ready;
+extern pthread_cond_t cond_cola_susp_block;
+
 
 void wait_mutex(t_mutex *mutex, int pid_proceso);
 void signal_mutex(t_mutex *mutex);

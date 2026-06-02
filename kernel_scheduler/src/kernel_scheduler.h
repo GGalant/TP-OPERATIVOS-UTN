@@ -37,5 +37,8 @@ t_proceso_pcb* crear_pcb(int pid, int prioridad);
 const char* estado_to_string(t_estado_proceso estado);
 void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_siguiente);
 void liberar_recursos();
+void finalizar_io(int pid);
+
+
 
 #endif /* KERNEL_SCHEDULER_H_ */
