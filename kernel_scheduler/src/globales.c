@@ -1,29 +1,29 @@
 #include "globales.h"
 
 // Definiciones de variables globales
-t_list* lista_mutex;
-t_list* cola_ready;
-t_list* cola_block;
-t_list* cola_exec;
-t_list* lista_cpu_conectadas;
-t_list* lista_io_conectadas;
-t_list* cola_espera_sleep;
-//Para plani de mediano plazo
-t_list* cola_susp_block;
-t_list* cola_susp_ready;
+t_list *lista_mutex;
+t_list *cola_ready;
+t_list *cola_block;
+t_list *cola_exec;
+t_list *lista_cpu_conectadas;
+t_list *lista_io_conectadas;
+t_list *cola_espera_sleep;
+// Para plani de mediano plazo
+t_list *cola_susp_block;
+t_list *cola_susp_ready;
 t_log *log_ks;
 t_log *log_debug_ks;
-t_config* config;
+t_config *config;
 const int PRIORIDAD_MAXIMA = 0;
 int id_io_global = -1;
-char* config_path;
-char* path_proceso_inicial;
-char* puerto;
-char* str_log_level;
-char* puerto_km;
-char* ip_km;
-char* algoritmo_planificacion;
-int* conexion_km_ptr;
+char *config_path;
+char *path_proceso_inicial;
+char *puerto;
+char *str_log_level;
+char *puerto_km;
+char *ip_km;
+char *algoritmo_planificacion;
+int *conexion_km_ptr;
 int server_ks;
 int conexion_km;
 int pid_inicial;
@@ -41,43 +41,51 @@ pthread_cond_t cond_cola_ready;
 pthread_cond_t cond_cola_block;
 pthread_cond_t cond_lista_cpu_conectadas;
 pthread_cond_t cond_sleep;
-//Para plani de mediano plazo
+// Para plani de mediano plazo
 pthread_mutex_t mutex_cola_susp_block;
-pthread_cond_t cond_cola_susp_ready; 
+pthread_cond_t cond_cola_susp_ready;
 pthread_cond_t cond_cola_susp_block;
 pthread_mutex_t mutex_cola_susp_ready;
 
-void wait_mutex(t_mutex *mutex, int pid_proceso) {  
-   if (mutex->estado == 0) {
+void wait_mutex(t_mutex *mutex, int pid_proceso)
+{
+    if (mutex->estado == 0)
+    {
         // El recurso está libre, lo toma el proceso actual
         mutex->estado = 1;
         mutex->pid_proceso = pid_proceso;
-        
+
         log_info(log_ks, "## (%d) Toma el Mutex %s", pid_proceso, mutex->nombre_mutex);
-    } else {
+    }
+    else
+    {
         // El recurso está ocupado, el proceso debe bloquearse
-        list_add(mutex->cola_procesos, (void*)(intptr_t)pid_proceso);
-        
+        list_add(mutex->cola_procesos, (void *)(intptr_t)pid_proceso);
+
         // IMPORTANTE: Aca iria la logica para bloquear ese proceso: EXEC -> BLOCK
-        // enviar_a_block(pid); 
+        // enviar_a_block(pid);
     }
 }
 
-void signal_mutex(t_mutex *mutex) { 
+void signal_mutex(t_mutex *mutex)
+{
     // Solo el dueño deberia poder liberar el mutex (por logica de proteccion)
-    if (!list_is_empty(mutex->cola_procesos)) {
+    if (!list_is_empty(mutex->cola_procesos))
+    {
         // Pasamos el mutex al siguiente proceso en la cola
         int proximo_pid = (int)(intptr_t)list_remove(mutex->cola_procesos, 0);
         mutex->pid_proceso = proximo_pid;
-        
+
         log_info(log_ks, "## (%d) Toma el Mutex %s", mutex->pid_proceso, mutex->nombre_mutex);
-        
+
         // Logica de pasar a ready: BLOCK -> READY
         // despertar_proceso(mutex->pid_proceso);
-    } else {
+    }
+    else
+    {
         // No hay nadie esperando, el recurso queda libre
         mutex->estado = 0;
-        mutex->pid_proceso = -1; 
+        mutex->pid_proceso = -1;
         log_info(log_ks, "## Proceso libero Mutex %s. Estado: LIBRE", mutex->nombre_mutex);
     }
 }

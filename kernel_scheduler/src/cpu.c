@@ -119,7 +119,7 @@ void *handle_cpu(void *arg)
 
             break;
         case INTERRUPCION_FIN_QUANTUM:
-        //La CPU nos avisa el fin de quantum
+            // La CPU nos avisa el fin de quantum
             t_list *paquete_quantum = recibir_paquete(socket_cpu);
 
             int pid = *(int *)list_get(paquete_quantum, 0);
