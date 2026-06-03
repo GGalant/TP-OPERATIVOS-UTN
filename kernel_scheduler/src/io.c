@@ -1,4 +1,5 @@
 #include "kernel_scheduler.h"
+#include "planificacion.h"
 
 void* handle_io(void* arg) {    
     int socket_io = *(int*)arg;
@@ -134,9 +135,9 @@ t_io *crear_io(int socket_io) {
 
     //SI entra en este if entonces es que no es NULL porque estaba en la cola block y entonces lo paso a ready
     if (proceso != NULL) {
-        cambiar_estado_proceso(proceso, READY);
-
+        
         pthread_mutex_lock(&mutex_cola_ready);
+        cambiar_estado_proceso(proceso, READY);
         list_add(cola_ready, proceso);
         pthread_cond_signal(&cond_cola_ready);
         pthread_mutex_unlock(&mutex_cola_ready);
@@ -150,9 +151,9 @@ t_io *crear_io(int socket_io) {
     pthread_mutex_unlock(&mutex_cola_susp_block);
 
     if (proceso != NULL) {
-        cambiar_estado_proceso(proceso, SUSP_READY);
-
+        
         pthread_mutex_lock(&mutex_cola_susp_ready);
+        cambiar_estado_proceso(proceso, SUSP_READY);
         list_add(cola_susp_ready, proceso);
         pthread_cond_signal(&cond_cola_susp_ready);
         pthread_mutex_unlock(&mutex_cola_susp_ready);
@@ -166,14 +167,4 @@ t_io *crear_io(int socket_io) {
 }
 
 //Saca de la lista si lo encuentra al pid
-t_proceso_pcb* remover_proceso_por_pid(t_list* cola, int pid) {
-    for (int i = 0; i < list_size(cola); i++) {
-        t_proceso_pcb* proceso = list_get(cola, i);
 
-        if (proceso->pid == pid) {
-            return list_remove(cola, i);
-        }
-    }
-
-    return NULL;
-}//SI no es NULL entonces lo encontro en la cola

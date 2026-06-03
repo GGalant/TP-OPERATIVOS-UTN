@@ -60,6 +60,7 @@ void inicializar_ks(int argc, char *argv[]) {
     puerto = config_get_string_value(config, "PUERTO");
     algoritmo_planificacion = config_get_string_value(config, "PLANIFICATION_ALGORITHM");
     log_level = log_level_from_string(str_log_level);
+    rr_quantum = config_get_int_value(config, "RR_QUANTUM");
 
     log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
     log_debug_ks = log_create("scheduler_debug.log", "SCHEDULER_DEBUG", true, DEBUG);

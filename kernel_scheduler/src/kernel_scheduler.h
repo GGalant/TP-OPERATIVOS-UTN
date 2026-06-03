@@ -7,7 +7,7 @@
 #include <commons/config.h>
 #include "globales.h"
 #include "cpu.h"
-#include "planificacion.h"
+#include "planificacion.h" //inclusion circular con plani.h porque tambi'en incluye a kernel_scheduler.h, revisar si se puede evitar
 #include "io.h"
 typedef enum {  
     NEW,

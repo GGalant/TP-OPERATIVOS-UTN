@@ -29,6 +29,7 @@ int conexion_km;
 int pid_inicial;
 int log_level;
 int suspension_timeout;
+int rr_quantum;
 pthread_mutex_t mutex_cola_ready;
 pthread_mutex_t mutex_cola_block;
 pthread_mutex_t mutex_cola_exec;

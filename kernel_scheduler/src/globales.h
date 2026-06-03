@@ -47,6 +47,7 @@ extern int server_ks;
 extern int conexion_km;
 extern int pid_inicial;
 extern int log_level;
+extern int rr_quantum;
 extern pthread_mutex_t mutex_cola_ready;
 extern pthread_mutex_t mutex_cola_block;
 extern pthread_mutex_t mutex_cola_exec;
