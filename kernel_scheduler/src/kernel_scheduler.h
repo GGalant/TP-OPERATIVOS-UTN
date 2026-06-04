@@ -6,9 +6,6 @@
 #include <commons/log.h>
 #include <commons/config.h>
 #include "globales.h"
-#include "cpu.h"
-#include "planificacion.h" //inclusion circular con plani.h porque tambi'en incluye a kernel_scheduler.h, revisar si se puede evitar
-#include "io.h"
 typedef enum {  
     NEW,
     READY,
@@ -19,7 +16,7 @@ typedef enum {
     SUSP_BLOCK 
 } t_estado_proceso;
 
-typedef struct {
+typedef struct t_proceso_pcb {
     int pid;
     int prioridad;
     int pc;
@@ -37,7 +34,9 @@ t_proceso_pcb* crear_pcb(int pid, int prioridad);
 const char* estado_to_string(t_estado_proceso estado);
 void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_siguiente);
 void liberar_recursos();
+void* temporizador_timeout(void* arg);
 void finalizar_io(int pid);
+char* solicitar_contenido_a_km(int socket_km, int pid, int direccion_logica, int tamanio);
 
 
 

@@ -1,4 +1,6 @@
+#include "kernel_scheduler.h"
 #include "planificacion.h"
+#include "cpu.h"
 
 typedef struct {
     t_cpu* cpu;

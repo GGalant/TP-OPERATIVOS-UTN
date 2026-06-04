@@ -1,12 +1,6 @@
 #ifndef GLOBALES_H_
 #define GLOBALES_H_
 
-#include <commons/collections/list.h>
-#include <commons/config.h>
-#include <commons/log.h>
-#include <pthread.h>
-#include <stdint.h>
-
 typedef struct {
     char* nombre_mutex;
     int estado; // 0 "libre" o 1 "ocupado"
@@ -47,6 +41,8 @@ extern int server_ks;
 extern int conexion_km;
 extern int pid_inicial;
 extern int log_level;
+extern int id_io_global;
+extern int id_cpu_global;
 extern int rr_quantum;
 extern pthread_mutex_t mutex_cola_ready;
 extern pthread_mutex_t mutex_cola_block;
@@ -54,6 +50,7 @@ extern pthread_mutex_t mutex_cola_exec;
 extern pthread_mutex_t mutex_lista_cpu_conectadas;
 extern pthread_mutex_t mutex_lista_io_conectadas;
 extern pthread_mutex_t mutex_generador_id_io;
+extern pthread_mutex_t mutex_generador_id_cpu;
 extern pthread_mutex_t mutex_sleep;
 extern pthread_mutex_t mutex_cola_susp_block;
 extern pthread_mutex_t mutex_cola_susp_ready;

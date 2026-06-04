@@ -1,31 +1,21 @@
 #include "kernel_scheduler.h"
+#include "cpu.h"
+#include "planificacion.h"
+#include "io.h"
+
+void enviar_proceso_a_io_sleep(int pid, int tiempo_sleep);
 
 void *handle_cpu(void *arg)
 {
     int socket_cpu = *(int *)arg;
-    t_cpu *cpu; // liberar memoria cuando se desconecte
+    t_cpu *cpu = NULL; // liberar memoria cuando se desconecte
     free(arg);
-    int cpu_id_recibido;
 
-    cpu_id_recibido = recibir_cpu_id(socket_cpu);
-    if (cpu_id_recibido >= 0)
-    {
-        cpu = malloc(sizeof(t_cpu));
-        cpu->cpu_id = cpu_id_recibido;
-        cpu->socket_cpu = socket_cpu;
-        cpu->estado = CPU_LIBRE;
-        cpu->pid_actual = -1;
-
-        pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-        list_add(lista_cpu_conectadas, cpu);
-        pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-
-        log_info(log_ks, "## CPU ID<%d> Conectada", cpu_id_recibido);
-    }
-    else
-    {
-        perror("No se le pudo asignar un ID a la CPU");
+    cpu = crear_cpu(socket_cpu);    
+    if (cpu == NULL) {
+        perror("Error al crear CPU");
         close(socket_cpu);
+        free(cpu);
         return NULL;
     }
 
@@ -42,7 +32,7 @@ void *handle_cpu(void *arg)
             log_info(log_debug_ks, "Finaliza el proceso %d - Motivo: EXIT", cpu->pid_actual);
             // Cpu queda libre, liberar el struct del pcb
             break;
-        case SYSCALL_SLEEP:
+        case SYSCALL_SLEEP: {
             log_info(log_debug_ks, "PID: %d - Bloqueado por: SLEEP", cpu->pid_actual);
 
             // Aca deberiamos recibir pcb actualizado (o por lo menos pc del proceso) y tiempo sleep
@@ -54,7 +44,7 @@ void *handle_cpu(void *arg)
 
             // Sacar el proceso de la cola de EXEC
             pthread_mutex_lock(&mutex_cola_exec);
-            t_proceso_pcb *proceso = list_remove_by_condition(cola_exec, es_proceso_buscado, &pid);
+            t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
             pthread_mutex_unlock(&mutex_cola_exec);
 
             if (proceso == NULL)
@@ -82,7 +72,8 @@ void *handle_cpu(void *arg)
             enviar_proceso_a_io_sleep(pid, tiempo_sleep);
 
             break;
-        case SYSCALL_STDOUT:
+        }
+        case SYSCALL_STDOUT: {
             log_info(log_ks, "## (%d) - Solicitó syscall: STDOUT", cpu->pid_actual);
 
             t_list *paquete_stdout = recibir_paquete(socket_cpu);
@@ -91,18 +82,19 @@ void *handle_cpu(void *arg)
             list_destroy_and_destroy_elements(paquete_stdout, free);
 
             pthread_mutex_lock(&mutex_cola_exec);
-            t_proceso_pcb *proceso = list_remove_by_condition(cola_exec, es_proceso_buscado, &cpu->pid_actual);
+            t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, cpu->pid_actual);
             pthread_mutex_unlock(&mutex_cola_exec);
 
             if (proceso == NULL)
             {
-                log_error(log_ks, "Error: No se encontró el proceso con PID %d en la cola de EXEC.", pid);
+                log_error(log_ks, "Error: No se encontró el proceso con PID %d en la cola de EXEC.", cpu->pid_actual);
                 break;
             }
 
-            proceso->pc = pc_actualizado;
-            cambiar_estado_proceso(proceso, BLOCK);
+            // proceso->pc = pc_actualizado; // No se recibe el PC actualizado en este syscall
             pthread_mutex_lock(&mutex_cola_block);
+            cambiar_estado_proceso(proceso, BLOCK);
+            //Aca deberiamos inicar el temporizador para el timeout
             list_add(cola_block, proceso);
             pthread_mutex_unlock(&mutex_cola_block);
 
@@ -118,7 +110,8 @@ void *handle_cpu(void *arg)
             // enviar_proceso_a_io_stdout();
 
             break;
-        case INTERRUPCION_FIN_QUANTUM:
+        }
+        case INTERRUPCION_FIN_QUANTUM: {
             // La CPU nos avisa el fin de quantum
             t_list *paquete_quantum = recibir_paquete(socket_cpu);
 
@@ -160,6 +153,7 @@ void *handle_cpu(void *arg)
             log_info(log_ks, "## (%d) - Desalojado por fin de quantum", pid);
 
             break;
+        }
         case INTERRUPCION_DESALOJO:
             break;
         case SYSCALL_MUTEX_LOCK:
@@ -180,20 +174,29 @@ void *handle_cpu(void *arg)
     free(cpu);
 }
 
-int recibir_cpu_id(int socket)
-{
-    int cpu_id;
-    int tamanio_recibido = recv(socket, &cpu_id, sizeof(int), MSG_WAITALL);
-    if (tamanio_recibido > 0)
-    {
-        printf("este es el id que me llega: %d\n", cpu_id);
-        return cpu_id;
-    }
-    else
-    {
-        perror("No se recibio ningun ID");
-        return -1;
-    }
+int generar_id_cpu() {
+    pthread_mutex_lock(&mutex_generador_id_cpu);
+    int id = ++id_cpu_global;
+    pthread_mutex_unlock(&mutex_generador_id_cpu);
+    return id;
+}
+
+t_cpu *crear_cpu(int socket_cpu) {  
+    t_cpu* cpu = malloc(sizeof(t_cpu));
+    if (cpu == NULL) return NULL;
+
+    cpu->socket_cpu = socket_cpu;
+    cpu->estado = CPU_LIBRE;
+    cpu->pid_actual = -1;
+    cpu->cpu_id = generar_id_cpu();
+
+    pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+    list_add(lista_cpu_conectadas, cpu);
+    pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+
+    log_info(log_ks, "## CPU ID<%d> Conectada", cpu->cpu_id);
+
+    return cpu;
 }
 
 const char *operacion_to_string(op_code_ks_cpu operacion)

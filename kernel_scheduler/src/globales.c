@@ -1,4 +1,4 @@
-#include "globales.h"
+#include "kernel_scheduler.h"
 
 // Definiciones de variables globales
 t_list *lista_mutex;
@@ -16,6 +16,7 @@ t_log *log_debug_ks;
 t_config *config;
 const int PRIORIDAD_MAXIMA = 0;
 int id_io_global = -1;
+int id_cpu_global = -1;
 char *config_path;
 char *path_proceso_inicial;
 char *puerto;
@@ -36,6 +37,7 @@ pthread_mutex_t mutex_cola_exec;
 pthread_mutex_t mutex_lista_cpu_conectadas;
 pthread_mutex_t mutex_lista_io_conectadas;
 pthread_mutex_t mutex_generador_id_io;
+pthread_mutex_t mutex_generador_id_cpu;
 pthread_mutex_t mutex_sleep;
 pthread_cond_t cond_cola_ready;
 pthread_cond_t cond_cola_block;

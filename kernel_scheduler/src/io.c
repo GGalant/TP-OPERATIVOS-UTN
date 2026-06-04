@@ -1,5 +1,8 @@
+#include "io.h"
 #include "kernel_scheduler.h"
 #include "planificacion.h"
+
+void handle_io_sleep(t_io *io);
 
 void* handle_io(void* arg) {    
     int socket_io = *(int*)arg;
@@ -7,17 +10,12 @@ void* handle_io(void* arg) {
     free(arg); 
 
     io = crear_io(socket_io);
-    if (io->io_id < 0) {    
-        perror("No se le pudo asignar un ID a la IO");
+    if (io == NULL) {    
+        perror("Error al crear IO");
         close(socket_io);
         free(io);
         return NULL;
     } 
-    pthread_mutex_lock(&mutex_lista_io_conectadas);
-    list_add(lista_io_conectadas, io);
-    pthread_mutex_unlock(&mutex_lista_io_conectadas);
-    
-    log_info(log_debug_ks, "IO id <%d> tipo <%d> conectada", io->io_id, io->tipo);
 
     switch (io->tipo) {
     case SLEEP:
@@ -72,7 +70,6 @@ void handle_io_sleep(t_io *io) {
                     }
                 //IMPLEMENTAR: deberiamos tener una funcion que reciba el pid y mueva el proceso a ready o susp. ready segun corresponda, esa logica la manejaria el planificador de mediano plazo
                 finalizar_io(pid);
-
                
                 pthread_mutex_lock(&mutex_lista_io_conectadas);
                 io->estado = LIBRE;
@@ -101,6 +98,25 @@ void handle_io_sleep(t_io *io) {
     }
 }
 
+// void* handle_io_stdout(t_io *io) {   
+//     while(true) {   
+//         pthread_mutex_lock(&mutex_stdout);
+//         while (list_is_empty(cola_espera_stdout)) {
+//             pthread_cond_wait(&cond_stdout, &mutex_stdout);
+//         }
+        
+//         t_peticion_stdout* peticion = list_remove(cola_espera_stdout, 0);
+//         pthread_mutex_unlock(&mutex_stdout);
+
+//         pthread_mutex_lock(&mutex_lista_io_conectadas);
+//         io->estado = OCUPADA;
+//         io->pid_actual = peticion->pid;
+//         pthread_mutex_unlock(&mutex_lista_io_conectadas);
+
+
+//     }
+// }
+
 int generar_id_io() {
     pthread_mutex_lock(&mutex_generador_id_io);
     int id = ++id_io_global;
@@ -120,13 +136,16 @@ t_io *crear_io(int socket_io) {
     io->pid_actual = -1; // inicialmente ningun proceso esta utilizando la IO
     list_destroy_and_destroy_elements(paquete_io, free);
 
-    log_error(log_debug_ks, "IO de tipo <%d> y id <%d> creada", io->tipo, io->io_id);
+    pthread_mutex_lock(&mutex_lista_io_conectadas);
+    list_add(lista_io_conectadas, io);
+    pthread_mutex_unlock(&mutex_lista_io_conectadas);
+
+    log_debug(log_debug_ks, "IO de tipo <%d> y id <%d> creada", io->tipo, io->io_id);
 
     return io;
-    
 }
 
-    void finalizar_io(int pid) {
+void finalizar_io(int pid) {
     t_proceso_pcb* proceso = NULL;
 
     pthread_mutex_lock(&mutex_cola_block); //mutex por si esta siendo usada por otros hilos
@@ -167,4 +186,3 @@ t_io *crear_io(int socket_io) {
 }
 
 //Saca de la lista si lo encuentra al pid
-

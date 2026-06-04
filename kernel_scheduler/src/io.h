@@ -1,14 +1,18 @@
 #ifndef IO_H_
 #define IO_H_
 
-#include <utils/serializacion.h>
-#include <pthread.h>
-#include <commons/log.h>
-#include <commons/config.h>
-#include "globales.h"
-#include "cpu.h"
-#include "planificacion.h"
-#include "../../io/src/io.h"
+/*
+* Se reemplazan los includes para evitar la redefinicion de enums y structs
+* que se da por la falta de include guards en los headers de utils.
+* Al incluir solo kernel_scheduler.h, que ya tiene los demas includes y si tiene
+* include guards, se soluciona el problema.
+* Tambien se define tipo_io localmente para evitar incluir el header ../../io/src/io.h
+* que contiene errores de declaracion.
+*/
+#include "kernel_scheduler.h"
+typedef enum {
+    SLEEP, STDIN, STDOUT
+} tipo_io;
 
 typedef enum {  
     LIBRE,
@@ -24,5 +28,6 @@ typedef struct {
 } t_io;
 
 void* handle_io(void* arg);
+t_io* crear_io(int socket_io);
 
 #endif /* IO_H_ */

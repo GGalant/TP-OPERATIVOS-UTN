@@ -1,4 +1,7 @@
 #include "kernel_scheduler.h"
+#include "planificacion.h"
+#include "cpu.h"
+#include "io.h"
 
 int main(int argc, char *argv[]){
 
@@ -81,6 +84,7 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
     pthread_mutex_init(&mutex_lista_io_conectadas, NULL);
     pthread_mutex_init(&mutex_generador_id_io, NULL);
+    pthread_mutex_init(&mutex_generador_id_cpu, NULL);
     pthread_mutex_init(&mutex_sleep, NULL);
     pthread_cond_init(&cond_cola_ready, NULL);
     pthread_cond_init(&cond_cola_block, NULL);
@@ -249,7 +253,7 @@ char* solicitar_contenido_a_km(int socket_km, int pid, int direccion_logica, int
     
     eliminar_paquete(paquete_contexto);
 
-    op_code respuesta = recibir_operacion(socket_km);
+    op_code_ks_km respuesta = recibir_operacion(socket_km);
     if (respuesta != RESPUESTA_CONTENIDO_MEMORIA) {
         log_error(log_ks, "Error al recibir contenido de Kernel Memory");
         return NULL;
@@ -268,6 +272,45 @@ char* solicitar_contenido_a_km(int socket_km, int pid, int direccion_logica, int
     return contenido;
 }
 
+void iniciar_temporizador_timeout(int pid) {    
+    pthread_t hilo_timeout;
+    int *pid_ptr = malloc(sizeof(int));
+    *pid_ptr = pid;
+    pthread_create(&hilo_timeout, NULL, temporizador_timeout, (void*)pid_ptr); 
+    pthread_detach(hilo_timeout); 
+}
+
+void* temporizador_timeout(void* arg) {    
+    int pid = *(int*)arg;
+    free(arg);
+
+    sleep(suspension_timeout);
+
+    pthread_mutex_lock(&mutex_cola_block);
+    t_proceso_pcb *proceso = remover_proceso_por_pid(cola_block, pid);
+    if (proceso != NULL) {
+        // CASO A: El tiempo se agoto y la IO no termino ahora lo metemos a cola_susp_block
+        
+        pthread_mutex_lock(&mutex_cola_susp_block);
+        cambiar_estado_proceso(proceso, SUSP_BLOCK);
+        list_add(cola_susp_block, proceso);
+        pthread_mutex_unlock(&mutex_cola_susp_block);
+        
+        pthread_mutex_unlock(&mutex_cola_block); 
+
+        log_info(log_ks, "Timeout agotado. El proceso %d pasa a SUSP_BLOCK", pid);
+
+        // 3. LA ORDEN A MEMORIA (Swapping) aca tenemos que avisarle a memoria que suspenda el proceso
+        // avisar_suspension_a_memoria(pid); 
+        
+    } else {
+        // CASO B: El proceso no está en la cola block
+        // Esto significa que finalizar_io() corrio antes que nosotros y ya lo movió a READY
+        pthread_mutex_unlock(&mutex_cola_block);
+    }
+
+    return NULL;
+}
 
 
 void liberar_recursos() {   
@@ -280,6 +323,7 @@ void liberar_recursos() {
     pthread_mutex_destroy(&mutex_lista_cpu_conectadas);
     pthread_mutex_destroy(&mutex_lista_io_conectadas);
     pthread_mutex_destroy(&mutex_generador_id_io);
+    pthread_mutex_destroy(&mutex_generador_id_cpu);
     pthread_mutex_destroy(&mutex_sleep);
     pthread_cond_destroy(&cond_cola_ready);
     pthread_cond_destroy(&cond_cola_block);
