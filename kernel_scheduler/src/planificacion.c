@@ -107,15 +107,14 @@ t_algoritmo_planificacion string_to_algoritmo(const char* algoritmo) {
 
 void planificacion_rr() { 
     while(true) {   
-
         pthread_mutex_lock(&mutex_cola_ready);
 
         while (list_is_empty(cola_ready)) { 
-            pthread_cond_wait(&cond_cola_ready, &mutex_cola_ready);
-        }
-        
+                pthread_cond_wait(&cond_cola_ready, &mutex_cola_ready);
+            }
+
         t_proceso_pcb* proceso = list_remove(cola_ready, 0);//saca primer proceso de cola ready 
-        
+
         pthread_mutex_unlock(&mutex_cola_ready);
 
         pthread_mutex_lock(&mutex_lista_cpu_conectadas);
@@ -137,34 +136,15 @@ void planificacion_rr() {
         list_add(cola_exec, proceso); // añade el proceso a la cola de exec 
 
         pthread_mutex_unlock(&mutex_cola_exec); 
-        
+
         enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid, proceso->pc, proceso->prioridad); //manda a cpu el proceso 
 
-        log_debug(
-            log_debug_ks,
-            "Se envia el proceso ID<%d> a la cpu ID<%d> por RR",
-            proceso->pid,
-            cpu->cpu_id
-        );
+        log_debug(log_debug_ks, "Se envia el proceso ID<%d> a la cpu ID<%d> por RR", proceso->pid, cpu->cpu_id);
 
         iniciar_quantum(cpu, proceso->pid); // inicia el timer de quantum para ese proceso
     } 
-
-        // La lógica para enviar el proceso a la CPU sería similar a la de FIFO, pero con la diferencia de que aca tambien tendriamos que manejar el quantum y las interrupciones por fin de quantum o desalojo, lo cual implicaría agregar lógica adicional para manejar esos casos específicos.
-    }
-
-
-t_proceso_pcb* remover_proceso_por_pid(t_list* cola, int pid) {
-    for (int i = 0; i < list_size(cola); i++) {
-        t_proceso_pcb* proceso = list_get(cola, i);
-
-        if (proceso->pid == pid) {
-            return list_remove(cola, i);
-        }
-    }
-
-    return NULL;
-}//SI no es NULL entonces lo encontro en la cola y lo saca 
+    // La lógica para enviar el proceso a la CPU sería similar a la de FIFO, pero con la diferencia de que aca tambien tendriamos que manejar el quantum y las interrupciones por fin de quantum o desalojo, lo cual implicaría agregar lógica adicional para manejar esos casos específicos.
+}
 
 void iniciar_quantum(t_cpu* cpu, int pid) {
     t_args_quantum* args = malloc(sizeof(t_args_quantum)); //crea la estructura

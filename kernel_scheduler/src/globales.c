@@ -1,22 +1,17 @@
 #include "kernel_scheduler.h"
 
-// Definiciones de variables globales
-t_list *lista_mutex;
 t_list *cola_ready;
 t_list *cola_block;
 t_list *cola_exec;
 t_list *lista_cpu_conectadas;
 t_list *lista_io_conectadas;
 t_list *cola_espera_sleep;
-// Para plani de mediano plazo
+t_list *cola_espera_stdout;
 t_list *cola_susp_block;
 t_list *cola_susp_ready;
 t_log *log_ks;
 t_log *log_debug_ks;
 t_config *config;
-const int PRIORIDAD_MAXIMA = 0;
-int id_io_global = -1;
-int id_cpu_global = -1;
 char *config_path;
 char *path_proceso_inicial;
 char *puerto;
@@ -24,7 +19,9 @@ char *str_log_level;
 char *puerto_km;
 char *ip_km;
 char *algoritmo_planificacion;
+const int PRIORIDAD_MAXIMA = 0;
 int *conexion_km_ptr;
+int id_io_global = -1;
 int server_ks;
 int conexion_km;
 int pid_inicial;
@@ -37,17 +34,17 @@ pthread_mutex_t mutex_cola_exec;
 pthread_mutex_t mutex_lista_cpu_conectadas;
 pthread_mutex_t mutex_lista_io_conectadas;
 pthread_mutex_t mutex_generador_id_io;
-pthread_mutex_t mutex_generador_id_cpu;
 pthread_mutex_t mutex_sleep;
+pthread_mutex_t mutex_stdout;
+pthread_mutex_t mutex_cola_susp_block;
+pthread_mutex_t mutex_cola_susp_ready;
 pthread_cond_t cond_cola_ready;
 pthread_cond_t cond_cola_block;
 pthread_cond_t cond_lista_cpu_conectadas;
 pthread_cond_t cond_sleep;
-// Para plani de mediano plazo
-pthread_mutex_t mutex_cola_susp_block;
+pthread_cond_t cond_stdout;
 pthread_cond_t cond_cola_susp_ready;
 pthread_cond_t cond_cola_susp_block;
-pthread_mutex_t mutex_cola_susp_ready;
 
 void wait_mutex(t_mutex *mutex, int pid_proceso)
 {

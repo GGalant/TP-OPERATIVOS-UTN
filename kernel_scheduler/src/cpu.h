@@ -14,8 +14,10 @@ typedef struct t_cpu {
 } t_cpu;
 
 void* handle_cpu(void* arg);
+void enviar_proceso_a_io_sleep(int pid, int tiempo_sleep);
+void enviar_proceso_a_io_stdout(int pid, char* contenido);
 const char* operacion_to_string(op_code_ks_cpu operacion);
 int recibir_cpu_id(int socket);
-t_cpu *crear_cpu(int socket_cpu);
+t_cpu *crear_cpu(int socket_cpu, int cpu_id);
 
 #endif /* CPU_H_ */

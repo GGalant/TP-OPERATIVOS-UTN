@@ -58,6 +58,7 @@ typedef enum {
 typedef enum {
     CREAR_IO,
     SOLICITUD_IO_SLEEP,
+    SOLICITUD_IO_STDOUT,
     FIN_IO
 } op_code_ks_io;
 

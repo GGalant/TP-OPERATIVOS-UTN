@@ -28,6 +28,10 @@ typedef struct {
 } t_io;
 
 void* handle_io(void* arg);
+void finalizar_io(int pid);
+void handle_io_sleep(t_io *io);
+void handle_io_sdtout(t_io *io);
 t_io* crear_io(int socket_io);
+bool esperar_y_procesar_respuesta_io(t_io* io, int pid_esperado);
 
 #endif /* IO_H_ */

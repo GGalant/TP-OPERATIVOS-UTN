@@ -3,15 +3,14 @@
 #include "planificacion.h"
 #include "io.h"
 
-void enviar_proceso_a_io_sleep(int pid, int tiempo_sleep);
-
 void *handle_cpu(void *arg)
 {
     int socket_cpu = *(int *)arg;
+    int cpu_id = recibir_cpu_id(socket_cpu);
     t_cpu *cpu = NULL; // liberar memoria cuando se desconecte
     free(arg);
 
-    cpu = crear_cpu(socket_cpu);    
+    cpu = crear_cpu(socket_cpu, cpu_id);    
     if (cpu == NULL) {
         perror("Error al crear CPU");
         close(socket_cpu);
@@ -77,6 +76,7 @@ void *handle_cpu(void *arg)
             log_info(log_ks, "## (%d) - Solicitó syscall: STDOUT", cpu->pid_actual);
 
             t_list *paquete_stdout = recibir_paquete(socket_cpu);
+            int pid;
             uint32_t direccion_logica = *(uint32_t *)list_get(paquete_stdout, 0);
             uint32_t tamanio = *(uint32_t *)list_get(paquete_stdout, 1);
             list_destroy_and_destroy_elements(paquete_stdout, free);
@@ -95,6 +95,7 @@ void *handle_cpu(void *arg)
             pthread_mutex_lock(&mutex_cola_block);
             cambiar_estado_proceso(proceso, BLOCK);
             //Aca deberiamos inicar el temporizador para el timeout
+            pid = proceso->pid;
             list_add(cola_block, proceso);
             pthread_mutex_unlock(&mutex_cola_block);
 
@@ -107,7 +108,7 @@ void *handle_cpu(void *arg)
 
             char *contenido = solicitar_contenido_a_km(conexion_km, proceso->pid, direccion_logica, tamanio);
 
-            // enviar_proceso_a_io_stdout();
+            enviar_proceso_a_io_stdout(pid, contenido);
 
             break;
         }
@@ -174,21 +175,29 @@ void *handle_cpu(void *arg)
     free(cpu);
 }
 
-int generar_id_cpu() {
-    pthread_mutex_lock(&mutex_generador_id_cpu);
-    int id = ++id_cpu_global;
-    pthread_mutex_unlock(&mutex_generador_id_cpu);
-    return id;
+int recibir_cpu_id(int socket) {
+    int cpu_id;
+    int tamanio_recibido = recv(socket, &cpu_id, sizeof(int), MSG_WAITALL);
+    if (tamanio_recibido > 0) 
+    {
+        log_debug(log_debug_ks, "cpu_id que me llega: %d", cpu_id);
+        return cpu_id;
+    }
+    else 
+    {
+        perror("Error al recibir cpu_id");
+        return -1;
+    }
 }
 
-t_cpu *crear_cpu(int socket_cpu) {  
+t_cpu *crear_cpu(int socket_cpu, int cpu_id) {  
     t_cpu* cpu = malloc(sizeof(t_cpu));
     if (cpu == NULL) return NULL;
 
     cpu->socket_cpu = socket_cpu;
     cpu->estado = CPU_LIBRE;
     cpu->pid_actual = -1;
-    cpu->cpu_id = generar_id_cpu();
+    cpu->cpu_id = cpu_id;
 
     pthread_mutex_lock(&mutex_lista_cpu_conectadas);
     list_add(lista_cpu_conectadas, cpu);
@@ -238,13 +247,8 @@ t_proceso_pcb *buscar_proceso_por_id(int pid, t_list *cola)
     return NULL;
 }
 
-bool es_proceso_buscado(void *elemento, void *pid_buscado)
-{
-    t_proceso_pcb *pcb = (t_proceso_pcb *)elemento;
-    return pcb->pid == *(int *)pid_buscado;
-}
-
-// REFACTOR: estas funciones de enviar peticiones a IO podrían unificarse en una sola función que reciba el tipo de IO y los parametros necesarios, y dentro de la función se encargue de buscar la IO correspondiente y enviar la petición, algo así como enviar_peticion_io(tipo_io tipo, ...parametros restantes, donde parametros restantes sea un paquete con los datos necesarios)
+// REFACTOR: estas funciones de enviar peticiones a IO podrían unificarse en una sola función que reciba el tipo de IO y los parametros necesarios. 
+//enviar_peticion_io(tipo_io tipo, ...param restantes)
 
 void enviar_proceso_a_io_sleep(int pid, int tiempo_sleep)
 {
@@ -254,30 +258,24 @@ void enviar_proceso_a_io_sleep(int pid, int tiempo_sleep)
 
     pthread_mutex_lock(&mutex_sleep);
     list_add(cola_espera_sleep, peticion);
-
     // avisamos a algun hilo IO Sleep
     pthread_cond_signal(&cond_sleep);
-
     pthread_mutex_unlock(&mutex_sleep);
+
+    return;
 }
 
-// void enviar_peticion_io_stdout(tipo_io tipo, ...parametros restantes)
-// void enviar_peticion_io_stdin(tipo_io tipo, ...parametros restantes)
-
-t_io *buscar_io_libre(tipo_io tipo, int pid)
+void enviar_proceso_a_io_stdout(int pid, char *contenido) 
 {
-    // *IMPORTANTE* esta funcion tiene que llamarse con el mutex de la lista de IO conectadas bloqueado
-    t_io *io_libre = NULL;
-    for (int i = 0; i < list_size(lista_io_conectadas); i++)
-    {
-        t_io *io = list_get(lista_io_conectadas, i);
-        if (io->tipo == tipo && io->estado == LIBRE)
-        {
-            io->estado = OCUPADA;
-            io->pid_actual = pid;
-            io_libre = io;
-            break;
-        }
-    }
-    return io_libre;
+    t_peticion_stdout *peticion = malloc(sizeof(t_peticion_stdout));
+    peticion->pid = pid;
+    peticion->contenido = contenido;
+
+    pthread_mutex_lock(&mutex_stdout);
+    list_add(cola_espera_stdout, peticion);
+    pthread_cond_signal(&cond_stdout);
+    pthread_mutex_unlock(&mutex_stdout);
+    
+    return;
 }
+// void enviar_peticion_io_stdin(tipo_io tipo, ...parametros restantes)

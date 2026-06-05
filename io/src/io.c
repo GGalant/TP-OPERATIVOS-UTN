@@ -18,7 +18,7 @@ int main(int argc, char *argv[]){
     
     enviar_io();
 
-    switch (obtener_tipo_io(tipo_io)) {
+    switch (obtener_tipo_io(tipo_io_str)) {
     case SLEEP:
         handle_io_sleep();
         break;
@@ -29,7 +29,7 @@ int main(int argc, char *argv[]){
         handle_io_stdout();
         break;
     default:
-        log_error(log_io, "Tipo de IO desconocida: <%s>", tipo_io);
+        log_error(log_io, "Tipo de IO desconocida: <%s>", tipo_io_str);
         break;  
     }
   
@@ -41,15 +41,15 @@ int main(int argc, char *argv[]){
 void inicializar_io(int argc, char *argv[]) {  
     if(argc<3) {
           perror("No se proporcionaron todos los argumentos [Archivo Config] [Tipo]");
-          return EXIT_FAILURE;
+          exit(EXIT_FAILURE);
     }
     char* config_path = argv[1]; 
     config = config_create(config_path);
-    tipo_io = argv[2];
+    tipo_io_str = argv[2];
     int log_level;
 
     if (config == NULL){
-        return EXIT_FAILURE;
+        exit(EXIT_FAILURE);
     }
 
     str_log_level = config_get_string_value(config, "LOG_LEVEL");
@@ -63,10 +63,10 @@ void inicializar_io(int argc, char *argv[]) {
 
 void handle_io_sleep() {
     while (true) {
-        list* paquete_sleep = recibir_paquete(conexion_ks); 
+        t_list* paquete_sleep = recibir_paquete(conexion_ks); 
         int pid = *(int*)list_get(paquete_sleep, 0);
         int tiempo_sleep = *(int*)list_get(paquete_sleep, 1);
-        list_destroy_and_destroy_elements(paquete_sleep, free); 
+        list_destroy_and_destroy_elements(paquete_sleep, free);
 
         log_info(log_io, "## PID: %d - Inicio de IO", pid);
         usleep(tiempo_sleep);
@@ -88,7 +88,24 @@ void handle_io_stdin() {
 
 void handle_io_stdout() {
     while (true) {
-      //TODO IMPLEMENTAR 
+        t_list* paquete_stdout = recibir_paquete(conexion_ks);
+        int pid = *(int*)list_get(paquete_stdout, 0);
+        char* contenido_stdout = (char*)list_get(paquete_stdout, 1);
+
+        if (contenido_stdout == NULL) {
+            log_error(log_io, "PID: %d - Contenido de STDOUT es NULL", pid);
+            list_destroy_and_destroy_elements(paquete_stdout, free);
+            continue;
+        }
+
+        log_info(log_io, "## PID: <%d> - Inicio de IO", pid);
+        log_info(log_io, "## PID: <%d> - <%s>", pid, contenido_stdout);
+        log_info(log_io, "## PID: <%d> - Fin de IO", pid);    
+        
+        list_destroy_and_destroy_elements(paquete_stdout, free);
+        enviar_fin_io(pid);
+
+      //TODO IMPLEMENTAR. Falta que las chicas nos manden el contenido de lectura para poder imprimir :)
     }   
 
     return;
@@ -96,7 +113,7 @@ void handle_io_stdout() {
 
 void enviar_io() {
     t_paquete* paquete_io = crear_paquete(CREAR_IO);
-    int tipo = obtener_tipo_io(tipo_io);
+    int tipo = obtener_tipo_io(tipo_io_str);
     agregar_a_paquete(paquete_io, &tipo, sizeof(int));
     enviar_paquete_send_all(paquete_io, conexion_ks);
     eliminar_paquete(paquete_io);

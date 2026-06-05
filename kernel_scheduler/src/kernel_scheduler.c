@@ -71,12 +71,12 @@ void inicializar_ks(int argc, char *argv[]) {
     cola_ready = list_create();
     cola_block = list_create();
     cola_exec = list_create();
-    lista_mutex = list_create();
-    lista_cpu_conectadas = list_create();
-    cola_espera_sleep = list_create();
-    lista_io_conectadas = list_create();
     cola_susp_block = list_create();
     cola_susp_ready = list_create();
+    cola_espera_sleep = list_create();
+    cola_espera_stdout = list_create();
+    lista_cpu_conectadas = list_create();
+    lista_io_conectadas = list_create();
 
     pthread_mutex_init(&mutex_cola_ready, NULL);
     pthread_mutex_init(&mutex_cola_block, NULL);
@@ -84,15 +84,15 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
     pthread_mutex_init(&mutex_lista_io_conectadas, NULL);
     pthread_mutex_init(&mutex_generador_id_io, NULL);
-    pthread_mutex_init(&mutex_generador_id_cpu, NULL);
     pthread_mutex_init(&mutex_sleep, NULL);
+    pthread_mutex_init(&mutex_stdout, NULL);
     pthread_cond_init(&cond_cola_ready, NULL);
     pthread_cond_init(&cond_cola_block, NULL);
     pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
     pthread_cond_init(&cond_sleep, NULL);
+    pthread_cond_init(&cond_stdout, NULL);
     pthread_mutex_init(&mutex_cola_susp_block, NULL);
     pthread_mutex_init(&mutex_cola_susp_ready, NULL);
-
     pthread_cond_init(&cond_cola_susp_block, NULL);
     pthread_cond_init(&cond_cola_susp_ready, NULL);
 
@@ -323,13 +323,13 @@ void liberar_recursos() {
     pthread_mutex_destroy(&mutex_lista_cpu_conectadas);
     pthread_mutex_destroy(&mutex_lista_io_conectadas);
     pthread_mutex_destroy(&mutex_generador_id_io);
-    pthread_mutex_destroy(&mutex_generador_id_cpu);
     pthread_mutex_destroy(&mutex_sleep);
+    pthread_mutex_destroy(&mutex_stdout);
     pthread_cond_destroy(&cond_cola_ready);
     pthread_cond_destroy(&cond_cola_block);
     pthread_cond_destroy(&cond_lista_cpu_conectadas);
     pthread_cond_destroy(&cond_sleep);
-    list_destroy(cola_espera_sleep);
+    pthread_cond_destroy(&cond_stdout);
     free(conexion_km_ptr);
     free(config_path);
     free(path_proceso_inicial);
@@ -341,7 +341,10 @@ void liberar_recursos() {
     list_destroy(cola_ready);
     list_destroy(cola_block);
     list_destroy(cola_exec);
-    list_destroy(lista_mutex);
+    list_destroy(cola_susp_block);
+    list_destroy(cola_susp_ready);
+    list_destroy(cola_espera_sleep);
+    list_destroy(cola_espera_stdout);
     list_destroy(lista_cpu_conectadas);
     list_destroy(lista_io_conectadas);
     close(server_ks);
@@ -350,18 +353,14 @@ void liberar_recursos() {
     return;
 }
 
-//Algo así debería hacer Gabi, para poder enviarnos el id (id), intentar enviarlo como MENSAJE, no como paquete :)
-// void enviar_cpu_id(int socket_ks) {  
-//     op_code codigo_operacion = ENVIAR_CPU_ID; // debria estar en el enum de op_code
-//     t_paquete paquete = crear_paquete(codigo_operacion);
-//     int cpu_id = cpu_id_config;
+t_proceso_pcb* remover_proceso_por_pid(t_list* cola, int pid) {
+    for (int i = 0; i < list_size(cola); i++) {
+        t_proceso_pcb* proceso = list_get(cola, i);
 
-//     agregar_a_paquete(paquete, &cpu_id, sizeof(int));
+        if (proceso->pid == pid) {
+            return list_remove(cola, i);
+        }
+    }
 
-//     enviar_paquete_send_all(paquete, socket_ks);
-
-//     return;
-// }   enviar_paquete_send_all(paquete, socket_ks);
-
-//     return;
-// }
+    return NULL;
+}//SI no es NULL entonces lo encontro en la cola y lo saca 

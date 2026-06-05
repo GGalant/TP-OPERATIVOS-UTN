@@ -2,8 +2,6 @@
 #include "kernel_scheduler.h"
 #include "planificacion.h"
 
-void handle_io_sleep(t_io *io);
-
 void* handle_io(void* arg) {    
     int socket_io = *(int*)arg;
     t_io* io = NULL;
@@ -25,7 +23,7 @@ void* handle_io(void* arg) {
         //handle_io_stdin(io);
         break;
     case STDOUT:
-        //handle_io_stdout(io);
+        handle_io_stdout(io);
         break;
     default:
         log_error(log_ks, "Tipo de IO desconocida: <%d>", io->tipo);
@@ -58,64 +56,47 @@ void handle_io_sleep(t_io *io) {
 
         op_code_ks_io codigo_operacion = recibir_operacion(io->socket_io);   
         
-        switch(codigo_operacion) {
-            case FIN_IO:
-                int pid;
-                int bytes_recibidos = recv(io->socket_io, &pid, sizeof(int), MSG_WAITALL);
-                //log_info(log_ks, "## (<%d>) finalizó IO y pasa a READY / SUSP. READY", pid); Saco este loginfo y lo creo dentro de la funci'on finalizar io ya que en esa funci'on diferencio cual va a ready y cual a susp ready segun corresponda
-                    if (bytes_recibidos <= 0) {
-                      log_error(log_ks, "No se pudo recibir el PID de fin de IO");
-                      free(peticion);
-                      return;
-                    }
-                //IMPLEMENTAR: deberiamos tener una funcion que reciba el pid y mueva el proceso a ready o susp. ready segun corresponda, esa logica la manejaria el planificador de mediano plazo
-                finalizar_io(pid);
-               
-                pthread_mutex_lock(&mutex_lista_io_conectadas);
-                io->estado = LIBRE;
-                io->pid_actual = -1;
-                pthread_mutex_unlock(&mutex_lista_io_conectadas);
+        int pid_actual = peticion->pid; // Guardamos el PID para la validación
+        free(peticion); 
 
-                free(peticion);
-                break;
-            case -1:
-                log_error(log_ks, "IO FD %d se desconectó. Terminando handle", io->socket_io);
-                 pthread_mutex_lock(&mutex_lista_io_conectadas);
-                 io->estado = LIBRE;
-                 io->pid_actual = -1;
-                 pthread_mutex_unlock(&mutex_lista_io_conectadas);
-                free(peticion);
-                return;
-            default:
-                log_warning(log_ks, "operacion desconocida: %d", codigo_operacion);
-                 pthread_mutex_lock(&mutex_lista_io_conectadas);
-                 io->estado = LIBRE;
-                 io->pid_actual = -1;
-                 pthread_mutex_unlock(&mutex_lista_io_conectadas);
-                free(peticion);
-                break;
+        if (!esperar_y_procesar_respuesta_io(io, pid_actual)) {
+            return; // Si devolvió false, la IO se desconectó. Terminamos el hilo.
         }
     }
 }
 
-// void* handle_io_stdout(t_io *io) {   
-//     while(true) {   
-//         pthread_mutex_lock(&mutex_stdout);
-//         while (list_is_empty(cola_espera_stdout)) {
-//             pthread_cond_wait(&cond_stdout, &mutex_stdout);
-//         }
+void handle_io_stdout(t_io *io) {   
+    while(true) {   
+        pthread_mutex_lock(&mutex_stdout);
+        while (list_is_empty(cola_espera_stdout)) {
+            pthread_cond_wait(&cond_stdout, &mutex_stdout);
+        }
         
-//         t_peticion_stdout* peticion = list_remove(cola_espera_stdout, 0);
-//         pthread_mutex_unlock(&mutex_stdout);
+        t_peticion_stdout* peticion = list_remove(cola_espera_stdout, 0);
+        pthread_mutex_unlock(&mutex_stdout);
 
-//         pthread_mutex_lock(&mutex_lista_io_conectadas);
-//         io->estado = OCUPADA;
-//         io->pid_actual = peticion->pid;
-//         pthread_mutex_unlock(&mutex_lista_io_conectadas);
+        pthread_mutex_lock(&mutex_lista_io_conectadas);
+        io->estado = OCUPADA;
+        io->pid_actual = peticion->pid;
+        pthread_mutex_unlock(&mutex_lista_io_conectadas);
 
+        t_paquete* paquete_stdout = crear_paquete(SOLICITUD_IO_STDOUT);
+        agregar_a_paquete(paquete_stdout, &peticion->pid, sizeof(int));
+        agregar_a_paquete(paquete_stdout, peticion->contenido, strlen(peticion->contenido) + 1);
+        enviar_paquete_send_all(paquete_stdout, io->socket_io);
+        eliminar_paquete(paquete_stdout);
 
-//     }
-// }
+        op_code_ks_io codigo_operacion = recibir_operacion(io->socket_io);
+
+        int pid_actual = peticion->pid; 
+        free(peticion->contenido);
+        free(peticion); 
+
+        if (!esperar_y_procesar_respuesta_io(io, pid_actual)) {
+            return; 
+        }
+    }
+}
 
 int generar_id_io() {
     pthread_mutex_lock(&mutex_generador_id_io);
@@ -185,4 +166,46 @@ void finalizar_io(int pid) {
 
 }
 
-//Saca de la lista si lo encuentra al pid
+// Esta función espera la respuesta del módulo IO y se encarga de liberar la interfaz.
+// Retorna 'true' si el ciclo debe continuar, o 'false' si la IO se desconectó y el hilo debe morir.
+bool esperar_y_procesar_respuesta_io(t_io* io, int pid_esperado) {
+    op_code_ks_io codigo_operacion = recibir_operacion(io->socket_io);   
+        
+    switch(codigo_operacion) {
+        case FIN_IO: {
+            int pid_recibido;
+            int bytes_recibidos = recv(io->socket_io, &pid_recibido, sizeof(int), MSG_WAITALL);
+            
+            if (bytes_recibidos <= 0) {
+                log_error(log_ks, "IO <%d>: No se pudo recibir el PID de fin de IO", io->io_id);
+                // Acá podrías decidir si abortar el pid_esperado
+                break; 
+            }
+
+            if (pid_recibido == pid_esperado) {
+                finalizar_io(pid_recibido);
+            } else {
+                log_error(log_debug_ks, "IO <%d> devolvió FIN_IO para PID %d, pero se esperaba %d", io->io_id, pid_recibido, pid_esperado);
+            }
+            break; 
+        }
+        case -1:
+            log_error(log_ks, "IO FD %d se desconectó.", io->socket_io);
+            pthread_mutex_lock(&mutex_lista_io_conectadas);
+            io->estado = LIBRE;
+            io->pid_actual = -1;
+            pthread_mutex_unlock(&mutex_lista_io_conectadas);
+            return false; 
+            
+        default:
+            log_warning(log_ks, "Operación desconocida: %d", codigo_operacion);
+            break;
+    }
+
+    pthread_mutex_lock(&mutex_lista_io_conectadas);
+    io->estado = LIBRE;
+    io->pid_actual = -1;
+    pthread_mutex_unlock(&mutex_lista_io_conectadas);
+    
+    return true; 
+}
