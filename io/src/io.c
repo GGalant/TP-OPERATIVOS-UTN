@@ -63,7 +63,11 @@ void inicializar_io(int argc, char *argv[]) {
 
 void handle_io_sleep() {
     while (true) {
-        t_list* paquete_sleep = recibir_paquete(conexion_ks); 
+        t_list* paquete_sleep = recibir_paquete(conexion_ks);
+        if (paquete_sleep == NULL) {
+            log_error(log_io, "Se perdió la conexión con Kernel Scheduler. Terminando módulo de IO.");
+            break;
+        }
         int pid = *(int*)list_get(paquete_sleep, 0);
         int tiempo_sleep = *(int*)list_get(paquete_sleep, 1);
         list_destroy_and_destroy_elements(paquete_sleep, free);
@@ -89,6 +93,10 @@ void handle_io_stdin() {
 void handle_io_stdout() {
     while (true) {
         t_list* paquete_stdout = recibir_paquete(conexion_ks);
+        if (paquete_stdout == NULL) {
+            log_error(log_io, "Se perdió la conexión con Kernel Scheduler. Terminando módulo de IO.");
+            break;
+        }
         int pid = *(int*)list_get(paquete_stdout, 0);
         char* contenido_stdout = (char*)list_get(paquete_stdout, 1);
 
@@ -105,7 +113,7 @@ void handle_io_stdout() {
         list_destroy_and_destroy_elements(paquete_stdout, free);
         enviar_fin_io(pid);
 
-      //TODO IMPLEMENTAR. Falta que las chicas nos manden el contenido de lectura para poder imprimir :)
+      //TODO: Falta que las chicas nos manden el contenido de lectura para poder imprimir :)
     }   
 
     return;

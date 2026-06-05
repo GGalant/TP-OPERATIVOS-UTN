@@ -7,6 +7,13 @@ void* handle_io(void* arg) {
     t_io* io = NULL;
     free(arg); 
 
+    op_code_ks_io op = recibir_operacion(socket_io);
+    if (op != CREAR_IO) {
+        log_error(log_ks, "Error en handshake de IO. Se esperaba CREAR_IO y se recibió %d", op);
+        close(socket_io);
+        return NULL;
+    }
+
     io = crear_io(socket_io);
     if (io == NULL) {    
         perror("Error al crear IO");
@@ -112,7 +119,7 @@ t_io *crear_io(int socket_io) {
     t_list *paquete_io = recibir_paquete(socket_io);
     io->socket_io = socket_io;
     io->io_id = generar_id_io();
-    io->tipo = *(int*)list_get(paquete_io, 1);
+    io->tipo = *(int*)list_get(paquete_io, 0);
     io->estado = LIBRE;
     io->pid_actual = -1; // inicialmente ningun proceso esta utilizando la IO
     list_destroy_and_destroy_elements(paquete_io, free);
