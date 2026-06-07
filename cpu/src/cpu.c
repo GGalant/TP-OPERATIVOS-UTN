@@ -361,9 +361,10 @@ void integrar_contexto(t_list* paquete_contexto) {
 
 int pull_contexto() {
     pid_t pid_a_pedir = cpu.pid;
+    op_code operacion = ENVIAR_CONTEXTO;
 
-    send(conexion_km, ENVIAR_CONTEXTO, sizeof(op_code), 0);
-    send(conexion_km, pid_a_pedir, sizeof(pid_t), 0);
+    send(conexion_km, &operacion, sizeof(op_code), 0);
+    send(conexion_km, &pid_a_pedir, sizeof(pid_t), 0);
 
     op_code resp_km = recibir_operacion(conexion_km);
 
