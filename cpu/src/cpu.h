@@ -6,6 +6,40 @@
 #define MAX_INSTRUCTION_PARAMS 5
 #define MAX_INSTRUCTION_PARAM_SIZE 128
 
+//region: ENUMS
+
+typedef enum {
+    //OPERACIONES ORDINARIAS:
+    NOOP,
+    SET,
+    MOV_IN,
+    MOV_OUT,
+    SUM,
+    SUB,
+    JNZ,
+    COPY_MEM,
+    //SYSCALLS:
+    MUTEX_CREATE,
+    MUTEX_LOCK,
+    MUTEX_UNLOCK,
+    MEM_ALLOC,
+    MEM_FREE,
+    SLEEP,
+    STDOUT,
+    STDIN,
+    INIT_PROC,
+    EXIT,
+    //Creada por nosotros
+    ERROR = -1,
+
+} InstrucionCode;
+
+typedef enum {
+    ENVIO_PID
+} op_code_cpu_ks; //TODO mover a conexiones, coordinar con KS
+
+//region: STRUCTS
+
 typedef struct {
 //Process Id
 int pid;
@@ -37,6 +71,8 @@ typedef struct {
     char* puerto_ms;
 } t_cpu_env;
 
+//region: VARIABLES GLOBALES (finiquitar)
+
 //* las unicas variables definidas en el header las defino como extern para evitar dobles definiciones si el .h se incluye en 2 archivos
 //* estan aqui porque se usan en mas de un .c, y el header corresponde a mas de un .c
 extern t_cpu cpu; 
@@ -47,33 +83,7 @@ extern int conexion_ks;
 extern int conexion_km;
 extern int conexion_ms;
 
-typedef enum {
-    //OPERACIONES ORDINARIAS:
-    NOOP,
-    SET,
-    MOV_IN,
-    MOV_OUT,
-    SUM,
-    SUB,
-    JNZ,
-    COPY_MEM,
-    //SYSCALLS:
-    MUTEX_CREATE,
-    MUTEX_LOCK,
-    MUTEX_UNLOCK,
-    MEM_ALLOC,
-    MEM_FREE,
-    SLEEP,
-    STDOUT,
-    STDIN,
-    INIT_PROC,
-    EXIT,
-    //Creada por nosotros
-    ERROR = -1,
-
-} InstrucionCode;
-
-
+//region: DECLARACIONES DE FUNCIONES
 
 int get_registro_size(char* s);
 uint32_t get_registro_value(size_t registro_size, void* registro);
