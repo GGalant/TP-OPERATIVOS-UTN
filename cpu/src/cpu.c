@@ -1,18 +1,32 @@
 #include "cpu.h"
 
+//TODO me gustaria no tener unas variables globales :)
+
+
+//Variables extern definidas en el header:
+int conexion_ms = -1;
+int conexion_ks = -1;
+int conexion_km = -1;
+bool interrupcion_activa = 0;
+t_cpu cpu = {0};
+t_log* log_cpu = {0};
+t_instruccion instruccion_actual = {0};
+
 int main(int argc, char *argv[]){
 
     if(argc<3){
         perror("No se proporcionaron todos los argumentos [Archivo Config] [Identificador]");
         return EXIT_FAILURE;
     }
-
+    
+    //Variables de inicializacion
     char* config_path = argv[1]; 
     char* id_cpu_str = argv[2];
     int id_cpu = atoi(id_cpu_str);
-    int log_level;
+    
 
-    interrupcion_activa = 0
+    //Variables de configuracion:
+    t_cpu_env env = {0};
 
     t_config* config = config_create(config_path);
 
@@ -20,16 +34,20 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    map_config_variables(config);
+    map_config_variables(config, &env);
 
-    log_level = log_level_from_string(env_str_log_level);
-    log_cpu = log_create(("cpu_%d.log", id_cpu), ("CPU <%d>", id_cpu), 1, log_level);
+    int log_level = log_level_from_string(env.str_log_level);
+    char* log_filename = string_from_format("cpu_%d.log", id_cpu);
+    char* log_header   = string_from_format("CPU <%d>", id_cpu);
+    log_cpu = log_create(log_filename, log_header, 1, log_level);
+    free(log_filename);
+    free(log_header);
     log_info(log_cpu, "Iniciando CPU <%d>", id_cpu);
 
     //conexiones con modulos
-    conexion_ks = conectar_modulo_logueando(env_ip_ks, env_puerto_ks, "Kernel Scheduler");
-    conexion_km = conectar_modulo_logueando(env_ip_km, env_puerto_km, "Kernel Memory");
-    conexion_ms = conectar_modulo_logueando(env_ip_ms, env_puerto_ms, "Memory Stick");
+    conexion_ks = conectar_modulo_logueando(env.ip_ks, env.puerto_ks, "Kernel Scheduler");
+    conexion_km = conectar_modulo_logueando(env.ip_km, env.puerto_km, "Kernel Memory");
+    conexion_ms = conectar_modulo_logueando(env.ip_ms, env.puerto_ms, "Memory Stick");
 
     if(conexion_ks == -1 || conexion_km == -1 || conexion_ms == -1 ){
         config_destroy(config);
@@ -57,7 +75,7 @@ int main(int argc, char *argv[]){
                 recv(conexion_ks, &pid_recibido, sizeof(pid_t), MSG_WAITALL);
 
                 if(pid_recibido == -1){
-                    log_debug(log_cpu, "Error al recibir el PID de Kernel Scheduler");
+                    log_error(log_cpu, "Error al recibir el PID de Kernel Scheduler");
                     config_destroy(config);
                     log_destroy(log_cpu);
                     return EXIT_FAILURE;
@@ -69,12 +87,18 @@ int main(int argc, char *argv[]){
 
                 pull_contexto();
 
-                do {
-                    //Map context
-                fetch();
+                do { //TODO poner esto mas lindo que este dowhile horrible inencontrable
+                if(fetch() == NULL){
+                    log_error(log_cpu, "Error en fetch."); //Tal vez interrumpir y decirle al KS
+                    break;
+                };
                 decode();
                 execute();
                 } while (!check_interrupt());
+
+                //TODO verificar con el equipo las interrupciones de Kernel Scheduler posibles y como actuar ante ellas
+
+                push_contexto();
 
                 break;
             case -1:
@@ -129,6 +153,7 @@ void* fetch(){
 
     if(size <= 0){
         log_error(log_cpu, "Fetch: El size obtenido es invalido");
+        return NULL;
     }
 
     if(size >= MAX_BUFFER_INSTRUCCION){
@@ -332,19 +357,19 @@ int conectar_modulo_logueando(char* ip, char* puerto, char* nombre_modulo) {
 
 }
 
-//Mapea las variables del config a las variables delfinidas en el header
-int map_config_variables(t_config* config){
+//Mapea las variables del config a al struct pasado
+int map_config_variables(t_config* config, t_cpu_env* env){
 
-    env_str_log_level = config_get_string_value(config, "LOG_LEVEL");
+    env->str_log_level = config_get_string_value(config, "LOG_LEVEL");
 
-    env_ip_ks = config_get_string_value(config, "IP_KS");
-    env_puerto_ks = config_get_string_value(config, "PUERTO_KS");
+    env->ip_ks = config_get_string_value(config, "IP_KS");
+    env->puerto_ks = config_get_string_value(config, "PUERTO_KS");
 
-    env_ip_km = config_get_string_value(config, "IP_KM");
-    env_puerto_km = config_get_string_value(config, "PUERTO_KM");
+    env->ip_km = config_get_string_value(config, "IP_KM");
+    env->puerto_km = config_get_string_value(config, "PUERTO_KM");
 
-    env_ip_ms= config_get_string_value(config, "IP_MS");
-    env_puerto_ms = config_get_string_value(config, "PUERTO_MS");
+    env->ip_ms= config_get_string_value(config, "IP_MS");
+    env->puerto_ms = config_get_string_value(config, "PUERTO_MS");
 
     return 0;
 }
@@ -385,16 +410,16 @@ t_paquete *empaquetar_contexto(){
     agregar_a_paquete(paquete_contexto,&(cpu.edx), sizeof(uint32_t));
     agregar_a_paquete(paquete_contexto,&(cpu.si), sizeof(uint32_t));
     agregar_a_paquete(paquete_contexto,&(cpu.di), sizeof(uint32_t));
-    return paquete_contexto
+    return paquete_contexto;
 
 }
 
 
 
-int push_contexto() { 
+void push_contexto() { //TODO validar si cpu deberia encargarse de que esto no falle 
     pid_t pid_a_entregar = cpu.pid;
-    t_paquete * paquete_contexto = empaquetar_contexto()
-    enviar_paquete_send_all(paquete_contexto,socket_cpu);
+    t_paquete * paquete_contexto = empaquetar_contexto();
+    enviar_paquete_send_all(paquete_contexto, conexion_km);
     eliminar_paquete(paquete_contexto);
 }
 
@@ -417,7 +442,6 @@ int pull_contexto() {
         return -1;
     }
 
-    int size_contexto = 0;
     t_list* paquete_contexto = recibir_paquete(conexion_km);
 
     if (paquete_contexto == NULL) {

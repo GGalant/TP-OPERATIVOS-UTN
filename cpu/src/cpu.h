@@ -6,22 +6,7 @@
 #define MAX_INSTRUCTION_PARAMS 5
 #define MAX_INSTRUCTION_PARAM_SIZE 128
 
-t_log* log_cpu;
-
-int conexion_ms;
-int conexion_ks;
-int conexion_km;
-
-//Variables de configuracion:
-char* env_str_log_level;
-char* env_ip_ks;
-char* env_puerto_ks;
-char* env_ip_km;
-char* env_puerto_km;
-char* env_ip_ms;
-char* env_puerto_ms;
-
-struct cpu {
+typedef struct {
 //Process Id
 int pid;
 //Program Counter
@@ -34,7 +19,33 @@ uint32_t eax, ebx, ecx, edx;
 uint32_t si;
 //Direccion logica de memoria de destino
 uint32_t di;
-} cpu;
+} t_cpu;
+
+typedef struct {
+    InstrucionCode icode;
+    char params[MAX_INSTRUCTION_PARAMS][MAX_INSTRUCTION_PARAM_SIZE];
+    int cant_params;
+} t_instruccion;
+
+typedef struct {
+    char* str_log_level;
+    char* ip_ks;
+    char* puerto_ks;
+    char* ip_km;
+    char* puerto_km;
+    char* ip_ms;
+    char* puerto_ms;
+} t_cpu_env;
+
+//* las unicas variables definidas en el header las defino como extern para evitar dobles definiciones si el .h se incluye en 2 archivos
+//* estan aqui porque se usan en mas de un .c, y el header corresponde a mas de un .c
+extern t_cpu cpu; 
+extern bool interrupcion_activa;
+extern t_log* log_cpu;
+extern t_instruccion instruccion_actual;
+extern int conexion_ks;
+extern int conexion_km;
+extern int conexion_ms;
 
 typedef enum {
     //OPERACIONES ORDINARIAS:
@@ -62,15 +73,11 @@ typedef enum {
 
 } InstrucionCode;
 
-typedef struct {
-    InstrucionCode icode;
-    char params[MAX_INSTRUCTION_PARAMS][MAX_INSTRUCTION_PARAM_SIZE];
-    int cant_params;
-} t_instruccion;
 
-t_instruccion instruccion_actual;
 
-bool interrupcion_activa;
+int get_registro_size(char* s);
+uint32_t get_registro_value(size_t registro_size, void* registro);
+void set_reg_value(size_t reg_size, void* registro, uint32_t valor);
 
 static char instruccion_buffer[128];
 void * string_to_registro(char* s);
@@ -83,10 +90,11 @@ void* execute();
 bool check_interrupt();
 
 int conectar_modulo_logueando(char* ip, char* puerto, char* nombre_modulo);
-int map_config_variables(t_config* config);
+int map_config_variables(t_config* config, t_cpu_env* env);
 int pull_contexto();
-int push_contexto();
+void push_contexto();
 void integrar_contexto(t_list* paquete_contexto);
+t_paquete *empaquetar_contexto();
 
 //INSTRUCCIONES ORDINARIAS:
 
