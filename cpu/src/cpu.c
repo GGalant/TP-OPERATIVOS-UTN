@@ -309,8 +309,8 @@ bool check_interrupt(){
 
     if (se_ejecuto_syscall) {
         log_debug(log_cpu, "Interrupcion sincronica recibida (SYSCALL ejecutada)");
-        se_ejecuto_syscall = false
-        return true
+        se_ejecuto_syscall = false;
+        return true;
     }
 
     op_code codigo_operacion = recibir_operacion(conexion_ks);
@@ -318,13 +318,11 @@ bool check_interrupt(){
     if(codigo_operacion == INTERRUPCION_DESALOJO || codigo_operacion == INTERRUPCION_FIN_QUANTUM){
         //TODO ver si hay que leer algo mas o realizar alguna accion.
         log_info(log_cpu, "## Interrupcion recibida");
-        return true
+        return true;
     }
 
     return false;
 }
-
-
 
 InstrucionCode string_to_instruction_code(char* s){
 
