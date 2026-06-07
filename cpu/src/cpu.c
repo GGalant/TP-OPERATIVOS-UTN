@@ -1,16 +1,32 @@
 #include "cpu.h"
 
+//TODO me gustaria no tener tantas variables globales :)
+
+static char instruccion_buffer[128];
+//Variables extern definidas en el header:
+int conexion_ms = -1;
+int conexion_ks = -1;
+int conexion_km = -1;
+bool se_ejecuto_syscall = false;
+t_cpu cpu = {0};
+t_log* log_cpu = {0};
+t_instruccion instruccion_actual = {0};
+
 int main(int argc, char *argv[]){
 
     if(argc<3){
         perror("No se proporcionaron todos los argumentos [Archivo Config] [Identificador]");
         return EXIT_FAILURE;
     }
-
+    
+    //Variables de inicializacion
     char* config_path = argv[1]; 
     char* id_cpu_str = argv[2];
     int id_cpu = atoi(id_cpu_str);
-    int log_level;
+    
+
+    //Variables de configuracion:
+    t_cpu_env env = {0};
 
     t_config* config = config_create(config_path);
 
@@ -18,16 +34,20 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    map_config_variables(config);
+    map_config_variables(config, &env);
 
-    log_level = log_level_from_string(env_str_log_level);
-    log_cpu = log_create(("cpu_%d.log", id_cpu), ("CPU <%d>", id_cpu), 1, log_level);
+    int log_level = log_level_from_string(env.str_log_level);
+    char* log_filename = string_from_format("cpu_%d.log", id_cpu);
+    char* log_header   = string_from_format("CPU <%d>", id_cpu);
+    log_cpu = log_create(log_filename, log_header, 1, log_level);
+    free(log_filename);
+    free(log_header);
     log_info(log_cpu, "Iniciando CPU <%d>", id_cpu);
 
     //conexiones con modulos
-    conexion_ks = conectar_modulo_logueando(env_ip_ks, env_puerto_ks, "Kernel Scheduler");
-    conexion_km = conectar_modulo_logueando(env_ip_km, env_puerto_km, "Kernel Memory");
-    conexion_ms = conectar_modulo_logueando(env_ip_ms, env_puerto_ms, "Memory Stick");
+    conexion_ks = conectar_modulo_logueando(env.ip_ks, env.puerto_ks, "Kernel Scheduler");
+    conexion_km = conectar_modulo_logueando(env.ip_km, env.puerto_km, "Kernel Memory");
+    conexion_ms = conectar_modulo_logueando(env.ip_ms, env.puerto_ms, "Memory Stick");
 
     if(conexion_ks == -1 || conexion_km == -1 || conexion_ms == -1 ){
         config_destroy(config);
@@ -55,7 +75,7 @@ int main(int argc, char *argv[]){
                 recv(conexion_ks, &pid_recibido, sizeof(pid_t), MSG_WAITALL);
 
                 if(pid_recibido == -1){
-                    log_debug(log_cpu, "Error al recibir el PID de Kernel Scheduler");
+                    log_error(log_cpu, "Error al recibir el PID de Kernel Scheduler");
                     config_destroy(config);
                     log_destroy(log_cpu);
                     return EXIT_FAILURE;
@@ -67,18 +87,27 @@ int main(int argc, char *argv[]){
 
                 pull_contexto();
 
-                do {
-                    //Map context
-                fetch();
+                do { //TODO poner esto mas lindo que este dowhile horrible inencontrable
+                if(fetch() == NULL){
+                    log_error(log_cpu, "Error en fetch."); //Tal vez interrumpir y decirle al KS
+                    break;
+                };
                 decode();
                 execute();
                 } while (!check_interrupt());
 
+                //TODO verificar con el equipo las interrupciones de Kernel Scheduler posibles y como actuar ante ellas
+
+                push_contexto();
+
+                enviar_pid_actual_a_KS();
+
                 break;
             case -1:
-                log_error(log_cpu, "El servidor Kernel Memory se desconectó.");
+                log_error(log_cpu, "El servidor Kernel Scheduler se desconectó.");
                 return EXIT_FAILURE;  
-            default:
+
+            default: //Si el Kernel Scheduler envia una interrupcion en el mismo momento que la CPU ejecuta una SYSCALL, la interrupcion queda en el buffer y por lo tanto se lee, pero ya no tiene relevanica
                 log_warning(log_cpu, "operacion desconocida: %d", codigo_operacion);
                 break;
         }
@@ -88,6 +117,14 @@ int main(int argc, char *argv[]){
     config_destroy(config);
     
     return 0;
+}
+
+void enviar_pid_actual_a_KS(){ //TODO mejorar manejo
+    op_code_ks_cpu operacion_envio_pid = ENVIO_PID;
+    pid_t pid_a_enviar = cpu.pid;
+    send(conexion_ks, &operacion_envio_pid, sizeof(op_code_ks_cpu), 0);
+    send(conexion_ks, &pid_a_enviar,        sizeof(pid_t), 0);
+    return;
 }
 
 /*
@@ -127,6 +164,7 @@ void* fetch(){
 
     if(size <= 0){
         log_error(log_cpu, "Fetch: El size obtenido es invalido");
+        return NULL;
     }
 
     if(size >= MAX_BUFFER_INSTRUCCION){
@@ -180,7 +218,15 @@ void decode(){
 
 };
 
-void* execute(){
+void execute(){
+
+    log_info(log_cpu, "## PID: %u - Ejecutando: %s - %s %s",
+        cpu.pid,
+        instruccion_actual.params[0],
+        instruccion_actual.cant_params > 1 ? instruccion_actual.params[1] : "",
+        instruccion_actual.cant_params > 2 ? instruccion_actual.params[2] : ""
+    );
+
     switch(instruccion_actual.icode){
     case NOOP:
         ejecutar_noop();
@@ -208,43 +254,77 @@ void* execute(){
     break;
     case JNZ:
         ejecutar_jnz(instruccion_actual.params[1], instruccion_actual.params[2]);
-        cpu.pc++;
     break;
     case COPY_MEM:
         ejecutar_copy_mem(instruccion_actual.params[1]);
         cpu.pc++;
     break;
     case MUTEX_CREATE:
+        cpu.pc++;
+        ejecutar_mutex_create(instruccion_actual.params[1]);
     break;
     case MUTEX_LOCK:
+        cpu.pc++;
+        ejecutar_mutex_lock(instruccion_actual.params[1]);
     break;
     case MUTEX_UNLOCK:
+        cpu.pc++;
+        ejecutar_mutex_unlock(instruccion_actual.params[1]);
     break;
     case MEM_ALLOC:
+        cpu.pc++;
+        ejecutar_mem_alloc(instruccion_actual.params[1], instruccion_actual.params[2]);
     break;
     case MEM_FREE:
+        cpu.pc++;
+        ejecutar_mem_free(instruccion_actual.params[1]);
     break;
     case SLEEP:
+        cpu.pc++;
+        ejecutar_sleep(instruccion_actual.params[1]);
     break;
     case STDOUT:
+        cpu.pc++;
+        ejecutar_stdout(instruccion_actual.params[1], instruccion_actual.params[2]);
     break;
     case STDIN:
+        cpu.pc++;
+        ejecutar_stdin(instruccion_actual.params[1], instruccion_actual.params[2]);
     break;
     case INIT_PROC:
+        cpu.pc++;
+        ejecutar_init_proc(instruccion_actual.params[1], instruccion_actual.params[2]);
     break;
     case EXIT:
+    //TODO HAY QUE HACER PC++ ACA??
+        ejecutar_exit();
     break;
     case ERROR:
+    //TODO decidir que hacer ante error.
     break;
     }
+    return;
 
 };
 
 bool check_interrupt(){
 
-};
+    if (se_ejecuto_syscall) {
+        log_debug(log_cpu, "Interrupcion sincronica recibida (SYSCALL ejecutada)");
+        se_ejecuto_syscall = false;
+        return true;
+    }
 
+    op_code_ks_cpu codigo_operacion = recibir_operacion(conexion_ks);
 
+    if(codigo_operacion == INTERRUPCION_DESALOJO || codigo_operacion == INTERRUPCION_FIN_QUANTUM){
+        //TODO ver si hay que leer algo mas o realizar alguna accion.
+        log_info(log_cpu, "## Interrupcion recibida");
+        return true;
+    }
+
+    return false;
+}
 
 InstrucionCode string_to_instruction_code(char* s){
 
@@ -306,19 +386,19 @@ int conectar_modulo_logueando(char* ip, char* puerto, char* nombre_modulo) {
 
 }
 
-//Mapea las variables del config a las variables delfinidas en el header
-int map_config_variables(t_config* config){
+//Mapea las variables del config a al struct pasado
+int map_config_variables(t_config* config, t_cpu_env* env){
 
-    env_str_log_level = config_get_string_value(config, "LOG_LEVEL");
+    env->str_log_level = config_get_string_value(config, "LOG_LEVEL");
 
-    env_ip_ks = config_get_string_value(config, "IP_KS");
-    env_puerto_ks = config_get_string_value(config, "PUERTO_KS");
+    env->ip_ks = config_get_string_value(config, "IP_KS");
+    env->puerto_ks = config_get_string_value(config, "PUERTO_KS");
 
-    env_ip_km = config_get_string_value(config, "IP_KM");
-    env_puerto_km = config_get_string_value(config, "PUERTO_KM");
+    env->ip_km = config_get_string_value(config, "IP_KM");
+    env->puerto_km = config_get_string_value(config, "PUERTO_KM");
 
-    env_ip_ms= config_get_string_value(config, "IP_MS");
-    env_puerto_ms = config_get_string_value(config, "PUERTO_MS");
+    env->ip_ms= config_get_string_value(config, "IP_MS");
+    env->puerto_ms = config_get_string_value(config, "PUERTO_MS");
 
     return 0;
 }
@@ -340,11 +420,45 @@ void integrar_contexto(t_list* paquete_contexto) {
 
 }
 
+/* 
+Toma los registros de la cpu y los empaqueta listo para enviar
+El invocador debera encargarse de invocar eliminar_paquete(t_paquete paquete);
+*/
+t_paquete *empaquetar_contexto(){
+
+    t_paquete *paquete_contexto = crear_paquete(RECIBIR_CONTEXTO);
+    agregar_a_paquete(paquete_contexto,&(cpu.pid),sizeof(int));
+    agregar_a_paquete(paquete_contexto,&(cpu.pc), sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.ax), sizeof(uint8_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.bx), sizeof(uint8_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.cx), sizeof(uint8_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.dx), sizeof(uint8_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.eax), sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.ebx), sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.ecx), sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.edx), sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.si), sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.di), sizeof(uint32_t));
+    return paquete_contexto;
+
+}
+
+
+
+void push_contexto() { //TODO validar si cpu deberia encargarse de que esto no falle 
+
+    t_paquete * paquete_contexto = empaquetar_contexto();
+    enviar_paquete_send_all(paquete_contexto, conexion_km);
+    eliminar_paquete(paquete_contexto);
+
+}
+
 int pull_contexto() {
     pid_t pid_a_pedir = cpu.pid;
+    op_code operacion = ENVIAR_CONTEXTO;
 
-    send(conexion_km, ENVIAR_CONTEXTO, sizeof(op_code), 0);
-    send(conexion_km, pid_a_pedir, sizeof(pid_t), 0);
+    send(conexion_km, &operacion, sizeof(op_code), 0);
+    send(conexion_km, &pid_a_pedir, sizeof(pid_t), 0);
 
     op_code resp_km = recibir_operacion(conexion_km);
 
@@ -358,7 +472,6 @@ int pull_contexto() {
         return -1;
     }
 
-    int size_contexto = 0;
     t_list* paquete_contexto = recibir_paquete(conexion_km);
 
     if (paquete_contexto == NULL) {
