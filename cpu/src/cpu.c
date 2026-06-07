@@ -11,6 +11,8 @@ int main(int argc, char *argv[]){
     char* id_cpu_str = argv[2];
     int id_cpu = atoi(id_cpu_str);
     int log_level;
+    
+    interrupcion_activa = 0
 
     t_config* config = config_create(config_path);
 
