@@ -27,6 +27,11 @@ void *handle_cpu(void *arg)
 
         switch (codigo_operacion)
         {
+        case INIT_PROC:
+            t_list *paquete_init_proc = recibir_paquete(socket_cpu);
+            //char *path = list_get(paquete_init_proc, 0);
+            int prioridad = *(int *)list_get(paquete_init_proc, 1);
+            break;
         case SYSCALL_EXIT:
             log_info(log_debug_ks, "Finaliza el proceso %d - Motivo: EXIT", cpu->pid_actual);
             // Cpu queda libre, liberar el struct del pcb
