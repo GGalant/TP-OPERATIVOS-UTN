@@ -101,7 +101,16 @@ bool check_interrupt();
 
 int conectar_modulo_logueando(char* ip, char* puerto, char* nombre_modulo);
 int map_config_variables(t_config* config, t_cpu_env* env);
+
+/*
+ * Solicita el contexto del proceso actual a Kernel Memoty y lo integra en la CPU.
+ * Retorna 0 (éxito) o -1 (error);
+ */
 int pull_contexto();
+
+/*
+ * Empaqueta el contexto de ejecución actual de la CPU y lo envía a Kernel Memory.
+ */
 void push_contexto();
 void integrar_contexto(t_list* paquete_contexto);
 t_paquete *empaquetar_contexto();
