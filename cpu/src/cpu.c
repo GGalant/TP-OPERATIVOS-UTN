@@ -208,6 +208,14 @@ void decode(){
 };
 
 void* execute(){
+
+    log_info(log_cpu, "## PID: %u - Ejecutando: %s - %s %s",
+        cpu.pid,
+        instruccion_actual.params[0],
+        instruccion_actual.cant_params > 1 ? instruccion_actual.params[1] : "",
+        instruccion_actual.cant_params > 2 ? instruccion_actual.params[2] : ""
+    );
+    
     switch(instruccion_actual.icode){
     case NOOP:
         ejecutar_noop();
