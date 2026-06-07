@@ -11,7 +11,7 @@ int main(int argc, char *argv[]){
     char* id_cpu_str = argv[2];
     int id_cpu = atoi(id_cpu_str);
     int log_level;
-    
+
     interrupcion_activa = 0
 
     t_config* config = config_create(config_path);
@@ -364,6 +364,38 @@ void integrar_contexto(t_list* paquete_contexto) {
     cpu.si = *(uint32_t*)list_get(paquete_contexto, 10);
     cpu.di = *(uint32_t*)list_get(paquete_contexto, 11);
 
+}
+
+/* 
+Toma los registros de la cpu y los empaqueta listo para enviar
+El invocador debera encargarse de invocar eliminar_paquete(t_paquete paquete);
+*/
+t_paquete *empaquetar_contexto(){
+
+    t_paquete *paquete_contexto = crear_paquete(RECIBIR_CONTEXTO);
+    agregar_a_paquete(paquete_contexto,&(cpu.pid),sizeof(int));
+    agregar_a_paquete(paquete_contexto,&(cpu.pc), sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.ax), sizeof(uint8_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.bx), sizeof(uint8_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.cx), sizeof(uint8_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.dx), sizeof(uint8_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.eax), sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.ebx), sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.ecx), sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.edx), sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.si), sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto,&(cpu.di), sizeof(uint32_t));
+    return paquete_contexto
+
+}
+
+
+
+int push_contexto() { 
+    pid_t pid_a_entregar = cpu.pid;
+    t_paquete * paquete_contexto = empaquetar_contexto()
+    enviar_paquete_send_all(paquete_contexto,socket_cpu);
+    eliminar_paquete(paquete_contexto);
 }
 
 int pull_contexto() {
