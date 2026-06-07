@@ -99,7 +99,8 @@ int main(int argc, char *argv[]){
                 //TODO verificar con el equipo las interrupciones de Kernel Scheduler posibles y como actuar ante ellas
 
                 push_contexto();
-                //enviar pid al Scheduler
+
+                enviar_pid_actual_a_KS();
 
                 break;
             case -1:
@@ -116,6 +117,14 @@ int main(int argc, char *argv[]){
     config_destroy(config);
     
     return 0;
+}
+
+void enviar_pid_actual_a_KS(){ //TODO mejorar manejo
+    op_code_ks_cpu operacion_envio_pid = ENVIO_PID;
+    pid_t pid_a_enviar = cpu.pid;
+    send(conexion_ks, &operacion_envio_pid, sizeof(op_code_ks_cpu), 0);
+    send(conexion_ks, &pid_a_enviar,        sizeof(pid_t), 0);
+    return;
 }
 
 /*
