@@ -260,8 +260,13 @@ void* execute(){
 };
 
 bool check_interrupt(){
-
-};
+    if (interrupcion_activa) {
+        log_info(log_cpu, "## Interrupción recibida");
+        interrupcion_activa = false;
+        return true;
+    }
+    return false;
+}
 
 
 
