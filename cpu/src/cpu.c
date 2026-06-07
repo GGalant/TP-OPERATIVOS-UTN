@@ -7,7 +7,7 @@
 int conexion_ms = -1;
 int conexion_ks = -1;
 int conexion_km = -1;
-bool interrupcion_activa = 0;
+bool se_ejecuto_syscall = false;
 t_cpu cpu = {0};
 t_log* log_cpu = {0};
 t_instruccion instruccion_actual = {0};
@@ -99,12 +99,14 @@ int main(int argc, char *argv[]){
                 //TODO verificar con el equipo las interrupciones de Kernel Scheduler posibles y como actuar ante ellas
 
                 push_contexto();
+                //enviar pid al Scheduler
 
                 break;
             case -1:
                 log_error(log_cpu, "El servidor Kernel Scheduler se desconectó.");
                 return EXIT_FAILURE;  
-            default:
+
+            default: //Si el Kernel Scheduler envia una interrupcion en el mismo momento que la CPU ejecuta una SYSCALL, la interrupcion queda en el buffer y por lo tanto se lee, pero ya no tiene relevanica
                 log_warning(log_cpu, "operacion desconocida: %d", codigo_operacion);
                 break;
         }
@@ -215,7 +217,7 @@ void* execute(){
         instruccion_actual.cant_params > 1 ? instruccion_actual.params[1] : "",
         instruccion_actual.cant_params > 2 ? instruccion_actual.params[2] : ""
     );
-    
+
     switch(instruccion_actual.icode){
     case NOOP:
         ejecutar_noop();
@@ -285,7 +287,7 @@ void* execute(){
         ejecutar_init_proc(instruccion_actual.params[1], instruccion_actual.params[2]);
     break;
     case EXIT:
-    //TODO HAY QUE HACE PC++ ACA??
+    //TODO HAY QUE HACER PC++ ACA??
         ejecutar_exit();
     break;
     case ERROR:
@@ -295,11 +297,21 @@ void* execute(){
 };
 
 bool check_interrupt(){
-    if (interrupcion_activa) {
-        log_info(log_cpu, "## Interrupción recibida");
-        interrupcion_activa = false;
-        return true;
+
+    if (se_ejecuto_syscall) {
+        log_debug(log_cpu, "Interrupcion sincronica recibida (SYSCALL ejecutada)");
+        se_ejecuto_syscall = false
+        return true
     }
+
+    op_code codigo_operacion = recibir_operacion(conexion_ks);
+
+    if(codigo_operacion == INTERRUPCION_DESALOJO || codigo_operacion == INTERRUPCION_FIN_QUANTUM){
+        //TODO ver si hay que leer algo mas o realizar alguna accion.
+        log_info(log_cpu, "## Interrupcion recibida");
+        return true
+    }
+
     return false;
 }
 
