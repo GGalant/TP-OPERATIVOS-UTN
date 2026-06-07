@@ -80,10 +80,13 @@ InstrucionCode string_to_instruction_code(char* s);
 void* fetch();
 void decode();
 void* execute();
-void* check_interrupt();
+bool check_interrupt();
 
 int conectar_modulo_logueando(char* ip, char* puerto, char* nombre_modulo);
 int map_config_variables(t_config* config);
+int pull_contexto();
+int push_contexto();
+void integrar_contexto(t_list* paquete_contexto);
 
 //INSTRUCCIONES ORDINARIAS:
 
@@ -103,6 +106,8 @@ void ejecutar_mutex_lock(char* nombre_mutex);
 void ejecutar_mutex_unlock(char* nombre_mutex);
 void ejecutar_mem_alloc(char* id_segmento, char* tamanio);
 void ejecutar_mem_free(char* id_segmento);
+void ejecutar_sleep(char* parametro_tiempo);
+void ejecutar_stdout(char* reg_direccion, char* reg_tamanio);
 void ejecutar_stdin(char* reg_direccion_logica, char* reg_tamanio);
 void ejecutar_init_proc(char* path_instrucciones, char* prioridad);
 void ejecutar_exit();
