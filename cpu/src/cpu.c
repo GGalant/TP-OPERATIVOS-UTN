@@ -76,7 +76,7 @@ int main(int argc, char *argv[]){
 
                 break;
             case -1:
-                log_error(log_cpu, "El servidor Kernel Memory se desconectó.");
+                log_error(log_cpu, "El servidor Kernel Scheduler se desconectó.");
                 return EXIT_FAILURE;  
             default:
                 log_warning(log_cpu, "operacion desconocida: %d", codigo_operacion);
