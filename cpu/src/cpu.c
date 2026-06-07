@@ -1,8 +1,8 @@
 #include "cpu.h"
 
-//TODO me gustaria no tener unas variables globales :)
+//TODO me gustaria no tener tantas variables globales :)
 
-
+static char instruccion_buffer[128];
 //Variables extern definidas en el header:
 int conexion_ms = -1;
 int conexion_ks = -1;
@@ -218,7 +218,7 @@ void decode(){
 
 };
 
-void* execute(){
+void execute(){
 
     log_info(log_cpu, "## PID: %u - Ejecutando: %s - %s %s",
         cpu.pid,
@@ -300,8 +300,10 @@ void* execute(){
         ejecutar_exit();
     break;
     case ERROR:
+    //TODO decidir que hacer ante error.
     break;
     }
+    return;
 
 };
 
@@ -313,7 +315,7 @@ bool check_interrupt(){
         return true;
     }
 
-    op_code codigo_operacion = recibir_operacion(conexion_ks);
+    op_code_ks_cpu codigo_operacion = recibir_operacion(conexion_ks);
 
     if(codigo_operacion == INTERRUPCION_DESALOJO || codigo_operacion == INTERRUPCION_FIN_QUANTUM){
         //TODO ver si hay que leer algo mas o realizar alguna accion.
@@ -444,10 +446,11 @@ t_paquete *empaquetar_contexto(){
 
 
 void push_contexto() { //TODO validar si cpu deberia encargarse de que esto no falle 
-    pid_t pid_a_entregar = cpu.pid;
+
     t_paquete * paquete_contexto = empaquetar_contexto();
     enviar_paquete_send_all(paquete_contexto, conexion_km);
     eliminar_paquete(paquete_contexto);
+
 }
 
 int pull_contexto() {

@@ -127,10 +127,10 @@ void ejecutar_mov_in(char* registro){
 
     size_t reg_size = get_registro_size(registro);
 
-    uint32_t direccion_logica = cpu.si;
+    //uint32_t direccion_logica = cpu.si;
 
     //TODO implementar MMU y acceso a memoria
-    uint32_t direccion_fisica = 0;
+    //uint32_t direccion_fisica = 0;
     uint32_t valor_leido = 0; 
 
     set_reg_value(reg_size, cpu_reg_destino, valor_leido);
@@ -147,14 +147,14 @@ void ejecutar_mov_out(char* registro){
         return;
     }
 
-    size_t reg_size = get_registro_size(registro);
+    //size_t reg_size = get_registro_size(registro);
     
-    uint32_t valor_a_escribir = get_registro_value(reg_size, cpu_reg_origen);
+    //uint32_t valor_a_escribir = get_registro_value(reg_size, cpu_reg_origen);
 
-    uint32_t direccion_logica = cpu.di;
+    //uint32_t direccion_logica = cpu.di;
 
     //TODO implementar MMU y acceso a memoria
-    uint32_t direccion_fisica = 0; 
+    //uint32_t direccion_fisica = 0; 
 
     log_debug(log_cpu, "MOV_OUT: Ejecutado");
 }
@@ -172,18 +172,18 @@ void ejecutar_copy_mem(char* registro_tamanio) {
         return;
     }
 
-    size_t reg_size = get_registro_size(registro_tamanio);
+    //size_t reg_size = get_registro_size(registro_tamanio);
     
-    uint32_t bytes_a_copiar = get_registro_value(reg_size, cpu_reg_tamanio);
+    //uint32_t bytes_a_copiar = get_registro_value(reg_size, cpu_reg_tamanio);
 
-    uint32_t dir_logica_origen = cpu.si;
-    uint32_t dir_logica_destino = cpu.di;
+    //uint32_t dir_logica_origen = cpu.si;
+    //uint32_t dir_logica_destino = cpu.di;
 
     // TODO: Implementar MMU y acceso a memoria
     
-    uint32_t dir_fisica_origen = 0;
-    uint32_t dir_fisica_destino = 0;
-    uint32_t valor = 0; 
+    //uint32_t dir_fisica_origen = 0;
+    //uint32_t dir_fisica_destino = 0;
+    //uint32_t valor = 0; 
 
     log_debug(log_cpu, "COPY_MEM: Ejecutado");
 }
@@ -200,10 +200,10 @@ void ejecutar_sleep(char* parametro_tiempo) {
     agregar_a_paquete(paquete, &pc_actualizado, sizeof(uint32_t));
     agregar_a_paquete(paquete, &tiempo, sizeof(int));
 
-    enviar_paquete(paquete, conexion_ks);
+    enviar_paquete_send_all(paquete, conexion_ks);
     eliminar_paquete(paquete);
 
-    interrupcion_activa = true; 
+    se_ejecuto_syscall = true; 
 
     return;
 }
@@ -224,10 +224,10 @@ void ejecutar_stdout(char* reg_direccion, char* reg_tamanio) {
     agregar_a_paquete(paquete, &direccion_logica, sizeof(uint32_t));
     agregar_a_paquete(paquete, &tamanio, sizeof(uint32_t));
 
-    enviar_paquete(paquete, conexion_ks);
+    enviar_paquete_send_all(paquete, conexion_ks);
     eliminar_paquete(paquete);
 
-    interrupcion_activa = true; 
+    se_ejecuto_syscall = true; 
 
     return;
 
@@ -238,7 +238,7 @@ void ejecutar_exit() {
     op_code cod_op = SYSCALL_EXIT;
     send(conexion_ks, &cod_op, sizeof(op_code), 0);
 
-    interrupcion_activa = true; 
+    se_ejecuto_syscall = true; 
 
     return;
 }
@@ -255,9 +255,9 @@ void ejecutar_mutex_create(char* nombre_mutex) {
     //TODO: Agregue strlen+1 por las dudas, revisar si hace falta
     agregar_a_paquete(paquete, nombre_mutex, string_length(nombre_mutex) + 1);
     
-    enviar_paquete(paquete, conexion_ks);
+    enviar_paquete_send_all(paquete, conexion_ks);
     eliminar_paquete(paquete);
-    interrupcion_activa = true;
+    se_ejecuto_syscall = true;
     return;
 }
 
@@ -273,9 +273,9 @@ void ejecutar_mutex_lock(char* nombre_mutex) {
     //TODO: Agregue strlen+1 por las dudas, revisar si hace falta
     agregar_a_paquete(paquete, nombre_mutex, string_length(nombre_mutex) + 1);
     
-    enviar_paquete(paquete, conexion_ks);
+    enviar_paquete_send_all(paquete, conexion_ks);
     eliminar_paquete(paquete);
-    interrupcion_activa = true;
+    se_ejecuto_syscall = true;
 }
 
 void ejecutar_mutex_unlock(char* nombre_mutex) {
@@ -291,9 +291,9 @@ void ejecutar_mutex_unlock(char* nombre_mutex) {
     
     agregar_a_paquete(paquete, nombre_mutex, string_length(nombre_mutex) + 1);
     
-    enviar_paquete(paquete, conexion_ks);
+    enviar_paquete_send_all(paquete, conexion_ks);
     eliminar_paquete(paquete);
-    interrupcion_activa = true;
+    se_ejecuto_syscall = true;
 }
 
 void ejecutar_mem_alloc(char* param_id_segmento, char* param_tamanio) {
@@ -305,9 +305,9 @@ void ejecutar_mem_alloc(char* param_id_segmento, char* param_tamanio) {
     agregar_a_paquete(paquete, &id_segmento, sizeof(uint32_t));
     agregar_a_paquete(paquete, &tamanio, sizeof(uint32_t));
     
-    enviar_paquete(paquete, conexion_ks);
+    enviar_paquete_send_all(paquete, conexion_ks);
     eliminar_paquete(paquete);
-    interrupcion_activa = true;
+    se_ejecuto_syscall = true;
 }
 
 void ejecutar_mem_free(char* param_id_segmento) {
@@ -317,9 +317,9 @@ void ejecutar_mem_free(char* param_id_segmento) {
     
     agregar_a_paquete(paquete, &id_segmento, sizeof(uint32_t));
     
-    enviar_paquete(paquete, conexion_ks);
+    enviar_paquete_send_all(paquete, conexion_ks);
     eliminar_paquete(paquete);
-    interrupcion_activa = true;
+    se_ejecuto_syscall = true;
 }
 
 void ejecutar_stdin(char* reg_direccion, char* reg_tamanio) {
@@ -338,10 +338,10 @@ void ejecutar_stdin(char* reg_direccion, char* reg_tamanio) {
     agregar_a_paquete(paquete, &direccion_logica, sizeof(uint32_t));
     agregar_a_paquete(paquete, &tamanio, sizeof(uint32_t));
 
-    enviar_paquete(paquete, conexion_ks);
+    enviar_paquete_send_all(paquete, conexion_ks);
     eliminar_paquete(paquete);
 
-    interrupcion_activa = true; 
+    se_ejecuto_syscall = true; 
 
     return;
 }
@@ -354,10 +354,10 @@ void ejecutar_init_proc(char* archivo_instrucciones, char* param_prioridad) {
     agregar_a_paquete(paquete, archivo_instrucciones, strlen(archivo_instrucciones) + 1);
     agregar_a_paquete(paquete, &prioridad, sizeof(uint32_t));
     
-    enviar_paquete(paquete, conexion_ks);
+    enviar_paquete_send_all(paquete, conexion_ks);
     eliminar_paquete(paquete);
 
-    interrupcion_activa = true;
+    se_ejecuto_syscall = true;
 
     return;
 }

@@ -37,6 +37,12 @@ typedef enum {
 typedef enum {
     ENVIO_PID
 } op_code_cpu_ks; //TODO mover a conexiones, coordinar con KS
+typedef enum { //TODO MOVER A CONEXIONES, coordinar con KS
+    ENCADENADOR_DE_ENUMS = SYSCALL_INIT_PROC, 
+    SYSCALL_MUTEX_CREATE,
+    SYSCALL_MEM_ALLOC,
+    SYSCALL_MEM_FREE
+} ExtendedOperations; 
 
 //region: STRUCTS
 
@@ -76,7 +82,7 @@ typedef struct {
 //* las unicas variables definidas en el header las defino como extern para evitar dobles definiciones si el .h se incluye en 2 archivos
 //* estan aqui porque se usan en mas de un .c, y el header corresponde a mas de un .c
 extern t_cpu cpu; 
-extern bool interrupcion_activa;
+extern bool se_ejecuto_syscall;
 extern t_log* log_cpu;
 extern t_instruccion instruccion_actual;
 extern int conexion_ks;
@@ -89,14 +95,13 @@ int get_registro_size(char* s);
 uint32_t get_registro_value(size_t registro_size, void* registro);
 void set_reg_value(size_t reg_size, void* registro, uint32_t valor);
 
-static char instruccion_buffer[128];
 void * string_to_registro(char* s);
 void* handle_ks(void* arg);
 InstrucionCode string_to_instruction_code(char* s);
 
 void* fetch();
 void decode();
-void* execute();
+void execute();
 bool check_interrupt();
 
 int conectar_modulo_logueando(char* ip, char* puerto, char* nombre_modulo);
@@ -114,6 +119,7 @@ int pull_contexto();
 void push_contexto();
 void integrar_contexto(t_list* paquete_contexto);
 t_paquete *empaquetar_contexto();
+void enviar_pid_actual_a_KS();
 
 //INSTRUCCIONES ORDINARIAS:
 
