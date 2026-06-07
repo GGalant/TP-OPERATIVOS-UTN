@@ -208,31 +208,50 @@ void* execute(){
     break;
     case JNZ:
         ejecutar_jnz(instruccion_actual.params[1], instruccion_actual.params[2]);
-        cpu.pc++;
     break;
     case COPY_MEM:
         ejecutar_copy_mem(instruccion_actual.params[1]);
         cpu.pc++;
     break;
     case MUTEX_CREATE:
+        cpu.pc++;
+        ejecutar_mutex_create(instruccion_actual.params[1]);
     break;
     case MUTEX_LOCK:
+        cpu.pc++;
+        ejecutar_mutex_lock(instruccion_actual.params[1]);
     break;
     case MUTEX_UNLOCK:
+        cpu.pc++;
+        ejecutar_mutex_unlock(instruccion_actual.params[1]);
     break;
     case MEM_ALLOC:
+        cpu.pc++;
+        ejecutar_mem_alloc(instruccion_actual.params[1], instruccion_actual.params[2]);
     break;
     case MEM_FREE:
+        cpu.pc++;
+        ejecutar_mem_free(instruccion_actual.params[1]);
     break;
     case SLEEP:
+        cpu.pc++;
+        ejecutar_sleep(instruccion_actual.params[1]);
     break;
     case STDOUT:
+        cpu.pc++;
+        ejecutar_stdout(instruccion_actual.params[1], instruccion_actual.params[2]);
     break;
     case STDIN:
+        cpu.pc++;
+        ejecutar_stdin(instruccion_actual.params[1], instruccion_actual.params[2]);
     break;
     case INIT_PROC:
+        cpu.pc++;
+        ejecutar_init_proc(instruccion_actual.params[1], instruccion_actual.params[2]);
     break;
     case EXIT:
+    //TODO HAY QUE HACE PC++ ACA??
+        ejecutar_exit();
     break;
     case ERROR:
     break;

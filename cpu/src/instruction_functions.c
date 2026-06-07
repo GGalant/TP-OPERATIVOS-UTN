@@ -33,18 +33,19 @@ Suma al Registro Destino el Registro Origen y deja el resultado en el Registro D
 void ejecutar_sum(char* registro_destino, char* registro_origen){
 
     void * cpu_reg_destino = string_to_registro(registro_destino);
-    size_t reg_size_dest = get_registro_size(registro_destino);
     void * cpu_reg_origen = string_to_registro(registro_origen);
+    
+    size_t reg_size_dest = get_registro_size(registro_destino);
     size_t reg_size_orig = get_registro_size(registro_origen);
 
 
     if (cpu_reg_destino == NULL || cpu_reg_origen == NULL) {
-        log_error(log_cpu, "SUM: Registro invalido (Dest: %s, Orig: %s)", registro_destino, registro_origen);
+        log_error(log_cpu, "SUM: Algun registro es invalido (Dest: %s, Orig: %s)", registro_destino, registro_origen);
         return;
     }
 
-    uint32_t val_orig = get_registro_value(get_registro_size(registro_origen), cpu_reg_origen);
-    uint32_t val_dest = get_registro_value(get_registro_size(registro_destino), cpu_reg_destino);
+    uint32_t val_orig = get_registro_value(reg_size_orig, cpu_reg_origen);
+    uint32_t val_dest = get_registro_value(reg_size_dest, cpu_reg_destino);
 
     uint32_t resultado = val_dest + val_orig;
 
@@ -65,15 +66,15 @@ void ejecutar_sub(char* registro_destino, char* registro_origen){
     void * cpu_reg_origen = string_to_registro(registro_origen);
 
     if (cpu_reg_destino == NULL || cpu_reg_origen == NULL) {
-        log_error(log_cpu, "Sub: Registro invalido (Dest: %s, Orig: %s)", registro_destino, registro_origen);
+        log_error(log_cpu, "Sub: Algun Registro es invalido (Dest: %s, Orig: %s)", registro_destino, registro_origen);
         return;
     }
 
     size_t reg_size_orig = get_registro_size(registro_origen);
     size_t reg_size_dest = get_registro_size(registro_destino);
 
-    uint32_t val_orig = get_registro_value(get_registro_size(registro_origen), cpu_reg_origen);
-    uint32_t val_dest = get_registro_value(get_registro_size(registro_destino), cpu_reg_destino);
+    uint32_t val_orig = get_registro_value(reg_size_orig, cpu_reg_origen);
+    uint32_t val_dest = get_registro_value(reg_size_dest, cpu_reg_destino);
 
     uint32_t resultado = val_dest - val_orig;
 
@@ -109,6 +110,8 @@ void ejecutar_jnz(char* registro, char* str_nuevo_valor_pc){
         
         log_debug(log_cpu, "JNZ: Salto tomado. Nuevo PC = %u", nuevo_valor_pc);
     } else {
+        //TODO revisar si este ++ puede dar problemas
+        cpu.pc++;
         log_debug(log_cpu, "JNZ: Salto ignorado");
     }
 }
@@ -185,17 +188,179 @@ void ejecutar_copy_mem(char* registro_tamanio) {
     log_debug(log_cpu, "COPY_MEM: Ejecutado");
 }
 
+void ejecutar_sleep(char* parametro_tiempo) {
 
-void ejecutar_mutex_create(char* nombre_mutex);
-void ejecutar_mutex_lock(char* nombre_mutex);
-void ejecutar_mutex_unlock(char* nombre_mutex);
-void ejecutar_mem_alloc(char* id_segmento, char* tamanio);
-void ejecutar_mem_free(char* id_segmento);
-void ejecutar_sleep(char* tiempo);
-void ejecutar_stdout(char* reg_direccion_logica, char* reg_tamanio);
-void ejecutar_stdin(char* reg_direccion_logica, char* reg_tamanio);
-void ejecutar_init_proc(char* path_instrucciones, char* prioridad);
-void ejecutar_exit();
+    int tiempo = atoi(parametro_tiempo);
+    uint32_t pc_actualizado = cpu.pc;
+    pid_t pid = cpu.pid;
+
+    t_paquete* paquete = crear_paquete(SYSCALL_SLEEP); 
+
+    agregar_a_paquete(paquete, &pid, sizeof(pid_t));
+    agregar_a_paquete(paquete, &pc_actualizado, sizeof(uint32_t));
+    agregar_a_paquete(paquete, &tiempo, sizeof(int));
+
+    enviar_paquete(paquete, conexion_ks);
+    eliminar_paquete(paquete);
+
+    interrupcion_activa = true; 
+
+    return;
+}
+
+void ejecutar_stdout(char* reg_direccion, char* reg_tamanio) {
+
+    void * cpu_reg_direcc = string_to_registro(reg_direccion);
+    void * cpu_reg_tamanio = string_to_registro(reg_tamanio);
+
+    size_t reg_size_dire = get_registro_size(reg_direccion);
+    size_t reg_size_tam = get_registro_size(reg_tamanio);
+       
+    uint32_t direccion_logica = get_registro_value(reg_size_dire, cpu_reg_direcc);
+    uint32_t tamanio = get_registro_value(reg_size_tam, cpu_reg_tamanio);
+
+    t_paquete* paquete = crear_paquete(SYSCALL_STDOUT);
+    
+    agregar_a_paquete(paquete, &direccion_logica, sizeof(uint32_t));
+    agregar_a_paquete(paquete, &tamanio, sizeof(uint32_t));
+
+    enviar_paquete(paquete, conexion_ks);
+    eliminar_paquete(paquete);
+
+    interrupcion_activa = true; 
+
+    return;
+
+}
+
+void ejecutar_exit() {
+    
+    op_code cod_op = SYSCALL_EXIT;
+    send(conexion_ks, &cod_op, sizeof(op_code), 0);
+
+    interrupcion_activa = true; 
+
+    return;
+}
+
+void ejecutar_mutex_create(char* nombre_mutex) {
+    
+    if(nombre_mutex == NULL){
+        log_error(log_cpu, "MUTEX_CREATE: El nombre mutex es null");
+        return;
+    }
+
+    t_paquete* paquete = crear_paquete(SYSCALL_MUTEX_CREATE);
+    
+    //TODO: Agregue strlen+1 por las dudas, revisar si hace falta
+    agregar_a_paquete(paquete, nombre_mutex, string_length(nombre_mutex) + 1);
+    
+    enviar_paquete(paquete, conexion_ks);
+    eliminar_paquete(paquete);
+    interrupcion_activa = true;
+    return;
+}
+
+void ejecutar_mutex_lock(char* nombre_mutex) {
+
+    if(nombre_mutex == NULL){
+        log_error(log_cpu, "MUTEX_LOCK: El nombre mutex es null");
+        return;
+    }
+
+    t_paquete* paquete = crear_paquete(SYSCALL_MUTEX_LOCK);
+    
+    //TODO: Agregue strlen+1 por las dudas, revisar si hace falta
+    agregar_a_paquete(paquete, nombre_mutex, string_length(nombre_mutex) + 1);
+    
+    enviar_paquete(paquete, conexion_ks);
+    eliminar_paquete(paquete);
+    interrupcion_activa = true;
+}
+
+void ejecutar_mutex_unlock(char* nombre_mutex) {
+
+    if(nombre_mutex == NULL){
+        log_error(log_cpu, "MUTEX_UNLOCK: El nombre mutex es null");
+        return;
+    }
+
+    t_paquete* paquete = crear_paquete(SYSCALL_MUTEX_UNLOCK);
+
+    //TODO: Agregue strlen+1 por las dudas, revisar si hace falta
+    
+    agregar_a_paquete(paquete, nombre_mutex, string_length(nombre_mutex) + 1);
+    
+    enviar_paquete(paquete, conexion_ks);
+    eliminar_paquete(paquete);
+    interrupcion_activa = true;
+}
+
+void ejecutar_mem_alloc(char* param_id_segmento, char* param_tamanio) {
+    uint32_t id_segmento = (uint32_t)atoi(param_id_segmento);
+    uint32_t tamanio = (uint32_t)atoi(param_tamanio);
+
+    t_paquete* paquete = crear_paquete(SYSCALL_MEM_ALLOC);
+    
+    agregar_a_paquete(paquete, &id_segmento, sizeof(uint32_t));
+    agregar_a_paquete(paquete, &tamanio, sizeof(uint32_t));
+    
+    enviar_paquete(paquete, conexion_ks);
+    eliminar_paquete(paquete);
+    interrupcion_activa = true;
+}
+
+void ejecutar_mem_free(char* param_id_segmento) {
+    uint32_t id_segmento = (uint32_t)atoi(param_id_segmento);
+
+    t_paquete* paquete = crear_paquete(SYSCALL_MEM_FREE);
+    
+    agregar_a_paquete(paquete, &id_segmento, sizeof(uint32_t));
+    
+    enviar_paquete(paquete, conexion_ks);
+    eliminar_paquete(paquete);
+    interrupcion_activa = true;
+}
+
+void ejecutar_stdin(char* reg_direccion, char* reg_tamanio) {
+
+    void * cpu_reg_direcc = string_to_registro(reg_direccion);
+    void * cpu_reg_tamanio = string_to_registro(reg_tamanio);
+
+    size_t reg_size_dire = get_registro_size(reg_direccion);
+    size_t reg_size_tam = get_registro_size(reg_tamanio);
+       
+    uint32_t direccion_logica = get_registro_value(reg_size_dire, cpu_reg_direcc);
+    uint32_t tamanio = get_registro_value(reg_size_tam, cpu_reg_tamanio);
+
+    t_paquete* paquete = crear_paquete(SYSCALL_STDIN);
+    
+    agregar_a_paquete(paquete, &direccion_logica, sizeof(uint32_t));
+    agregar_a_paquete(paquete, &tamanio, sizeof(uint32_t));
+
+    enviar_paquete(paquete, conexion_ks);
+    eliminar_paquete(paquete);
+
+    interrupcion_activa = true; 
+
+    return;
+}
+
+void ejecutar_init_proc(char* archivo_instrucciones, char* param_prioridad) {
+    uint32_t prioridad = (uint32_t)atoi(param_prioridad);
+
+    t_paquete* paquete = crear_paquete(SYSCALL_INIT_PROC);
+    
+    agregar_a_paquete(paquete, archivo_instrucciones, strlen(archivo_instrucciones) + 1);
+    agregar_a_paquete(paquete, &prioridad, sizeof(uint32_t));
+    
+    enviar_paquete(paquete, conexion_ks);
+    eliminar_paquete(paquete);
+
+    interrupcion_activa = true;
+
+    return;
+}
 
 // utils:
 
