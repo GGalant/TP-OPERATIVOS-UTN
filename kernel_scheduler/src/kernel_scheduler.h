@@ -17,7 +17,7 @@ typedef enum {
 } t_estado_proceso;
 
 typedef struct t_proceso_pcb {
-    int pid;
+    pid_t pid;
     int prioridad;
     int pc;
     int quantum;
@@ -27,7 +27,10 @@ typedef struct t_proceso_pcb {
 
 void* handle_connections(void* arg);
 void* handle_km(void* arg);
-void* temporizador_timeout(void* arg);
+void *handle_cpu(void *arg);
+void *handle_io(void *arg);
+void *handle_planificacion(void *arg);
+//void* temporizador_timeout(void* arg);
 void inicializar_ks(int argc, char* argv[]);
 void enviar_proceso(int socket_km, int pid, char* path_proceso);
 void crear_proceso_inicial(int socket_km, char* path_proceso_inicial);

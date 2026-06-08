@@ -27,23 +27,79 @@ void *handle_cpu(void *arg)
 
         switch (codigo_operacion)
         {
-        case INIT_PROC:
+        case SYSCALL_INIT_PROC:
             t_list *paquete_init_proc = recibir_paquete(socket_cpu);
-            //char *path = list_get(paquete_init_proc, 0);
+            char *path = *(char*)list_get(paquete_init_proc, 0);
             int prioridad = *(int *)list_get(paquete_init_proc, 1);
+            list_destroy_and_destroy_elements(paquete_init_proc, free);
+
+            pthread_mutex_lock(&mutex_cola_exec);
+            t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, cpu->pid_actual);
+            pthread_mutex_unlock(&mutex_cola_exec);
+
+            if (proceso == NULL)
+            {
+                log_error(log_ks, "Error: No se encontró el proceso con PID %d en la cola de EXEC.", cpu->pid_actual);
+                break;
+            }
+
+            pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+            cpu->estado = CPU_OCUPADA;
+            cpu->pid_actual = -1;
+            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+
+            pthread_mutex_lock(&mutex_generador_pid);
+            pid_t pid = generar_pid();
+            pthread_mutex_unlock(&mutex_generador_pid);
+
+            enviar_proceso(conexion_km, pid, path);
+
+            // aca podria haber un problema de comunicacion 
+            op_code codigo_operacion = recibir_operacion(conexion_km);
+
+            if (codigo_operacion == INICIALIZAR_PROCESO_OK) {
+                t_proceso_pcb* pcb_proceso = crear_pcb(pid, prioridad);
+
+                pthread_mutex_lock(&mutex_cola_ready);
+                list_add(cola_ready, pcb_proceso);
+                cambiar_estado_proceso(pcb_proceso, READY);
+                pthread_mutex_unlock(&mutex_cola_ready);
+                pthread_cond_signal(&cond_cola_ready);
+            } else {
+                log_error(log_ks, "Error al crear el proceso inicial en Kernel Memory. Código de op: %d", codigo_operacion);
+                return; 
+            }
+
             break;
         case SYSCALL_EXIT:
             log_info(log_debug_ks, "Finaliza el proceso %d - Motivo: EXIT", cpu->pid_actual);
             // Cpu queda libre, liberar el struct del pcb
+            //No solo le vamos a mandar a cpu aviso, si no también a km.
+            
+            pthread_mutex_lock(&mutex_cola_exec);
+            t_proceso_pcb *proceso_exit = remover_proceso_por_pid(cola_exec, cpu->pid_actual);
+            pthread_mutex_unlock(&mutex_cola_exec);
+
+            if (proceso_exit == NULL)
+            {
+                log_error(log_ks, "Error: No se encontró el proceso con PID %d en la cola de EXEC.", cpu->pid_actual);
+                break;
+            }
+
+            pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+            cpu->estado = CPU_OCUPADA;
+            cpu->pid_actual = -1;
+            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+
+            pthread_mutex_lock(&mutex_cola_exit);
+            cambiar_estado_proceso(proceso_exit, EXIT);
+            list_add(cola_exit, proceso_exit);
+            pthread_mutex_unlock(&mutex_cola_exit);
             break;
         case SYSCALL_SLEEP: {
-            log_info(log_debug_ks, "PID: %d - Bloqueado por: SLEEP", cpu->pid_actual);
-
-            // Aca deberiamos recibir pcb actualizado (o por lo menos pc del proceso) y tiempo sleep
             t_list *paquete_sleep = recibir_paquete(socket_cpu);
-            int pid = *(int *)list_get(paquete_sleep, 0);
-            int pc_actualizado = *(int *)list_get(paquete_sleep, 1);
-            int tiempo_sleep = *(int *)list_get(paquete_sleep, 2);
+            pid_t pid = cpu->pid_actual;
+            int tiempo_sleep = *(int *)list_get(paquete_sleep, 0);
             list_destroy_and_destroy_elements(paquete_sleep, free);
 
             // Sacar el proceso de la cola de EXEC
@@ -59,7 +115,6 @@ void *handle_cpu(void *arg)
 
             // Actualizar PCB, cambiar estado y mover a la cola de BLOCK
             // la cola de block es gestionada por el planificador de mediano plazo
-            proceso->pc = pc_actualizado;
             cambiar_estado_proceso(proceso, BLOCK);
             pthread_mutex_lock(&mutex_cola_block);
             list_add(cola_block, proceso);
@@ -74,6 +129,8 @@ void *handle_cpu(void *arg)
             log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
 
             enviar_proceso_a_io_sleep(pid, tiempo_sleep);
+
+            log_info(log_debug_ks, "PID: %d - Bloqueado por: SLEEP", cpu->pid_actual);
 
             break;
         }
@@ -193,6 +250,13 @@ int recibir_cpu_id(int socket) {
         perror("Error al recibir cpu_id");
         return -1;
     }
+}
+
+int generar_pid() { 
+    pthread_mutex_lock(&mutex_generador_pid);
+    pid_t pid = id_proceso_global++;
+    pthread_mutex_unlock(&mutex_generador_pid);
+    return pid;
 }
 
 t_cpu *crear_cpu(int socket_cpu, int cpu_id) {  

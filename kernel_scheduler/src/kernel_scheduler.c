@@ -1,7 +1,4 @@
 #include "kernel_scheduler.h"
-#include "planificacion.h"
-#include "cpu.h"
-#include "io.h"
 
 int main(int argc, char *argv[]){
 
@@ -56,14 +53,13 @@ void inicializar_ks(int argc, char *argv[]) {
         perror("No se pudo crear el config");
         exit(EXIT_FAILURE);
     }
-    suspension_timeout = config_get_int_value(config, "SUSPENSION_TIMEOUT");
+
     ip_km = config_get_string_value(config, "IP_KM");
     puerto_km = config_get_string_value(config, "PUERTO_KM");
     str_log_level = config_get_string_value(config, "LOG_LEVEL");
     puerto = config_get_string_value(config, "PUERTO");
     algoritmo_planificacion = config_get_string_value(config, "PLANIFICATION_ALGORITHM");
     log_level = log_level_from_string(str_log_level);
-    rr_quantum = config_get_int_value(config, "RR_QUANTUM");
 
     log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
     log_debug_ks = log_create("scheduler_debug.log", "SCHEDULER_DEBUG", true, DEBUG);
@@ -71,30 +67,31 @@ void inicializar_ks(int argc, char *argv[]) {
     cola_ready = list_create();
     cola_block = list_create();
     cola_exec = list_create();
-    cola_susp_block = list_create();
-    cola_susp_ready = list_create();
+    cola_exit = list_create();
     cola_espera_sleep = list_create();
     cola_espera_stdout = list_create();
-    lista_cpu_conectadas = list_create();
     lista_io_conectadas = list_create();
+    lista_cpu_conectadas = list_create();
 
     pthread_mutex_init(&mutex_cola_ready, NULL);
     pthread_mutex_init(&mutex_cola_block, NULL);
     pthread_mutex_init(&mutex_cola_exec, NULL);
+    pthread_mutex_init(&mutex_cola_exit, NULL);
     pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
     pthread_mutex_init(&mutex_lista_io_conectadas, NULL);
     pthread_mutex_init(&mutex_generador_id_io, NULL);
+    pthread_mutex_init(&mutex_generador_pid, NULL);
     pthread_mutex_init(&mutex_sleep, NULL);
     pthread_mutex_init(&mutex_stdout, NULL);
+    pthread_mutex_init(&mutex_cola_susp_block, NULL);
+    pthread_mutex_init(&mutex_cola_susp_ready, NULL);
     pthread_cond_init(&cond_cola_ready, NULL);
     pthread_cond_init(&cond_cola_block, NULL);
     pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
     pthread_cond_init(&cond_sleep, NULL);
     pthread_cond_init(&cond_stdout, NULL);
-    pthread_mutex_init(&mutex_cola_susp_block, NULL);
-    pthread_mutex_init(&mutex_cola_susp_ready, NULL);
-    pthread_cond_init(&cond_cola_susp_block, NULL);
     pthread_cond_init(&cond_cola_susp_ready, NULL);
+    pthread_cond_init(&cond_cola_susp_block, NULL);
 
     // INICIAR SERVIDOR
     server_ks = iniciar_servidor(log_ks, puerto);
@@ -171,9 +168,8 @@ void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {
         t_proceso_pcb* pcb_proceso_inicial = crear_pcb(0, PRIORIDAD_MAXIMA);
 
         pthread_mutex_lock(&mutex_cola_ready);
-        cambiar_estado_proceso(pcb_proceso_inicial, READY);
-        // aca podriamos proteger la variable global con un mutex de C
         list_add(cola_ready, pcb_proceso_inicial);
+        cambiar_estado_proceso(pcb_proceso_inicial, READY);
         pthread_mutex_unlock(&mutex_cola_ready);
         pthread_cond_signal(&cond_cola_ready);
     } else {
@@ -212,12 +208,6 @@ t_proceso_pcb* crear_pcb(int pid, int prioridad) {
     return pcb;
 }
 
-/**
- * Obtener el PID de un proceso
- * obtener_pid() {}
- */
-
-
 const char* estado_to_string(t_estado_proceso estado) {
     switch (estado) {
         case NEW: return "NEW";
@@ -232,7 +222,6 @@ const char* estado_to_string(t_estado_proceso estado) {
 }
 
 void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_siguiente) {    
-    // *IMPORTANTE* esta funcion tiene que llamarse con el mutex de la cola correspondiente bloqueado
     t_estado_proceso estado_anterior = proceso->estado;
     proceso->estado = estado_siguiente;
 
@@ -253,7 +242,7 @@ char* solicitar_contenido_a_km(int socket_km, int pid, int direccion_logica, int
     
     eliminar_paquete(paquete_contexto);
 
-    op_code_ks_km respuesta = recibir_operacion(socket_km);
+    op_code respuesta = recibir_operacion(socket_km);
     if (respuesta != RESPUESTA_CONTENIDO_MEMORIA) {
         log_error(log_ks, "Error al recibir contenido de Kernel Memory");
         return NULL;
@@ -272,45 +261,6 @@ char* solicitar_contenido_a_km(int socket_km, int pid, int direccion_logica, int
     return contenido;
 }
 
-void iniciar_temporizador_timeout(int pid) {    
-    pthread_t hilo_timeout;
-    int *pid_ptr = malloc(sizeof(int));
-    *pid_ptr = pid;
-    pthread_create(&hilo_timeout, NULL, temporizador_timeout, (void*)pid_ptr); 
-    pthread_detach(hilo_timeout); 
-}
-
-void* temporizador_timeout(void* arg) {    
-    int pid = *(int*)arg;
-    free(arg);
-
-    sleep(suspension_timeout);
-
-    pthread_mutex_lock(&mutex_cola_block);
-    t_proceso_pcb *proceso = remover_proceso_por_pid(cola_block, pid);
-    if (proceso != NULL) {
-        // CASO A: El tiempo se agoto y la IO no termino ahora lo metemos a cola_susp_block
-        
-        pthread_mutex_lock(&mutex_cola_susp_block);
-        cambiar_estado_proceso(proceso, SUSP_BLOCK);
-        list_add(cola_susp_block, proceso);
-        pthread_mutex_unlock(&mutex_cola_susp_block);
-        
-        pthread_mutex_unlock(&mutex_cola_block); 
-
-        log_info(log_ks, "Timeout agotado. El proceso %d pasa a SUSP_BLOCK", pid);
-
-        // 3. LA ORDEN A MEMORIA (Swapping) aca tenemos que avisarle a memoria que suspenda el proceso
-        // avisar_suspension_a_memoria(pid); 
-        
-    } else {
-        // CASO B: El proceso no está en la cola block
-        // Esto significa que finalizar_io() corrio antes que nosotros y ya lo movió a READY
-        pthread_mutex_unlock(&mutex_cola_block);
-    }
-
-    return NULL;
-}
 
 
 void liberar_recursos() {   
@@ -320,16 +270,22 @@ void liberar_recursos() {
     pthread_mutex_destroy(&mutex_cola_ready);
     pthread_mutex_destroy(&mutex_cola_block);
     pthread_mutex_destroy(&mutex_cola_exec);
+    pthread_mutex_destroy(&mutex_cola_exit);
     pthread_mutex_destroy(&mutex_lista_cpu_conectadas);
     pthread_mutex_destroy(&mutex_lista_io_conectadas);
     pthread_mutex_destroy(&mutex_generador_id_io);
+    pthread_mutex_destroy(&mutex_generador_pid);
     pthread_mutex_destroy(&mutex_sleep);
     pthread_mutex_destroy(&mutex_stdout);
+    pthread_mutex_destroy(&mutex_cola_susp_block);
+    pthread_mutex_destroy(&mutex_cola_susp_ready);
     pthread_cond_destroy(&cond_cola_ready);
     pthread_cond_destroy(&cond_cola_block);
     pthread_cond_destroy(&cond_lista_cpu_conectadas);
     pthread_cond_destroy(&cond_sleep);
     pthread_cond_destroy(&cond_stdout);
+    pthread_cond_destroy(&cond_cola_susp_block);
+    pthread_cond_destroy(&cond_cola_susp_ready);
     free(conexion_km_ptr);
     free(config_path);
     free(path_proceso_inicial);
@@ -341,12 +297,11 @@ void liberar_recursos() {
     list_destroy(cola_ready);
     list_destroy(cola_block);
     list_destroy(cola_exec);
-    list_destroy(cola_susp_block);
-    list_destroy(cola_susp_ready);
-    list_destroy(cola_espera_sleep);
-    list_destroy(cola_espera_stdout);
+    list_destroy(cola_exit);
     list_destroy(lista_cpu_conectadas);
     list_destroy(lista_io_conectadas);
+    list_destroy(cola_espera_sleep);
+    list_destroy(cola_espera_stdout);
     close(server_ks);
     close(conexion_km);
     
@@ -354,6 +309,7 @@ void liberar_recursos() {
 }
 
 t_proceso_pcb* remover_proceso_por_pid(t_list* cola, int pid) {
+    //**IMPORTANTE**: esta funcion se tiene que llamar con el mutex de su cola bloqueado 
     for (int i = 0; i < list_size(cola); i++) {
         t_proceso_pcb* proceso = list_get(cola, i);
 
@@ -361,6 +317,5 @@ t_proceso_pcb* remover_proceso_por_pid(t_list* cola, int pid) {
             return list_remove(cola, i);
         }
     }
-
     return NULL;
-}//SI no es NULL entonces lo encontro en la cola y lo saca 
+}

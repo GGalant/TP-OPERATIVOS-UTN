@@ -53,7 +53,7 @@ void planificacion_fifo() {
         cpu->pid_actual = proceso->pid;
         pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
         
-        enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid, proceso->pc, proceso->prioridad);
+        enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid);
         log_debug(log_debug_ks, "Se envia el proceso ID<%d> a la cpu ID<%d>", proceso->pid, cpu->cpu_id);
 
         // Bloqueamos para cambiar el estado y mover el proceso a la cola de EXEC de forma atómica.
@@ -77,14 +77,20 @@ t_cpu* buscar_cpu_libre() {
 	return NULL;
 }
 
-void enviar_proceso_a_cpu(int socket_cpu, int pid_proceso, int pc, int prioridad) {   
-    t_paquete* paquete_proceso = crear_paquete(EJECUTAR_PROCESO);
+void enviar_proceso_a_cpu(int socket_cpu, int pid_proceso) {   
+    
+    op_code_ks_cpu operation_code = EJECUTAR_PROCESO
+    send(socket_cpu, &operation_code, sizeof(op_code_ks_cpu), 0);
+    send(socket_cpu, &pid_proceso, sizeof(int), 0);
+
+/*     t_paquete* paquete_proceso = crear_paquete(EJECUTAR_PROCESO);
     agregar_a_paquete(paquete_proceso, &pid_proceso, sizeof(int));
+
     agregar_a_paquete(paquete_proceso, &pc, sizeof(int));
     agregar_a_paquete(paquete_proceso, &prioridad, sizeof(int));
 
     enviar_paquete_send_all(paquete_proceso, socket_cpu);
-    eliminar_paquete(paquete_proceso);
+    eliminar_paquete(paquete_proceso); */
 
     return;
 }
@@ -137,7 +143,7 @@ void planificacion_rr() {
 
         pthread_mutex_unlock(&mutex_cola_exec); 
 
-        enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid, proceso->pc, proceso->prioridad); //manda a cpu el proceso 
+        enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid); //manda a cpu el proceso 
 
         log_debug(log_debug_ks, "Se envia el proceso ID<%d> a la cpu ID<%d> por RR", proceso->pid, cpu->cpu_id);
 

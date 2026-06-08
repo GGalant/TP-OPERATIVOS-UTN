@@ -19,7 +19,7 @@ void iniciar_quantum(t_cpu* cpu, int pid);
 void* controlar_quantum(void* arg);
 t_cpu* buscar_cpu_libre();
 t_algoritmo_planificacion string_to_algoritmo(const char* algoritmo);
-void enviar_proceso_a_cpu(int socket_cpu, int pid_proceso, int pc, int prioridad);
+void enviar_proceso_a_cpu(int socket_cpu, int pid_proceso);
 
 // No-op placeholder to ensure file exists
 #endif /* PLANIFICACION_H_ */
