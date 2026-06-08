@@ -68,7 +68,7 @@ void handle_io_sleep() {
             log_error(log_io, "Se perdió la conexión con Kernel Scheduler. Terminando módulo de IO.");
             break;
         }
-        int pid = *(int*)list_get(paquete_sleep, 0);
+        pid_t pid = *(int*)list_get(paquete_sleep, 0);
         int tiempo_sleep = *(int*)list_get(paquete_sleep, 1);
         list_destroy_and_destroy_elements(paquete_sleep, free);
 
@@ -97,7 +97,7 @@ void handle_io_stdout() {
             log_error(log_io, "Se perdió la conexión con Kernel Scheduler. Terminando módulo de IO.");
             break;
         }
-        int pid = *(int*)list_get(paquete_stdout, 0);
+        pid_t pid = *(int*)list_get(paquete_stdout, 0);
         char* contenido_stdout = (char*)list_get(paquete_stdout, 1);
 
         if (contenido_stdout == NULL) {
@@ -128,7 +128,7 @@ void enviar_io() {
     return;
 }
 
-void enviar_fin_io(int pid) {
+void enviar_fin_io(pid_t pid) {
     t_paquete* paquete_fin_io = crear_paquete(FIN_IO);
     agregar_a_paquete(paquete_fin_io, &pid, sizeof(int));
     enviar_paquete_send_all(paquete_fin_io, conexion_ks);
