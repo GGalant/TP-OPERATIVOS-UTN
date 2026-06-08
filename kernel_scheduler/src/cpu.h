@@ -9,7 +9,7 @@ typedef enum {
 typedef struct t_cpu {  
     int socket_cpu;
     int cpu_id;
-    int pid_actual;
+    pid_t pid_actual;
     t_estado_cpu estado;
 } t_cpu;
 

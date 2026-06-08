@@ -26,7 +26,6 @@ int id_io_global = -1;
 pid_t id_proceso_global = 1;
 int server_ks;
 int conexion_km;
-int pid_inicial;
 int log_level;
 int suspension_timeout;
 int rr_quantum;
@@ -50,7 +49,7 @@ pthread_cond_t cond_stdout;
 pthread_cond_t cond_cola_susp_ready;
 pthread_cond_t cond_cola_susp_block;
 
-void wait_mutex(t_mutex *mutex, int pid_proceso)
+void wait_mutex(t_mutex *mutex, pid_t pid_proceso)
 {
     if (mutex->estado == 0)
     {
@@ -63,7 +62,7 @@ void wait_mutex(t_mutex *mutex, int pid_proceso)
     else
     {
         // El recurso está ocupado, el proceso debe bloquearse
-        list_add(mutex->cola_procesos, (void *)(intptr_t)pid_proceso);
+        list_add(mutex->cola_procesos, (pid_t)pid_proceso);
 
         // IMPORTANTE: Aca iria la logica para bloquear ese proceso: EXEC -> BLOCK
         // enviar_a_block(pid);
@@ -76,7 +75,7 @@ void signal_mutex(t_mutex *mutex)
     if (!list_is_empty(mutex->cola_procesos))
     {
         // Pasamos el mutex al siguiente proceso en la cola
-        int proximo_pid = (int)(intptr_t)list_remove(mutex->cola_procesos, 0);
+        pid_t proximo_pid = (pid_t)list_remove(mutex->cola_procesos, 0);
         mutex->pid_proceso = proximo_pid;
 
         log_info(log_ks, "## (%d) Toma el Mutex %s", mutex->pid_proceso, mutex->nombre_mutex);

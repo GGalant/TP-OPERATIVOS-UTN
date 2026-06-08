@@ -15,11 +15,11 @@ typedef enum {
 void *handle_planificacion(void *arg);
 void planificacion_fifo();
 void planificacion_rr();
-void iniciar_quantum(t_cpu* cpu, int pid);
+void iniciar_quantum(t_cpu* cpu, pid_t pid);
 void* controlar_quantum(void* arg);
 t_cpu* buscar_cpu_libre();
 t_algoritmo_planificacion string_to_algoritmo(const char* algoritmo);
-void enviar_proceso_a_cpu(int socket_cpu, int pid_proceso);
+void enviar_proceso_a_cpu(int socket_cpu, pid_t pid_proceso);
 
 // No-op placeholder to ensure file exists
 #endif /* PLANIFICACION_H_ */

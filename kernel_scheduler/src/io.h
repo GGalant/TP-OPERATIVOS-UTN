@@ -22,16 +22,16 @@ typedef enum {
 typedef struct {  
     int socket_io;
     int io_id;
-    int pid_actual; // PID del proceso que esta utilizando la IO, -1 si no hay ninguno
+    pid_t pid_actual; // PID del proceso que esta utilizando la IO, -1 si no hay ninguno
     tipo_io tipo;
     t_estado_io estado;
 } t_io;
 
 void* handle_io(void* arg);
-void finalizar_io(int pid);
+void finalizar_io(pid_t pid);
 void handle_io_sleep(t_io *io);
 void handle_io_sdtout(t_io *io);
 t_io* crear_io(int socket_io);
-bool esperar_y_procesar_respuesta_io(t_io* io, int pid_esperado);
+bool esperar_y_procesar_respuesta_io(t_io* io, pid_t pid_esperado);
 
 #endif /* IO_H_ */

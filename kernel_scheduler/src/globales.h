@@ -5,19 +5,19 @@ typedef struct
 {
     char *nombre_mutex;
     int estado; // 0 "libre" o 1 "ocupado"
-    int pid_proceso;
+    pid_t pid_proceso;
     t_list *cola_procesos; // Habria que ver si es solo el pid del proceso o todo el pcb (por ahora asumimos que es el pid)
 } t_mutex;
 
 typedef struct
 {
-    int pid;
+    pid_t pid;
     int tiempo_sleep;
 } t_peticion_sleep;
 
 typedef struct
 {
-    int pid;
+    pid_t pid;
     char* contenido;
 } t_peticion_stdout;
 
@@ -46,7 +46,6 @@ extern int *conexion_km_ptr;
 extern int server_ks;
 extern int conexion_km;
 extern const int PRIORIDAD_MAXIMA;
-extern int pid_inicial;
 extern int log_level;
 extern int id_io_global;
 extern pid_t id_proceso_global;
@@ -72,7 +71,7 @@ extern pthread_cond_t cond_stdout;
 extern pthread_cond_t cond_cola_susp_ready;
 extern pthread_cond_t cond_cola_susp_block;
 
-void wait_mutex(t_mutex *mutex, int pid_proceso);
+void wait_mutex(t_mutex *mutex, pid_t pid_proceso);
 void signal_mutex(t_mutex *mutex);
 
 #endif /* GLOBALES_H_ */

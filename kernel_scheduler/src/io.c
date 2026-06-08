@@ -63,7 +63,7 @@ void handle_io_sleep(t_io *io) {
 
         op_code_ks_io codigo_operacion = recibir_operacion(io->socket_io);   
         
-        int pid_actual = peticion->pid; // Guardamos el PID para la validación
+        pid_t pid_actual = peticion->pid; // Guardamos el PID para la validación
         free(peticion); 
 
         if (!esperar_y_procesar_respuesta_io(io, pid_actual)) {
@@ -95,7 +95,7 @@ void handle_io_stdout(t_io *io) {
 
         op_code_ks_io codigo_operacion = recibir_operacion(io->socket_io);
 
-        int pid_actual = peticion->pid; 
+        pid_t pid_actual = peticion->pid; 
         free(peticion->contenido);
         free(peticion); 
 
@@ -133,7 +133,7 @@ t_io *crear_io(int socket_io) {
     return io;
 }
 
-void finalizar_io(int pid) {
+void finalizar_io(pid_t pid) {
     t_proceso_pcb* proceso = NULL;
 
     pthread_mutex_lock(&mutex_cola_block); //mutex por si esta siendo usada por otros hilos
@@ -175,12 +175,12 @@ void finalizar_io(int pid) {
 
 // Esta función espera la respuesta del módulo IO y se encarga de liberar la interfaz.
 // Retorna 'true' si el ciclo debe continuar, o 'false' si la IO se desconectó y el hilo debe morir.
-bool esperar_y_procesar_respuesta_io(t_io* io, int pid_esperado) {
+bool esperar_y_procesar_respuesta_io(t_io* io, pid_t pid_esperado) {
     op_code_ks_io codigo_operacion = recibir_operacion(io->socket_io);   
         
     switch(codigo_operacion) {
         case FIN_IO: {
-            int pid_recibido;
+            pid_t pid_recibido;
             int bytes_recibidos = recv(io->socket_io, &pid_recibido, sizeof(int), MSG_WAITALL);
             
             if (bytes_recibidos <= 0) {

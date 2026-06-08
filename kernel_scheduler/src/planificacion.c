@@ -4,7 +4,7 @@
 
 typedef struct {
     t_cpu* cpu;
-    int pid;
+    pid_t pid;
 } t_args_quantum;
 
 void *handle_planificacion(void *arg) {
@@ -77,20 +77,10 @@ t_cpu* buscar_cpu_libre() {
 	return NULL;
 }
 
-void enviar_proceso_a_cpu(int socket_cpu, int pid_proceso) {   
-    
-    op_code_ks_cpu operation_code = EJECUTAR_PROCESO
+void enviar_proceso_a_cpu(int socket_cpu, pid_t pid_proceso) {   
+    op_code_ks_cpu operation_code = EJECUTAR_PROCESO;
     send(socket_cpu, &operation_code, sizeof(op_code_ks_cpu), 0);
     send(socket_cpu, &pid_proceso, sizeof(int), 0);
-
-/*     t_paquete* paquete_proceso = crear_paquete(EJECUTAR_PROCESO);
-    agregar_a_paquete(paquete_proceso, &pid_proceso, sizeof(int));
-
-    agregar_a_paquete(paquete_proceso, &pc, sizeof(int));
-    agregar_a_paquete(paquete_proceso, &prioridad, sizeof(int));
-
-    enviar_paquete_send_all(paquete_proceso, socket_cpu);
-    eliminar_paquete(paquete_proceso); */
 
     return;
 }
@@ -152,7 +142,7 @@ void planificacion_rr() {
     // La lógica para enviar el proceso a la CPU sería similar a la de FIFO, pero con la diferencia de que aca tambien tendriamos que manejar el quantum y las interrupciones por fin de quantum o desalojo, lo cual implicaría agregar lógica adicional para manejar esos casos específicos.
 }
 
-void iniciar_quantum(t_cpu* cpu, int pid) {
+void iniciar_quantum(t_cpu* cpu, pid_t pid) {
     t_args_quantum* args = malloc(sizeof(t_args_quantum)); //crea la estructura
 
     if (args == NULL) {

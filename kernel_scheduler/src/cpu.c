@@ -138,7 +138,7 @@ void *handle_cpu(void *arg)
             log_info(log_ks, "## (%d) - Solicitó syscall: STDOUT", cpu->pid_actual);
 
             t_list *paquete_stdout = recibir_paquete(socket_cpu);
-            int pid;
+            pid_t pid;
             uint32_t direccion_logica = *(uint32_t *)list_get(paquete_stdout, 0);
             uint32_t tamanio = *(uint32_t *)list_get(paquete_stdout, 1);
             list_destroy_and_destroy_elements(paquete_stdout, free);
@@ -178,7 +178,7 @@ void *handle_cpu(void *arg)
             // La CPU nos avisa el fin de quantum
             t_list *paquete_quantum = recibir_paquete(socket_cpu);
 
-            int pid = *(int *)list_get(paquete_quantum, 0);
+            pid_t pid = *(int *)list_get(paquete_quantum, 0);
             int pc_actualizado = *(int *)list_get(paquete_quantum, 1);
 
             list_destroy_and_destroy_elements(paquete_quantum, free);
@@ -222,8 +222,6 @@ void *handle_cpu(void *arg)
         case SYSCALL_MUTEX_LOCK:
             break;
         case SYSCALL_MUTEX_UNLOCK:
-            break;
-        case SYSCALL_INIT_PROC:
             break;
         case -1:
             log_error(log_ks, "CPU FD %d se desconectó. Terminando handle", socket_cpu);
@@ -304,7 +302,7 @@ const char *operacion_to_string(op_code_ks_cpu operacion)
     }
 }
 
-t_proceso_pcb *buscar_proceso_por_id(int pid, t_list *cola)
+t_proceso_pcb *buscar_proceso_por_id(pid_t pid, t_list *cola)
 {
     for (int i = 0; i < list_size(cola); i++)
     {
@@ -319,7 +317,7 @@ t_proceso_pcb *buscar_proceso_por_id(int pid, t_list *cola)
 // REFACTOR: estas funciones de enviar peticiones a IO podrían unificarse en una sola función que reciba el tipo de IO y los parametros necesarios. 
 //enviar_peticion_io(tipo_io tipo, ...param restantes)
 
-void enviar_proceso_a_io_sleep(int pid, int tiempo_sleep)
+void enviar_proceso_a_io_sleep(pid_t pid, int tiempo_sleep)
 {
     t_peticion_sleep *peticion = malloc(sizeof(t_peticion_sleep));
     peticion->pid = pid;
@@ -334,7 +332,7 @@ void enviar_proceso_a_io_sleep(int pid, int tiempo_sleep)
     return;
 }
 
-void enviar_proceso_a_io_stdout(int pid, char *contenido) 
+void enviar_proceso_a_io_stdout(pid_t pid, char *contenido) 
 {
     t_peticion_stdout *peticion = malloc(sizeof(t_peticion_stdout));
     peticion->pid = pid;

@@ -180,7 +180,7 @@ void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {
 
 
 // Envia la operacion para que KM cree las estructuras internas para el proceso
-void enviar_proceso(int socket_km, int pid, char* path_proceso) { 
+void enviar_proceso(int socket_km, pid_t pid, char* path_proceso) { 
     op_code codigo_operacion = INICIALIZAR_PROCESO;  
     
     t_paquete *paquete_proceso = crear_paquete(codigo_operacion);
@@ -193,7 +193,7 @@ void enviar_proceso(int socket_km, int pid, char* path_proceso) {
     eliminar_paquete(paquete_proceso);
 }
 
-t_proceso_pcb* crear_pcb(int pid, int prioridad) {
+t_proceso_pcb* crear_pcb(pid_t pid, int prioridad) {
     t_proceso_pcb* pcb = malloc(sizeof(t_proceso_pcb));
 
     pcb->pid = pid;
@@ -229,7 +229,7 @@ void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_sigu
     return;
 }
 
-char* solicitar_contenido_a_km(int socket_km, int pid, int direccion_logica, int tamanio){  
+char* solicitar_contenido_a_km(int socket_km, pid_t pid, int direccion_logica, int tamanio){  
     op_code_ks_km codigo_operacion = SOLICITAR_CONTENIDO_MEMORIA;  
     
     t_paquete *paquete_contexto = crear_paquete(codigo_operacion);
@@ -308,7 +308,7 @@ void liberar_recursos() {
     return;
 }
 
-t_proceso_pcb* remover_proceso_por_pid(t_list* cola, int pid) {
+t_proceso_pcb* remover_proceso_por_pid(t_list* cola, pid_t pid) {
     //**IMPORTANTE**: esta funcion se tiene que llamar con el mutex de su cola bloqueado 
     for (int i = 0; i < list_size(cola); i++) {
         t_proceso_pcb* proceso = list_get(cola, i);
