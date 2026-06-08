@@ -34,7 +34,7 @@ typedef enum {
     STDOUT_LECTURA,
     STDIN_ESCRITURA,
     CREACION_DE_PROCESO,
-    SOLICITUD_TRADUCCION
+    SOLICITUD_TRADUCCION,
 }op_code;
 
 /* typedef enum {
@@ -52,19 +52,23 @@ typedef enum {
     INTERRUPCION_DESALOJO,
     SYSCALL_MUTEX_LOCK,
     SYSCALL_MUTEX_UNLOCK,
-    SYSCALL_INIT_PROC
+    SYSCALL_INIT_PROC,
+    ENVIO_PID,
+    SYSCALL_MUTEX_CREATE,
+    SYSCALL_MEM_ALLOC,
+    SYSCALL_MEM_FREE,
 } op_code_ks_cpu;
 
 typedef enum {
     CREAR_IO,
     SOLICITUD_IO_SLEEP,
     SOLICITUD_IO_STDOUT,
-    FIN_IO
+    FIN_IO,
 } op_code_ks_io;
 
 typedef enum {
     SOLICITAR_CONTENIDO_MEMORIA,
-    RESPUESTA_CONTENIDO_MEMORIA
+    RESPUESTA_CONTENIDO_MEMORIA,
 } op_code_ks_km;
 
 int crear_conexion(char *ip, char* puerto);

@@ -34,21 +34,11 @@ typedef enum {
 
 } InstrucionCode;
 
-typedef enum {
-    ENVIO_PID
-} op_code_cpu_ks; //TODO mover a conexiones, coordinar con KS
-typedef enum { //TODO MOVER A CONEXIONES, coordinar con KS
-    ENCADENADOR_DE_ENUMS = SYSCALL_INIT_PROC, 
-    SYSCALL_MUTEX_CREATE,
-    SYSCALL_MEM_ALLOC,
-    SYSCALL_MEM_FREE
-} ExtendedOperations; 
-
 //region: STRUCTS
 
 typedef struct {
 //Process Id
-int pid;
+pid_t pid;
 //Program Counter
 uint32_t pc;
 //Registro Numerico de propósito general
@@ -59,6 +49,8 @@ uint32_t eax, ebx, ecx, edx;
 uint32_t si;
 //Direccion logica de memoria de destino
 uint32_t di;
+//Tabla de segmentos
+t_list* tabla_segmentos;
 } t_cpu;
 
 typedef struct {
@@ -79,7 +71,7 @@ typedef struct {
 
 //region: VARIABLES GLOBALES (finiquitar)
 
-//* las unicas variables definidas en el header las defino como extern para evitar dobles definiciones si el .h se incluye en 2 archivos
+//* las unicas variables declaradas en el header las declaron como extern para evitar dobles definiciones si el .h se incluye en 2 archivos
 //* estan aqui porque se usan en mas de un .c, y el header corresponde a mas de un .c
 extern t_cpu cpu; 
 extern bool se_ejecuto_syscall;

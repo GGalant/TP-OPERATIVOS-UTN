@@ -405,7 +405,7 @@ int map_config_variables(t_config* config, t_cpu_env* env){
 
 void integrar_contexto(t_list* paquete_contexto) {
 
-    cpu.pid = *(uint32_t*)list_get(paquete_contexto, 0); //TODO PID PARA MI DEBERIA SER PID_ID
+    cpu.pid = *(pid_t*)list_get(paquete_contexto, 0);
     cpu.pc = *(uint32_t*)list_get(paquete_contexto, 1);
     cpu.ax = *(uint8_t*) list_get(paquete_contexto, 2);
     cpu.bx = *(uint8_t*) list_get(paquete_contexto, 3);
@@ -417,6 +417,7 @@ void integrar_contexto(t_list* paquete_contexto) {
     cpu.edx = *(uint32_t*)list_get(paquete_contexto, 9);
     cpu.si = *(uint32_t*)list_get(paquete_contexto, 10);
     cpu.di = *(uint32_t*)list_get(paquete_contexto, 11);
+    //cpu.tabla_segmentos = *(t_list**)list_get(paquete_contexto, 12);
 
 }
 
