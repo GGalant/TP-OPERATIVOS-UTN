@@ -1,17 +1,25 @@
-#include "kernel_scheduler.h"
+#ifndef CPU_H_
+#define CPU_H_
 
 typedef enum {    
     CPU_LIBRE,
     CPU_OCUPADA
 } t_estado_cpu;
 
-typedef struct {  
+typedef struct t_cpu {  
     int socket_cpu;
     int cpu_id;
-    int pid_actual;
+    pid_t pid_actual;
     t_estado_cpu estado;
 } t_cpu;
 
 void* handle_cpu(void* arg);
-const char* operacion_to_string(op_code_ks_cpu operacion);
+void enviar_proceso_a_io_sleep(pid_t pid, int tiempo_sleep);
+void enviar_proceso_a_io_stdout(pid_t pid, char* contenido);
+const char* operacion_to_string(op_code operacion);
 int recibir_cpu_id(int socket);
+int generar_pid();
+t_cpu *crear_cpu(int socket_cpu, int cpu_id);
+
+
+#endif /* CPU_H_ */

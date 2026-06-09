@@ -56,21 +56,24 @@ int main(int argc, char *argv[]){
     }
     
     //Envio de handshakes
-    handshake handshake_cpu = HANDSHAKE_CPU;
+    op_code handshake_cpu = HANDSHAKE_CPU;
     
-    send(conexion_ks, &handshake_cpu, sizeof(handshake), 0);
+    send(conexion_ks, &handshake_cpu, sizeof(op_code), 0);
     send(conexion_ks, &id_cpu,        sizeof(int), 0);
 
-    send(conexion_km, &handshake_cpu, sizeof(handshake), 0);
+    send(conexion_km, &handshake_cpu, sizeof(op_code), 0);
+    send(conexion_km, &id_cpu,        sizeof(int), 0);
     
-    send(conexion_ms, &handshake_cpu, sizeof(handshake), 0);
+    send(conexion_ms, &handshake_cpu, sizeof(op_code), 0);
 
     while(true) {
 
+        log_debug(log_cpu, "¡ Estoy libre !");
         op_code codigo_operacion = recibir_operacion(conexion_ks);
+        log_debug(log_cpu, "Kernel Scheduler mandó una operación");
 
         switch(codigo_operacion) {  
-            case ENVIO_PID:
+            case EJECUTAR_PROCESO:
                 pid_t pid_recibido;
                 recv(conexion_ks, &pid_recibido, sizeof(pid_t), MSG_WAITALL);
 
@@ -96,11 +99,10 @@ int main(int argc, char *argv[]){
                 execute();
                 } while (!check_interrupt());
 
-                //TODO verificar con el equipo las interrupciones de Kernel Scheduler posibles y como actuar ante ellas
-
                 push_contexto();
-
-                enviar_pid_actual_a_KS();
+                
+                //TODO hace falta enviar el pid a KS?
+                //enviar_pid_actual_a_KS();
 
                 break;
             case -1:
@@ -120,9 +122,14 @@ int main(int argc, char *argv[]){
 }
 
 void enviar_pid_actual_a_KS(){ //TODO mejorar manejo
-    op_code_ks_cpu operacion_envio_pid = ENVIO_PID;
+
+    
+    op_code operacion_envio_pid = ENVIO_PID;
     pid_t pid_a_enviar = cpu.pid;
-    send(conexion_ks, &operacion_envio_pid, sizeof(op_code_ks_cpu), 0);
+
+    log_debug(log_cpu, "Enviando el pid %d al Kernel Scheduler ( op_code: ENVIO_PID )", pid_a_enviar);
+
+    send(conexion_ks, &operacion_envio_pid, sizeof(op_code), 0);
     send(conexion_ks, &pid_a_enviar,        sizeof(pid_t), 0);
     return;
 }
@@ -136,7 +143,7 @@ void* fetch(){
     log_info(log_cpu, "## PID: %u - FETCH - Program Counter: %u", cpu.pid, cpu.pc);
 
     t_paquete* paquete = crear_paquete(PEDIDO_INSTRUCCION);
-    agregar_a_paquete(paquete, &cpu.pid, sizeof(uint32_t));
+    agregar_a_paquete(paquete, &cpu.pid, sizeof(pid_t));
     agregar_a_paquete(paquete, &cpu.pc, sizeof(uint32_t));
 
     enviar_paquete_send_all(paquete, conexion_km);
@@ -156,6 +163,8 @@ void* fetch(){
 
     int size;
     void* temp = recibir_buffer(&size, conexion_km);
+
+    log_debug(log_cpu, "Fetch: se recibió un buffer...");
 
     if(temp == NULL){
         log_error(log_cpu, "Fetch: El buffer recibido de KM es NULL o el tamanio es invalido");
@@ -299,7 +308,7 @@ void execute(){
     //TODO HAY QUE HACER PC++ ACA??
         ejecutar_exit();
     break;
-    case ERROR:
+    case INSTRUCTION_ERROR:
     //TODO decidir que hacer ante error.
     break;
     }
@@ -309,19 +318,23 @@ void execute(){
 
 bool check_interrupt(){
 
+    log_debug(log_cpu, "Chequeando interrupcion...");
+
     if (se_ejecuto_syscall) {
         log_debug(log_cpu, "Interrupcion sincronica recibida (SYSCALL ejecutada)");
         se_ejecuto_syscall = false;
         return true;
     }
 
-    op_code_ks_cpu codigo_operacion = recibir_operacion(conexion_ks);
+    op_code codigo_operacion = recibir_operacion(conexion_ks);
 
     if(codigo_operacion == INTERRUPCION_DESALOJO || codigo_operacion == INTERRUPCION_FIN_QUANTUM){
         //TODO ver si hay que leer algo mas o realizar alguna accion.
         log_info(log_cpu, "## Interrupcion recibida");
         return true;
     }
+
+    log_debug(log_cpu, "No se econtraron interrupciones");
 
     return false;
 }
@@ -405,7 +418,7 @@ int map_config_variables(t_config* config, t_cpu_env* env){
 
 void integrar_contexto(t_list* paquete_contexto) {
 
-    cpu.pid = *(uint32_t*)list_get(paquete_contexto, 0); //TODO PID PARA MI DEBERIA SER PID_ID
+    cpu.pid = *(pid_t*)list_get(paquete_contexto, 0);
     cpu.pc = *(uint32_t*)list_get(paquete_contexto, 1);
     cpu.ax = *(uint8_t*) list_get(paquete_contexto, 2);
     cpu.bx = *(uint8_t*) list_get(paquete_contexto, 3);
@@ -417,6 +430,7 @@ void integrar_contexto(t_list* paquete_contexto) {
     cpu.edx = *(uint32_t*)list_get(paquete_contexto, 9);
     cpu.si = *(uint32_t*)list_get(paquete_contexto, 10);
     cpu.di = *(uint32_t*)list_get(paquete_contexto, 11);
+    //cpu.tabla_segmentos = *(t_list**)list_get(paquete_contexto, 12);
 
 }
 
@@ -446,7 +460,7 @@ t_paquete *empaquetar_contexto(){
 
 
 void push_contexto() { //TODO validar si cpu deberia encargarse de que esto no falle 
-
+    log_debug(log_cpu, "Enviando el contexto a Kernel Memory");
     t_paquete * paquete_contexto = empaquetar_contexto();
     enviar_paquete_send_all(paquete_contexto, conexion_km);
     eliminar_paquete(paquete_contexto);

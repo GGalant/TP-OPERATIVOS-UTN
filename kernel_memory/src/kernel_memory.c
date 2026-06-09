@@ -33,7 +33,7 @@ int main(int argc, char *argv[]){
     }
     
     int log_level = log_level_from_string(str_log_level);
-    log_km = log_create("memory.log", "MEMORY", true, log_level); 
+    log_km = log_create("memory.log", "MEMORY", true, log_level);
     
     server_km = iniciar_servidor(log_km, puerto_km);
 
@@ -70,7 +70,7 @@ void* handle_connections(void* arg){
         int *socket_cliente = malloc(sizeof(int));
         *socket_cliente = client_fd;
 
-        handshake handshake_modulo = recibir_operacion(*socket_cliente);
+        op_code handshake_modulo = recibir_operacion(*socket_cliente);
 
         switch (handshake_modulo) {
  			case HANDSHAKE_CPU:
@@ -114,40 +114,47 @@ void* handle_ks(void* arg) {
         int codigo_operacion = recibir_operacion(socket_ks);
 
         switch(codigo_operacion) {
-            case -1:
+            case ERROR:
                 log_error(log_km, "Kernel Scheduler FD %d se desconectó. Terminando handle", socket_ks);
                 return NULL;
+                
             
             case INICIALIZAR_PROCESO:
+                log_debug(log_km, "Kernel Scheduler solicitó INICIALIZAR_PROCESO");
+
+                // t_list* instrucciones = cargar_instrucciones(path_archivo_instrucciones);                
+                // dictionary_put(diccionario_paths,str_pid_recibido,instrucciones);    
+                
                 t_list *proceso_inicial = recibir_paquete(socket_ks);
-                int pid_recibido = *(int*)list_get(proceso_inicial, 0);
-                char* path_recibido = (char*)list_get(proceso_inicial, 1);
+                pid_t pid_recibido = *(pid_t*) list_get(proceso_inicial, 0);
+                char* path_instrucciones_recibido = (char*)list_get(proceso_inicial, 1);
                 char *str_pid_recibido = string_itoa(pid_recibido);
 
+                t_list* instrucciones = cargar_instrucciones(path_instrucciones_recibido); //arreglarla
+                dictionary_put(diccionario_paths,str_pid_recibido,instrucciones); //diccionaria con instrucciones x pid
+                //log_debug(log_km_debug, "Instrucciones del proceso: <%d> guardadas correctamente", pid_recibido);
+                log_info(log_km, "Instrucciones del proceso: <%d> guardadas correctamente", pid_recibido);
                 
-                // TODO Inicializar contexto en 0
-                
-                t_contextoEjec* contexto_proceso_inicial = malloc(sizeof(t_contextoEjec));
-                contexto_proceso_inicial->pid = pid_recibido;
-                contexto_proceso_inicial->pc = 0;
-                contexto_proceso_inicial->ax = 0;
-                contexto_proceso_inicial->bx = 0;
-                contexto_proceso_inicial->cx = 0;
-                contexto_proceso_inicial->dx = 0;                
-                contexto_proceso_inicial->eax = 0;
-                contexto_proceso_inicial->ebx = 0;
-                contexto_proceso_inicial->ecx = 0;
-                contexto_proceso_inicial->edx = 0;
-                contexto_proceso_inicial->si = 0;
-                contexto_proceso_inicial->di = 0;
-                contexto_proceso_inicial->tabla_segmentos = list_create();
+                t_contextoEjec* contexto_proceso = malloc(sizeof(t_contextoEjec));
+                contexto_proceso->pid = pid_recibido;
+                contexto_proceso->pc = 0;
+                contexto_proceso->ax = 0;
+                contexto_proceso->bx = 0;
+                contexto_proceso->cx = 0;
+                contexto_proceso->dx = 0;                
+                contexto_proceso->eax = 0;
+                contexto_proceso->ebx = 0;
+                contexto_proceso->ecx = 0;
+                contexto_proceso->edx = 0;
+                contexto_proceso->si = 0;
+                contexto_proceso->di = 0;
+                contexto_proceso->tabla_segmentos = list_create();
 
-                log_info(log_km, "Contexto de ejecución del proceso inicial creado!");
+                dictionary_put(diccionario_contextos_ejecucion, str_pid_recibido, contexto_proceso);
                 
-                dictionary_put(diccionario_contextos_ejecucion, str_pid_recibido, contexto_proceso_inicial);
-                dictionary_put(diccionario_paths,str_pid_recibido, strdup(path_recibido));
-
-                log_info(log_km, "Path del archivo de instrucciones guardado!");
+                //log_debug(log_km_debug, "Contexto de ejecución del proceso <%s> creado!", str_pid_recibido);
+                log_info(log_km, "Contexto de ejecución del proceso <%s> creado!", str_pid_recibido);
+                
 
                 op_code inicializar_proceso_ok = INICIALIZAR_PROCESO_OK;
                 send(socket_ks, &inicializar_proceso_ok, sizeof(inicializar_proceso_ok),0);
@@ -158,20 +165,21 @@ void* handle_ks(void* arg) {
 
             case STDOUT_LECTURA:{ 
                 //por pedido del ks
-                t_list* pedido_lectura = recibir_paquete(socket_ks); //esperamos (PID), dirLogica y tamaño a leer
-                int pid = *(int*)list_get(pedido_lectura,0);
-                char* direccion_logica = list_get(pedido_lectura, 1);
+                t_list* pedido_lectura = recibir_paquete(socket_ks); //esperamos (PID), dirFisica y tamaño a leer
+                pid_t pid = *(pid_t*)list_get(pedido_lectura,0);
+                //char* direccion_logica = list_get(pedido_lectura, 1);
+                char* direccion_fisica = list_get(pedido_lectura, 1);
                 void* bytes_a_leer = list_get(pedido_lectura,2);
                 
-                op_code solicitud_traduccion = SOLICITUD_TRADUCCION;
-                int tam_dirLogica = strlen(direccion_logica) + 1;
+                // op_code solicitud_traduccion = SOLICITUD_TRADUCCION;
+                // int tam_dirLogica = strlen(direccion_logica) + 1;
                 
-                send(socket_cpu, &solicitud_traduccion, sizeof(solicitud_traduccion),0);
-                send(socket_cpu, direccion_logica,sizeof(tam_dirLogica),0);
+                // send(socket_cpu, &solicitud_traduccion, sizeof(solicitud_traduccion),0);
+                // send(socket_cpu, direccion_logica,sizeof(tam_dirLogica),0);
                 
                 //recibimos la dirección traducida
-                int size_dirFisica;
-                char* direccion_fisica = recibir_buffer(size_dirFisica,socket_cpu);
+                //int size_dirFisica;
+                //char* direccion_fisica = recibir_buffer(size_dirFisica,socket_cpu);
                 
                 
                 /* LEER EL BLOQUE FISICO*/
@@ -180,7 +188,7 @@ void* handle_ks(void* arg) {
                 // solicitar_lectura(direccion_fisica, socket_memory_stick); //TODO: FALTA IMPLEMENTARRRRR
                 enviar_mensaje("LECTURA OK!", socket_ks);
 
-                log_info(log_km,"## PID: <PID> - <Escritura/Lectura> - Dir. Física: <DIRECCIÓN FÍSICA> - Tamaño: <TAMAÑO>");
+                log_info(log_km,"## PID: <%d> - <Escritura/Lectura> - Dir. Física: <%s> - Tamaño: <TAMAÑO>",pid, direccion_fisica);
 
             }
                 break;
@@ -188,19 +196,20 @@ void* handle_ks(void* arg) {
 
             case STDIN_ESCRITURA:
             { //por pedido del ks
-                t_list* pedido_escritura = recibir_paquete(socket_ks); //esperamos (PID), dirLogica y tamaño a ESCRIBIR
-                int pid = list_get(pedido_escritura,0);
-                char* direccion_logica = list_get(direccion_logica, 1);
-                void* bytes_a_leer = list_get(pedido_escritura,2);
+                t_list* pedido_escritura = recibir_paquete(socket_ks); //esperamos (PID), dirFisica y tamaño a ESCRIBIR
+                pid_t pid = *(pid_t*)list_get(pedido_escritura, 0);
+                //char* direccion_logica = list_get(direccion_logica, 1);
+                char* direccion_fisica = list_get(pedido_escritura, 1);
+                void* bytes_a_escribir = list_get(pedido_escritura,2); 
 
-                char* direccion_fisica; //entrada --> magia -->traduccion
+                //char* direccion_fisica; //entrada --> magia -->traduccion
                 
                 /* AÚN MÁS MAGIA */
               //  solicitar_escritura(direccion_fisica,socket_memory_stick);
 
                 enviar_mensaje("ESCRITURA OK!", socket_ks);
 
-                log_info(log_km,"## PID: <PID> - <Escritura/Lectura> - Dir. Física: <DIRECCIÓN FÍSICA> - Tamaño: <TAMAÑO>");
+                log_info(log_km,"## PID: <%d> - <Escritura/Lectura> - Dir. Física: <%s> - Tamaño: <TAMAÑO>", pid, direccion_fisica);
                 
                 /*t_paquete* paquete_lectura = crear_paquete(RTA_STDOUT_LECTURA);
                 
@@ -220,32 +229,37 @@ void* handle_ks(void* arg) {
 
 void* handle_cpu(void* arg) {    
     int socket_cpu = *(int*)arg;
+
+    int id_cpu;
+    recv(socket_cpu, &id_cpu, sizeof(int),0);
     
-    log_info(log_km, "CPU <CPU_ID> Conectada");
+    log_info(log_km, "CPU <%d> Conectada", id_cpu);
 
     while(true) {   
         //int codigo_operacion = recibir_operacion(socket_cpu);
         op_code codigo_operacion = recibir_operacion(socket_cpu);
 
         switch(codigo_operacion) {
-            case -1:
+            case ERROR:
                 log_error(log_km, "CPU FD %d se desconectó. Terminando handle", socket_cpu);
                 close(socket_cpu);
                 return NULL;
             
             case ENVIAR_CONTEXTO:{
-                //TODO: *****recibir pid de la cpu******
-                int pid_recibido;
+                pid_t pid_recibido;
+                
+                recv(socket_cpu, &pid_recibido, sizeof(pid_recibido), MSG_WAITALL);
+
                 char *str_pid_enviado = string_itoa(pid_recibido);
                 t_contextoEjec* contexto_a_enviar = dictionary_get(diccionario_contextos_ejecucion, str_pid_enviado);
                 if(contexto_a_enviar == NULL){
                     log_error(log_km,"No hay un contexto guardado para el PID <%d>", pid_recibido);
                     free(str_pid_enviado);
                     free(contexto_a_enviar);
-                    return EXIT_FAILURE;
+                    //return EXIT_FAILURE;
                 }else{
                     t_paquete *paquete_contexto = crear_paquete(ENVIAR_CONTEXTO);
-                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->pid),sizeof(int));
+                    agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->pid),sizeof(pid_t));
                     agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->pc), sizeof(uint32_t));
                     agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->ax), sizeof(uint8_t));
                     agregar_a_paquete(paquete_contexto,&(contexto_a_enviar->bx), sizeof(uint8_t));
@@ -272,7 +286,7 @@ void* handle_cpu(void* arg) {
             case RECIBIR_CONTEXTO: {
             
                 t_list* contexto_cpu = recibir_paquete(socket_cpu);
-                int pid = *(int*)list_get(contexto_cpu, 0);
+                pid_t pid = *(pid_t*)list_get(contexto_cpu, 0);
                 char* str_pid_recibido = string_itoa(pid);
                 t_contextoEjec* contexto = dictionary_get(diccionario_contextos_ejecucion, str_pid_recibido);
 
@@ -280,20 +294,12 @@ void* handle_cpu(void* arg) {
                 if (contexto == NULL) {
                     
                     log_info(log_km, "El proceso con id: <%d> nunca fue creado en Kernel Memory", contexto->pid);
-
-                   /*  //si es proceso nuevo
-                    contexto = malloc(sizeof(t_contextoEjec));
-                    contexto->pid = pid;
-                    contexto->tabla_segmentos = list_create(); 
-
-                    dictionary_put(diccionario_contextos_ejecucion, str_pid_recibido, contexto);
-                    log_info(log_km, "PID <%d> nuevo guardado correctamente!", contexto->pid); */
-
                 
                     //liberamos porque no usamos key nueva, era una ya existente
                     free(str_pid_recibido);
                     free(contexto);
-                    return EXIT_FAILURE;
+                    //return EXIT_FAILURE;
+                    return NULL; 
                 }
                 
                 free(str_pid_recibido);
@@ -317,7 +323,7 @@ void* handle_cpu(void* arg) {
             
             case PEDIDO_INSTRUCCION: {
                 t_list* instruccion_pedida = recibir_paquete(socket_cpu);
-                int pid_recibido = *(int*)list_get(instruccion_pedida, 0);
+                pid_t pid_recibido = *(pid_t*)list_get(instruccion_pedida, 0);
                 uint32_t pc = *(int*)list_get(instruccion_pedida,1);
                 
                 char* str_pid_recibido = string_itoa(pid_recibido);
@@ -340,47 +346,21 @@ void* handle_cpu(void* arg) {
 
                 
                 op_code rta_pedido_instruccion = RTA_PEDIDO_INSTRUCCION;
-                send(socket_cpu, &rta_pedido_instruccion, sizeof(op_code),0);
-                send(socket_cpu, tam_instruccion, sizeof(int),0);
+                send(socket_cpu, &rta_pedido_instruccion, sizeof(op_code), 0);
+                log_debug(log_km, "envio codigo RTA_PEDIDO_INSTRUCCION");
+
+                send(socket_cpu, &tam_instruccion, sizeof(int), 0);
+                log_debug(log_km, "envio TAMANIO DE INSTRUCCION");
+
+                send(socket_cpu, instruccion, tam_instruccion, 0);
+                log_debug(log_km, "envio INSTRUCCION");
+
 
 
                 //buscar_instruccion(str_pid_recibido, pc);
                 break;
             }
 
-            case CREACION_DE_PROCESO: {
-                int pid;
-                char* str_pid_recibido = string_itoa(pid);
-                char* path_archivo_instrucciones;
-                t_contextoEjec* contexto;
-
-                contexto = malloc(sizeof(t_contextoEjec));
-                contexto->pid = pid;
-                contexto->tabla_segmentos = list_create(); 
-
-                contexto->pc = 0;
-                contexto->ax = 0;
-                contexto->bx = 0;
-                contexto->cx = 0;
-                contexto->dx = 0;
-                contexto->eax = 0;
-                contexto->ebx = 0;
-                contexto->ecx = 0;
-                contexto->edx = 0;
-                contexto->si = 0;
-                contexto->di = 0;
-                
-
-                dictionary_put(diccionario_contextos_ejecucion, str_pid_recibido, contexto);
-                log_info(log_km, "PID <%d> nuevo guardado correctamente!", contexto->pid); 
-                
-                t_list* instrucciones = cargar_instrucciones(path_archivo_instrucciones);
-                
-                dictionary_put(diccionario_paths,str_pid_recibido,instrucciones);                
-
-                
-                break;
-            }
 
     
             default:
@@ -398,6 +378,8 @@ void* handle_cpu(void* arg) {
 void* handle_ms(void* arg){
 
     int socket_ms = *(int*)arg;
+    int id_ms;
+    recv(socket_ms, &id_ms, sizeof(int),0);
     
     log_info(log_km, "Memory Stick <ID> se ha conectado!");
 
@@ -411,7 +393,7 @@ void* handle_ms(void* arg){
                 contador_sticks += 1;
                 
                 int tamanio_stick;
-                recv(socket_ms, (void*)tamanio_stick, sizeof(int),0);
+                recv(socket_ms, &tamanio_stick, sizeof(int),0);
 
                 //tamanio_stick =
                 t_memory_stick* nuevo_memory_stick = malloc(sizeof(t_memory_stick));
@@ -427,6 +409,9 @@ void* handle_ms(void* arg){
                 break;
         
             }
+            default:
+                log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
+            break;
 
         }
     }

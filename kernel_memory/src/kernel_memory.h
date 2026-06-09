@@ -3,6 +3,7 @@
 #include "utils/serializacion.h"
 #include <pthread.h>
 
+
 int contador_sticks;
 int posicion_memoria;
 t_log* log_km;
@@ -27,7 +28,7 @@ typedef struct {
 
 
 typedef struct {
-    int pid;
+    pid_t pid;
     uint32_t pc;
     uint8_t ax;
     uint8_t bx;

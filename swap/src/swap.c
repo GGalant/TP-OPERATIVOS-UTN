@@ -38,8 +38,8 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    handshake handshake_swap = HANDSHAKE_SWAP;
-    send(conexion_kernel_memory, &handshake_swap, sizeof(handshake), 0);
+    op_code handshake_swap = HANDSHAKE_SWAP;
+    send(conexion_kernel_memory, &handshake_swap, sizeof(op_code), 0);
     
     log_info(log_swap, "## Conectado a Kernel Memory");
     

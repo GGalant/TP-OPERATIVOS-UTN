@@ -16,8 +16,8 @@ int main(int argc, char *argv[]){
 
     log_info(log_ks, "## Conectado a Kernel Memory");
     
-    handshake handshake_ks = HANDSHAKE_KS;
-    send(conexion_km, &handshake_ks, sizeof(handshake), 0);
+    op_code handshake_ks = HANDSHAKE_KS;
+    send(conexion_km, &handshake_ks, sizeof(handshake_ks), 0);
     *conexion_km_ptr = conexion_km;
 
     crear_proceso_inicial(conexion_km, path_proceso_inicial);
@@ -67,17 +67,31 @@ void inicializar_ks(int argc, char *argv[]) {
     cola_ready = list_create();
     cola_block = list_create();
     cola_exec = list_create();
-    lista_mutex = list_create();
+    cola_exit = list_create();
+    cola_espera_sleep = list_create();
+    cola_espera_stdout = list_create();
+    lista_io_conectadas = list_create();
     lista_cpu_conectadas = list_create();
 
     pthread_mutex_init(&mutex_cola_ready, NULL);
     pthread_mutex_init(&mutex_cola_block, NULL);
     pthread_mutex_init(&mutex_cola_exec, NULL);
+    pthread_mutex_init(&mutex_cola_exit, NULL);
     pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
     pthread_mutex_init(&mutex_lista_io_conectadas, NULL);
+    pthread_mutex_init(&mutex_generador_id_io, NULL);
+    pthread_mutex_init(&mutex_generador_pid, NULL);
+    pthread_mutex_init(&mutex_sleep, NULL);
+    pthread_mutex_init(&mutex_stdout, NULL);
+    pthread_mutex_init(&mutex_cola_susp_block, NULL);
+    pthread_mutex_init(&mutex_cola_susp_ready, NULL);
     pthread_cond_init(&cond_cola_ready, NULL);
     pthread_cond_init(&cond_cola_block, NULL);
     pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
+    pthread_cond_init(&cond_sleep, NULL);
+    pthread_cond_init(&cond_stdout, NULL);
+    pthread_cond_init(&cond_cola_susp_ready, NULL);
+    pthread_cond_init(&cond_cola_susp_block, NULL);
 
     // INICIAR SERVIDOR
     server_ks = iniciar_servidor(log_ks, puerto);
@@ -99,7 +113,7 @@ void* handle_connections(void* arg){
         int *socket_cliente = malloc(sizeof(int));
         *socket_cliente = client_fd;
 
-        handshake handshake_modulo = recibir_operacion(*socket_cliente);
+        op_code handshake_modulo = recibir_operacion(*socket_cliente);
 
         switch (handshake_modulo) {
  			case HANDSHAKE_CPU:
@@ -151,12 +165,12 @@ void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {
     op_code codigo_operacion = recibir_operacion(socket_km);
 
     if (codigo_operacion == INICIALIZAR_PROCESO_OK) {
+        log_debug(log_ks, "Kernel Memory confirmo INICIALIZAR_PROCESO_OK PARA EL PROCESO INICIAL");
         t_proceso_pcb* pcb_proceso_inicial = crear_pcb(0, PRIORIDAD_MAXIMA);
 
         pthread_mutex_lock(&mutex_cola_ready);
-        cambiar_estado_proceso(pcb_proceso_inicial, READY);
-        // aca podriamos proteger la variable global con un mutex de C
         list_add(cola_ready, pcb_proceso_inicial);
+        cambiar_estado_proceso(pcb_proceso_inicial, READY);
         pthread_mutex_unlock(&mutex_cola_ready);
         pthread_cond_signal(&cond_cola_ready);
     } else {
@@ -167,7 +181,10 @@ void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {
 
 
 // Envia la operacion para que KM cree las estructuras internas para el proceso
-void enviar_proceso(int socket_km, int pid, char* path_proceso) { 
+void enviar_proceso(int socket_km, pid_t pid, char* path_proceso) { 
+    
+    log_debug(log_ks, "Enviando solicitud INICIALIZAR_PROCESO a Kernel Memory");
+    
     op_code codigo_operacion = INICIALIZAR_PROCESO;  
     
     t_paquete *paquete_proceso = crear_paquete(codigo_operacion);
@@ -178,9 +195,12 @@ void enviar_proceso(int socket_km, int pid, char* path_proceso) {
     enviar_paquete_send_all(paquete_proceso, socket_km);
     
     eliminar_paquete(paquete_proceso);
+
+    log_debug(log_ks, "Solicitud INICIALIZAR_PROCESO enviada a Kernel Memory");
+
 }
 
-t_proceso_pcb* crear_pcb(int pid, int prioridad) {
+t_proceso_pcb* crear_pcb(pid_t pid, int prioridad) {
     t_proceso_pcb* pcb = malloc(sizeof(t_proceso_pcb));
 
     pcb->pid = pid;
@@ -194,12 +214,6 @@ t_proceso_pcb* crear_pcb(int pid, int prioridad) {
 
     return pcb;
 }
-
-/**
- * Obtener el PID de un proceso
- * obtener_pid() {}
- */
-
 
 const char* estado_to_string(t_estado_proceso estado) {
     switch (estado) {
@@ -222,8 +236,8 @@ void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_sigu
     return;
 }
 
-char* solicitar_contenido_a_km(int socket_km, int pid, int direccion_logica, int tamanio){  
-    op_code_ks_km codigo_operacion = SOLICITAR_CONTENIDO_MEMORIA;  
+char* solicitar_contenido_a_km(int socket_km, pid_t pid, int direccion_logica, int tamanio){  
+    op_code codigo_operacion = SOLICITAR_CONTENIDO_MEMORIA;  
     
     t_paquete *paquete_contexto = crear_paquete(codigo_operacion);
 
@@ -263,11 +277,22 @@ void liberar_recursos() {
     pthread_mutex_destroy(&mutex_cola_ready);
     pthread_mutex_destroy(&mutex_cola_block);
     pthread_mutex_destroy(&mutex_cola_exec);
+    pthread_mutex_destroy(&mutex_cola_exit);
     pthread_mutex_destroy(&mutex_lista_cpu_conectadas);
+    pthread_mutex_destroy(&mutex_lista_io_conectadas);
+    pthread_mutex_destroy(&mutex_generador_id_io);
+    pthread_mutex_destroy(&mutex_generador_pid);
+    pthread_mutex_destroy(&mutex_sleep);
+    pthread_mutex_destroy(&mutex_stdout);
+    pthread_mutex_destroy(&mutex_cola_susp_block);
+    pthread_mutex_destroy(&mutex_cola_susp_ready);
     pthread_cond_destroy(&cond_cola_ready);
     pthread_cond_destroy(&cond_cola_block);
     pthread_cond_destroy(&cond_lista_cpu_conectadas);
-    pthread_mutex_destroy(&mutex_lista_io_conectadas);
+    pthread_cond_destroy(&cond_sleep);
+    pthread_cond_destroy(&cond_stdout);
+    pthread_cond_destroy(&cond_cola_susp_block);
+    pthread_cond_destroy(&cond_cola_susp_ready);
     free(conexion_km_ptr);
     free(config_path);
     free(path_proceso_inicial);
@@ -279,27 +304,25 @@ void liberar_recursos() {
     list_destroy(cola_ready);
     list_destroy(cola_block);
     list_destroy(cola_exec);
-    list_destroy(lista_mutex);
+    list_destroy(cola_exit);
     list_destroy(lista_cpu_conectadas);
     list_destroy(lista_io_conectadas);
+    list_destroy(cola_espera_sleep);
+    list_destroy(cola_espera_stdout);
     close(server_ks);
     close(conexion_km);
     
     return;
 }
 
-//Algo así debería hacer Gabi, para poder enviarnos el id (id), intentar enviarlo como MENSAJE, no como paquete :)
-// void enviar_cpu_id(int socket_ks) {  
-//     op_code codigo_operacion = ENVIAR_CPU_ID; // debria estar en el enum de op_code
-//     t_paquete paquete = crear_paquete(codigo_operacion);
-//     int cpu_id = cpu_id_config;
+t_proceso_pcb* remover_proceso_por_pid(t_list* cola, pid_t pid) {
+    //**IMPORTANTE**: esta funcion se tiene que llamar con el mutex de su cola bloqueado 
+    for (int i = 0; i < list_size(cola); i++) {
+        t_proceso_pcb* proceso = list_get(cola, i);
 
-//     agregar_a_paquete(paquete, &cpu_id, sizeof(int));
-
-//     enviar_paquete_send_all(paquete, socket_ks);
-
-//     return;
-// }   enviar_paquete_send_all(paquete, socket_ks);
-
-//     return;
-// }
+        if (proceso->pid == pid) {
+            return list_remove(cola, i);
+        }
+    }
+    return NULL;
+}
