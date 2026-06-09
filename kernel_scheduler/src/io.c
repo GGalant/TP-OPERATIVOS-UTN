@@ -7,7 +7,7 @@ void* handle_io(void* arg) {
     t_io* io = NULL;
     free(arg); 
 
-    op_code_ks_io op = recibir_operacion(socket_io);
+    op_code op = recibir_operacion(socket_io);
     if (op != CREAR_IO) {
         log_error(log_ks, "Error en handshake de IO. Se esperaba CREAR_IO y se recibió %d", op);
         close(socket_io);
@@ -61,7 +61,6 @@ void handle_io_sleep(t_io *io) {
         enviar_paquete_send_all(paquete_sleep, io->socket_io);
         eliminar_paquete(paquete_sleep);
 
-        op_code_ks_io codigo_operacion = recibir_operacion(io->socket_io);   
         
         pid_t pid_actual = peticion->pid; // Guardamos el PID para la validación
         free(peticion); 
@@ -92,8 +91,6 @@ void handle_io_stdout(t_io *io) {
         agregar_a_paquete(paquete_stdout, peticion->contenido, strlen(peticion->contenido) + 1);
         enviar_paquete_send_all(paquete_stdout, io->socket_io);
         eliminar_paquete(paquete_stdout);
-
-        op_code_ks_io codigo_operacion = recibir_operacion(io->socket_io);
 
         pid_t pid_actual = peticion->pid; 
         free(peticion->contenido);
@@ -176,7 +173,7 @@ void finalizar_io(pid_t pid) {
 // Esta función espera la respuesta del módulo IO y se encarga de liberar la interfaz.
 // Retorna 'true' si el ciclo debe continuar, o 'false' si la IO se desconectó y el hilo debe morir.
 bool esperar_y_procesar_respuesta_io(t_io* io, pid_t pid_esperado) {
-    op_code_ks_io codigo_operacion = recibir_operacion(io->socket_io);   
+    op_code codigo_operacion = recibir_operacion(io->socket_io);   
         
     switch(codigo_operacion) {
         case FIN_IO: {

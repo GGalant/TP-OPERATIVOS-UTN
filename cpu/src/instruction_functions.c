@@ -347,12 +347,15 @@ void ejecutar_stdin(char* reg_direccion, char* reg_tamanio) {
 }
 
 void ejecutar_init_proc(char* archivo_instrucciones, char* param_prioridad) {
-    uint32_t prioridad = (uint32_t)atoi(param_prioridad);
+
+    log_debug(log_cpu, "ejecutar_init_proc(%s, %s)", archivo_instrucciones, param_prioridad);
+
+    int prioridad = atoi(param_prioridad);
 
     t_paquete* paquete = crear_paquete(SYSCALL_INIT_PROC);
     
     agregar_a_paquete(paquete, archivo_instrucciones, strlen(archivo_instrucciones) + 1);
-    agregar_a_paquete(paquete, &prioridad, sizeof(uint32_t));
+    agregar_a_paquete(paquete, &prioridad, sizeof(int));
     
     enviar_paquete_send_all(paquete, conexion_ks);
     eliminar_paquete(paquete);

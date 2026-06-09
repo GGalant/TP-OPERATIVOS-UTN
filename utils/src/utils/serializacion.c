@@ -133,7 +133,9 @@ void *recibir_buffer(int *size, int socket_cliente){
 
 	return buffer;
 }
-
+/* 
+EL INVOCADOR ES RESPONSABLE DE DESTRUIR LA LISTA CON: list_destroy() si se quiere liberar la lista pero no los elementos que contiene. - list_destroy_and_destroy_elements() si se quiere liberar la lista con los elementos que contiene
+*/
 t_list *recibir_paquete(int socket_cliente)
 {
 	int size;

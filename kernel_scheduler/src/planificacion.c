@@ -18,7 +18,7 @@ void *handle_planificacion(void *arg) {
             planificacion_rr();
             break;
         case CMN:
-            //planificacion_multinivel()
+            //planificacion_colas_multinivel()
             break;
         default:
             perror("Algoritmo de planificacion invalido");
@@ -47,7 +47,12 @@ void planificacion_fifo() {
             // Si no hay CPUs libres, esperamos a que alguna se libere.
             // pthread_cond_wait desbloquea el mutex mientras espera y lo vuelve a bloquear al despertar.
             pthread_cond_wait(&cond_lista_cpu_conectadas, &mutex_lista_cpu_conectadas);
+
+            log_debug(log_ks, "Continuando while de busqueda de CPU...");
+            
         }
+
+        log_debug(log_debug_ks, "Se encontro una CPU libre");
 
         cpu->estado = CPU_OCUPADA;
         cpu->pid_actual = proceso->pid;
@@ -66,7 +71,12 @@ void planificacion_fifo() {
 
 t_cpu* buscar_cpu_libre() {
     // IMPORTANTE: Esta función debe ser llamada con el mutex_lista_cpu_conectadas bloqueado.
+    log_debug(log_debug_ks, "Entra en la funcion buscar cpu libre ");
+    
     for (int i = 0; i < list_size(lista_cpu_conectadas); i++) {
+
+        log_debug(log_debug_ks, "entra en el for de buscar cpu libre");
+
         t_cpu* cpu = list_get(lista_cpu_conectadas, i);
         if (cpu->estado == CPU_LIBRE) {
             log_debug(log_debug_ks, "¡CPU %d libre encontrada!", cpu->cpu_id);
@@ -78,8 +88,8 @@ t_cpu* buscar_cpu_libre() {
 }
 
 void enviar_proceso_a_cpu(int socket_cpu, pid_t pid_proceso) {   
-    op_code_ks_cpu operation_code = EJECUTAR_PROCESO;
-    send(socket_cpu, &operation_code, sizeof(op_code_ks_cpu), 0);
+    op_code operation_code = EJECUTAR_PROCESO;
+    send(socket_cpu, &operation_code, sizeof(op_code), 0);
     send(socket_cpu, &pid_proceso, sizeof(int), 0);
 
     return;
@@ -109,7 +119,7 @@ void planificacion_rr() {
                 pthread_cond_wait(&cond_cola_ready, &mutex_cola_ready);
             }
 
-        t_proceso_pcb* proceso = list_remove(cola_ready, 0);//saca primer proceso de cola ready 
+        t_proceso_pcb* proceso = list_remove(cola_ready, 0);
 
         pthread_mutex_unlock(&mutex_cola_ready);
 
@@ -166,9 +176,9 @@ void* controlar_quantum(void* arg) {
     pthread_mutex_lock(&mutex_lista_cpu_conectadas);
 //si la cpu esta ocupadaa manda interrupcion de fin de quantum a la cpu 
     if (args->cpu->estado == CPU_OCUPADA && args->cpu->pid_actual == args->pid) {
-        op_code_ks_cpu codigo = INTERRUPCION_FIN_QUANTUM;
+        op_code codigo = INTERRUPCION_FIN_QUANTUM;
 
-        send(args->cpu->socket_cpu, &codigo, sizeof(op_code_ks_cpu), 0);
+        send(args->cpu->socket_cpu, &codigo, sizeof(op_code), 0);
 
         log_debug(
             log_debug_ks,

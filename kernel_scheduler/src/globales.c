@@ -62,7 +62,9 @@ void wait_mutex(t_mutex *mutex, pid_t pid_proceso)
     else
     {
         // El recurso está ocupado, el proceso debe bloquearse
-        list_add(mutex->cola_procesos, (pid_t)pid_proceso);
+        pid_t* pid_en_espera = malloc(sizeof(pid_t));
+        *pid_en_espera = pid_proceso;
+        list_add(mutex->cola_procesos, pid_en_espera);
 
         // IMPORTANTE: Aca iria la logica para bloquear ese proceso: EXEC -> BLOCK
         // enviar_a_block(pid);
@@ -75,7 +77,8 @@ void signal_mutex(t_mutex *mutex)
     if (!list_is_empty(mutex->cola_procesos))
     {
         // Pasamos el mutex al siguiente proceso en la cola
-        pid_t proximo_pid = (pid_t)list_remove(mutex->cola_procesos, 0);
+        int* pid_ptr = list_remove(mutex->cola_procesos, 0);
+        pid_t proximo_pid = *pid_ptr;
         mutex->pid_proceso = proximo_pid;
 
         log_info(log_ks, "## (%d) Toma el Mutex %s", mutex->pid_proceso, mutex->nombre_mutex);

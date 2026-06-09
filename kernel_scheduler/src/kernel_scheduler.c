@@ -16,8 +16,8 @@ int main(int argc, char *argv[]){
 
     log_info(log_ks, "## Conectado a Kernel Memory");
     
-    handshake handshake_ks = HANDSHAKE_KS;
-    send(conexion_km, &handshake_ks, sizeof(handshake), 0);
+    op_code handshake_ks = HANDSHAKE_KS;
+    send(conexion_km, &handshake_ks, sizeof(handshake_ks), 0);
     *conexion_km_ptr = conexion_km;
 
     crear_proceso_inicial(conexion_km, path_proceso_inicial);
@@ -113,7 +113,7 @@ void* handle_connections(void* arg){
         int *socket_cliente = malloc(sizeof(int));
         *socket_cliente = client_fd;
 
-        handshake handshake_modulo = recibir_operacion(*socket_cliente);
+        op_code handshake_modulo = recibir_operacion(*socket_cliente);
 
         switch (handshake_modulo) {
  			case HANDSHAKE_CPU:
@@ -165,6 +165,7 @@ void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {
     op_code codigo_operacion = recibir_operacion(socket_km);
 
     if (codigo_operacion == INICIALIZAR_PROCESO_OK) {
+        log_debug(log_ks, "Kernel Memory confirmo INICIALIZAR_PROCESO_OK PARA EL PROCESO INICIAL");
         t_proceso_pcb* pcb_proceso_inicial = crear_pcb(0, PRIORIDAD_MAXIMA);
 
         pthread_mutex_lock(&mutex_cola_ready);
@@ -181,6 +182,9 @@ void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {
 
 // Envia la operacion para que KM cree las estructuras internas para el proceso
 void enviar_proceso(int socket_km, pid_t pid, char* path_proceso) { 
+    
+    log_debug(log_ks, "Enviando solicitud INICIALIZAR_PROCESO a Kernel Memory");
+    
     op_code codigo_operacion = INICIALIZAR_PROCESO;  
     
     t_paquete *paquete_proceso = crear_paquete(codigo_operacion);
@@ -191,6 +195,9 @@ void enviar_proceso(int socket_km, pid_t pid, char* path_proceso) {
     enviar_paquete_send_all(paquete_proceso, socket_km);
     
     eliminar_paquete(paquete_proceso);
+
+    log_debug(log_ks, "Solicitud INICIALIZAR_PROCESO enviada a Kernel Memory");
+
 }
 
 t_proceso_pcb* crear_pcb(pid_t pid, int prioridad) {
@@ -230,7 +237,7 @@ void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_sigu
 }
 
 char* solicitar_contenido_a_km(int socket_km, pid_t pid, int direccion_logica, int tamanio){  
-    op_code_ks_km codigo_operacion = SOLICITAR_CONTENIDO_MEMORIA;  
+    op_code codigo_operacion = SOLICITAR_CONTENIDO_MEMORIA;  
     
     t_paquete *paquete_contexto = crear_paquete(codigo_operacion);
 

@@ -11,6 +11,7 @@ void *handle_cpu(void *arg)
     free(arg);
 
     cpu = crear_cpu(socket_cpu, cpu_id);    
+
     if (cpu == NULL) {
         perror("Error al crear CPU");
         close(socket_cpu);
@@ -18,10 +19,12 @@ void *handle_cpu(void *arg)
         return NULL;
     }
 
+    pthread_cond_signal(&cond_lista_cpu_conectadas);
+
     while (true)
     {
         // aca iria la logica de operaciones con CPU
-        op_code_ks_cpu codigo_operacion = recibir_operacion(socket_cpu);
+        op_code codigo_operacion = recibir_operacion(socket_cpu);
 
         log_info(log_ks, "## Proceso ID(<%d>) - Solicitó syscall: <%s>", cpu->pid_actual, operacion_to_string(codigo_operacion));
 
@@ -29,14 +32,18 @@ void *handle_cpu(void *arg)
         {
         case SYSCALL_INIT_PROC:
             t_list *paquete_init_proc = recibir_paquete(socket_cpu);
-            char *path = *(char*)list_get(paquete_init_proc, 0);
+            char *path = (char*)list_get(paquete_init_proc, 0);
             int prioridad = *(int *)list_get(paquete_init_proc, 1);
             list_destroy_and_destroy_elements(paquete_init_proc, free);
+
+            log_debug(log_ks, "SYSCALL_INIT_PROC: Paquete recibido");
 
             pthread_mutex_lock(&mutex_cola_exec);
             t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, cpu->pid_actual);
             pthread_mutex_unlock(&mutex_cola_exec);
 
+            log_debug(log_ks, "SYSCALL_INIT_PROC: Proceso original removido de la cola");
+            
             if (proceso == NULL)
             {
                 log_error(log_ks, "Error: No se encontró el proceso con PID %d en la cola de EXEC.", cpu->pid_actual);
@@ -44,17 +51,19 @@ void *handle_cpu(void *arg)
             }
 
             pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-            cpu->estado = CPU_OCUPADA;
+            cpu->estado = CPU_LIBRE;
             cpu->pid_actual = -1;
             pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
 
-            pthread_mutex_lock(&mutex_generador_pid);
+            log_debug(log_ks, "SYSCALL_INIT_PROC: CPU <%d> liberada", cpu->cpu_id);
+
             pid_t pid = generar_pid();
-            pthread_mutex_unlock(&mutex_generador_pid);
 
             enviar_proceso(conexion_km, pid, path);
 
             // aca podria haber un problema de comunicacion 
+            log_debug(log_ks, "Esperando confirmacion de Kernel Memory (INICIALIZAR_PROCESO_OK)...");
+
             op_code codigo_operacion = recibir_operacion(conexion_km);
 
             if (codigo_operacion == INICIALIZAR_PROCESO_OK) {
@@ -67,7 +76,7 @@ void *handle_cpu(void *arg)
                 pthread_cond_signal(&cond_cola_ready);
             } else {
                 log_error(log_ks, "Error al crear el proceso inicial en Kernel Memory. Código de op: %d", codigo_operacion);
-                return; 
+                break; 
             }
 
             break;
@@ -87,7 +96,7 @@ void *handle_cpu(void *arg)
             }
 
             pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-            cpu->estado = CPU_OCUPADA;
+            cpu->estado = CPU_LIBRE;
             cpu->pid_actual = -1;
             pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
 
@@ -102,6 +111,8 @@ void *handle_cpu(void *arg)
             int tiempo_sleep = *(int *)list_get(paquete_sleep, 0);
             list_destroy_and_destroy_elements(paquete_sleep, free);
 
+            log_debug(log_debug_ks,"REcibo paquete luego de SYSCALL_SLEEP");
+            
             // Sacar el proceso de la cola de EXEC
             pthread_mutex_lock(&mutex_cola_exec);
             t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
@@ -223,7 +234,7 @@ void *handle_cpu(void *arg)
             break;
         case SYSCALL_MUTEX_UNLOCK:
             break;
-        case -1:
+        case ERROR:
             log_error(log_ks, "CPU FD %d se desconectó. Terminando handle", socket_cpu);
             return NULL;
         default:
@@ -275,7 +286,7 @@ t_cpu *crear_cpu(int socket_cpu, int cpu_id) {
     return cpu;
 }
 
-const char *operacion_to_string(op_code_ks_cpu operacion)
+const char *operacion_to_string(op_code operacion)
 {
     switch (operacion)
     {

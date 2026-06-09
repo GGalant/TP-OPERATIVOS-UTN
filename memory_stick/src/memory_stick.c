@@ -44,9 +44,9 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    handshake handshake_MS = HANDSHAKE_MS;
+    op_code handshake_MS = HANDSHAKE_MS;
     
-    err = send(conexion_km, &handshake_MS, sizeof(handshake), 0);
+    err = send(conexion_km, &handshake_MS, sizeof(op_code), 0);
     if(err == -1){
         perror("Error al intentar el handshake con Kernel Memory");
         return EXIT_FAILURE;
@@ -77,7 +77,7 @@ void* handle_connections(void *arg){
         int *socket_cliente = malloc(sizeof(int));
         *socket_cliente = client_fd;
 
-        handshake handshake_modulo = recibir_operacion(*socket_cliente);
+        op_code handshake_modulo = recibir_operacion(*socket_cliente);
 
         switch(handshake_modulo){
             case HANDSHAKE_CPU:
@@ -97,8 +97,8 @@ void* handle_km(void* arg) {
     
     log_info(log_ms, "## Conectado a Kernel Memory");
     
-    handshake handshake_ks = HANDSHAKE_KS;
-    send(socket_km, &handshake_ks, sizeof(handshake), 0);
+    op_code handshake_ks = HANDSHAKE_KS;
+    send(socket_km, &handshake_ks, sizeof(op_code), 0);
 
     while(true) {   
         // aca iria la logica de operaciones con Kernel Memory

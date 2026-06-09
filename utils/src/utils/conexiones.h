@@ -8,9 +8,19 @@
 #include<string.h>
 #include<unistd.h>
 #include<commons/string.h>
+        
+typedef enum {
+    // ======================================
+    //* INICIO: enums generales:
+    
+    ERROR = -1,
+    MENSAJE,
+    PAQUETE,
 
-
-typedef enum {  
+    //* FIN: enums generales
+    // ======================================
+    //* INICIO: HANDSHAKES
+    
     HANDSHAKE_SWAP,
     HANDSHAKE_KM,
     HANDSHAKE_KS,
@@ -18,31 +28,32 @@ typedef enum {
     HANDSHAKE_CPU,
     HANDSHAKE_IO,
     HANDSHAKE_MEMORYSTICK,
-}handshake;
 
-        
-typedef enum {
-    MENSAJE,
-    PAQUETE,
-    ENVIAR_CONTEXTO, // de kernel memory, para recibir de cpu
-    RECIBIR_CONTEXTO, // de kernel memory, para recibir de cpu
-    INICIALIZAR_PROCESO,
-    INICIALIZAR_PROCESO_OK,
-    CONECTAR_MS,
+    //* FIN: HANDSHAKES
+    // ======================================
+    //--------------------------------------
+    // ======================================
+    //*INICIO: KERNEL MEMORY -CPU
+
+    ENVIAR_CONTEXTO,
+    RECIBIR_CONTEXTO,
     PEDIDO_INSTRUCCION,
     RTA_PEDIDO_INSTRUCCION,
-    STDOUT_LECTURA,
-    STDIN_ESCRITURA,
-    CREACION_DE_PROCESO,
-    SOLICITUD_TRADUCCION,
-}op_code;
 
-/* typedef enum {
-    INICIALIZAR_PROCESO,
-    INICIALIZAR_PROCESO_OK
-} op_code_ks_km; */
- 
-typedef enum {  
+    //*FIN: KERNEL MEMORY - CPU
+    // ======================================
+
+    // ======================================
+    //* INICIO: KERNEL MEMORY - MEMORY STICK
+
+    CONECTAR_MS,
+
+    //* FIN: KERNEL MEMORY - MEMORY STICK
+    // ======================================
+
+    // ======================================
+    //* INICIO: KERNEL SCHEDULER - CPU:
+
     EJECUTAR_PROCESO,
     SYSCALL_EXIT,
     SYSCALL_SLEEP,
@@ -57,19 +68,34 @@ typedef enum {
     SYSCALL_MUTEX_CREATE,
     SYSCALL_MEM_ALLOC,
     SYSCALL_MEM_FREE,
-} op_code_ks_cpu;
 
-typedef enum {
+    //* FIN: KERNEL SCHEDULER - CPU
+    // ======================================
+
+    // ======================================
+    //* INICIO: KERNEL SCHEDULER - IO
+
     CREAR_IO,
     SOLICITUD_IO_SLEEP,
     SOLICITUD_IO_STDOUT,
     FIN_IO,
-} op_code_ks_io;
 
-typedef enum {
+    //* FIN: KERNEL SCHEDULER - IO
+    // ======================================
+    //* INICIO: KERNEL SCHEDULER - KERNEL MEMORY
+
     SOLICITAR_CONTENIDO_MEMORIA,
     RESPUESTA_CONTENIDO_MEMORIA,
-} op_code_ks_km;
+    INICIALIZAR_PROCESO,
+    INICIALIZAR_PROCESO_OK,
+    STDOUT_LECTURA,
+    STDIN_ESCRITURA,
+    CREACION_DE_PROCESO,
+
+    //* FIN: KERNEL SCHEDULER - KERNEL MEMORY
+    // ======================================
+
+}op_code;
 
 int crear_conexion(char *ip, char* puerto);
 int iniciar_servidor(t_log *logger, char *puerto);

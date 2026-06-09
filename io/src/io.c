@@ -13,7 +13,7 @@ int main(int argc, char *argv[]){
     }
 
     log_info(log_io, "## Conectado a Kernel Scheduler");
-    handshake handshake_io = HANDSHAKE_IO;
+    op_code handshake_io = HANDSHAKE_IO;
     send(conexion_ks, &handshake_io, sizeof(handshake), 0);
     
     enviar_io();

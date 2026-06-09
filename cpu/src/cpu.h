@@ -30,7 +30,7 @@ typedef enum {
     INIT_PROC,
     EXIT,
     //Creada por nosotros
-    ERROR = -1,
+    INSTRUCTION_ERROR = -1,
 
 } InstrucionCode;
 
