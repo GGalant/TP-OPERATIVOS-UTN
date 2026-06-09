@@ -65,6 +65,7 @@ void *handle_cpu(void *arg)
             // aca podria haber un problema de comunicacion 
             log_debug(log_ks, "Esperando confirmacion de Kernel Memory (INICIALIZAR_PROCESO_OK)...");
 
+            //! NUNCA LEE ESTA OPERACION PORQUE EL MENSAJE DE KERNEL MEMORY ES LEIDO EN ./kernel_scheduler.c : handle_km()
             op_code codigo_operacion = recibir_operacion(conexion_km);
 
             if (codigo_operacion == INICIALIZAR_PROCESO_OK) {
