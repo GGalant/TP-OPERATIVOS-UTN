@@ -130,7 +130,17 @@ void* handle_ks(void* arg) {
                 char* path_instrucciones_recibido = (char*)list_get(proceso_inicial, 1);
                 char *str_pid_recibido = string_itoa(pid_recibido);
 
+                log_debug(log_km, "Intentando cargar las instrucciones desde %s", path_instrucciones_recibido);
+                
                 t_list* instrucciones = cargar_instrucciones(path_instrucciones_recibido); //arreglarla
+
+                list_destroy_and_destroy_elements(proceso_inicial, free);
+                
+                if(instrucciones == NULL){
+                    log_error(log_km, "No se logró obtener las instrucciones");
+                    return NULL;
+                }
+
                 dictionary_put(diccionario_paths,str_pid_recibido,instrucciones); //diccionaria con instrucciones x pid
                 //log_debug(log_km_debug, "Instrucciones del proceso: <%d> guardadas correctamente", pid_recibido);
                 log_info(log_km, "Instrucciones del proceso: <%d> guardadas correctamente", pid_recibido);
@@ -158,8 +168,6 @@ void* handle_ks(void* arg) {
 
                 op_code inicializar_proceso_ok = INICIALIZAR_PROCESO_OK;
                 send(socket_ks, &inicializar_proceso_ok, sizeof(inicializar_proceso_ok),0);
-                
-                list_destroy_and_destroy_elements(proceso_inicial, free);
 
                 break;
 

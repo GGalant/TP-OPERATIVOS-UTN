@@ -34,7 +34,6 @@ void *handle_cpu(void *arg)
             t_list *paquete_init_proc = recibir_paquete(socket_cpu);
             char *path = (char*)list_get(paquete_init_proc, 0);
             int prioridad = *(int *)list_get(paquete_init_proc, 1);
-            list_destroy_and_destroy_elements(paquete_init_proc, free);
 
             log_debug(log_ks, "SYSCALL_INIT_PROC: Paquete recibido");
 
@@ -60,6 +59,8 @@ void *handle_cpu(void *arg)
             pid_t pid = generar_pid();
 
             enviar_proceso(conexion_km, pid, path);
+
+            list_destroy_and_destroy_elements(paquete_init_proc, free);
 
             // aca podria haber un problema de comunicacion 
             log_debug(log_ks, "Esperando confirmacion de Kernel Memory (INICIALIZAR_PROCESO_OK)...");
