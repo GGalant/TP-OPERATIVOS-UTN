@@ -4,7 +4,8 @@
 #────────────────────── VERSION FULL FULL DEL SCRIPT DE RUN ──────────────────────#
 #=================================================================================#
 
-# > Para poder ejecutar este script deben de dársele permisos ejecutando en la terminal:
+# > IMPORTANTE:
+# > Para poder ejecutar este script deben de dársele permisos de ejecución, mediante el comando en la terminal:
 # > chmod +x makerun.sh
 
 path_proceso_inicial="PLANI_PRE_0.prc"

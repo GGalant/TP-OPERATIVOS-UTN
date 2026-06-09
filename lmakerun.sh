@@ -6,13 +6,19 @@
 
 path_proceso_inicial="PLANI_PRE_0.prc"
 
-# > Para poder ejecutar este script deben de dársele permisos ejecutando en la terminal:
-# > chmod +x lmakerun.sh
+# > IMPORTANTE:
+# > Para poder ejecutar este script deben de dársele permisos de ejecución, mediante el comando en la terminal:
+# > chmod +x makerun.sh
+
 
 # Este script crea terminales Xterm.
 
-# Elimino Xterm existentes
+
+#──── ELIMINO XTERM ANTERIORES────────────────────────────────────────────────────
 pkill xterm
+
+
+#──── BUILDEAMOS CON MAKE──────────────────────────────────────────────────────────
 
 # Make todo los programas "> /dev/null" era un intento de que no loguee el make, pero que loguee ya fue
 make -C ./kernel_memory clean > /dev/null
@@ -32,6 +38,9 @@ make -C ./io > /dev/null
 
 make -C ./swap clean > /dev/null
 make -C ./swap > /dev/null
+
+
+#──── CORREMOS LAS TERMINALES──────────────────────────────────────────────────────────
 
 # Corro cada programa en una terminal Xterm sin estilos
 xterm -T "KERNEL MEMORY" -hold \
