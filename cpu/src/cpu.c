@@ -20,6 +20,7 @@ int main(int argc, char *argv[]){
     int status = inicializacion_y_pasos_iniciales(argc, argv);
 
     if(status == -1){
+        perror("ERROR DESCONOCIDO, NO SE PUDO INICIAR LA CPU");
         return EXIT_FAILURE;
     }
 
@@ -86,15 +87,13 @@ int main(int argc, char *argv[]){
     return 0;
 }
 
-t_log inicializar_log(int log_level){    //TODO2 ver si int puede ser enum de commons
-
+t_log* inicializar_log(t_log_level log_level){
     char* log_filename = string_from_format("cpu_%d.log", id_cpu);
     char* log_header   = string_from_format("CPU <%d>", id_cpu);
-    t_log logger = log_create(log_filename, log_header, 1, log_level);
+    t_log* logger = log_create(log_filename, log_header, 1, log_level);
     free(log_filename);
     free(log_header);
     return logger;
-
 }
 
 pid_t recibir_pid_de_ks(){
@@ -120,7 +119,7 @@ void flush_buffers(){
     instruccion_buffer[0] = '\0';
     instruccion_actual.cant_params = 0;
     instruccion_actual.icode = INSTRUCTION_ERROR;
-    for(int i = 0; i++; i < MAX_INSTRUCTION_PARAMS){
+    for(int i = 0;i < MAX_INSTRUCTION_PARAMS; i++){
         instruccion_actual.params[i][0] = '\0';
     }
 }
@@ -137,7 +136,6 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
     char* id_cpu_str = argv[2];
     id_cpu = atoi(id_cpu_str);
     
-    log_info(log_cpu, "Iniciando CPU <%d>", id_cpu);
 
     //Pase de "Archivo de configuracion" a estructura:
     t_cpu_env env = {0};
@@ -151,9 +149,11 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
     map_config_variables(config, &env);
 
     //TODO2 ver si int puede ser enum de commons
-    int log_level = log_level_from_string(env.str_log_level);
+    t_log_level log_level = log_level_from_string(env.str_log_level);
     
     log_cpu = inicializar_log(log_level);
+
+    log_info(log_cpu, "Iniciando CPU <%d>", id_cpu);
 
     //Conexiones con modulos
     conexion_ks = conectar_modulo(env.ip_ks, env.puerto_ks, "Kernel Scheduler");
@@ -414,7 +414,7 @@ bool check_interrupt(){
         return true;
     }
 
-    op_code codigo_operacion = recibir_operacion(conexion_ks);
+    op_code codigo_operacion = recibir_operacion_DONT_WAIT(conexion_ks, log_cpu);
 
     if(codigo_operacion == INTERRUPCION_DESALOJO || codigo_operacion == INTERRUPCION_FIN_QUANTUM){
         //TODO ver si hay que leer algo mas o realizar alguna accion.

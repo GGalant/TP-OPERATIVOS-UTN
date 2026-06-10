@@ -128,8 +128,11 @@ int recibir_operacion_DONT_WAIT(int socket_cliente, t_log *logger) {
         return -1;
     }
 
-    log_error(logger, "recibir_operacion_DONT_WAIT: Error en recv (bytes=%zd, errno=%d - %s)",
+	if(logger != NULL){
+    log_error(logger, "recibir_operacion_DONT_WAIT: Error en recv (bytes=%d, errno=%d - %s)",
               bytes_recibidos, errno, strerror(errno));
+	}
+
     return -1;
 }
 

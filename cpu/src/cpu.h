@@ -90,7 +90,7 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]);
 * Con el log_level crea un log y lo devuelve.
 * El invocador es responsable de destruirlo con log_destroy(log)
 */
-t_log inicializar_log(int log_level);
+t_log* inicializar_log(t_log_level log_level);
 
 /*
 * Devuelve un puntero al registro de la CPU que coincida con la string o NULL en caso default.
