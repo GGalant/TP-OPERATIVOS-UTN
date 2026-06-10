@@ -7,15 +7,16 @@ static char instruccion_buffer[128];
 int conexion_ms = -1;
 int conexion_ks = -1;
 int conexion_km = -1;
-int id_cpu = -1
+int id_cpu = -1;
 bool se_ejecuto_syscall = false;
 t_cpu cpu = {0};
-t_log* log_cpu = {0};
+t_log* log_cpu = NULL;
 t_instruccion instruccion_actual = {0};
-bool error_fatal = false
+bool error_fatal = false;
 
 int main(int argc, char *argv[]){
 
+    //El log se asigna, debe ser destruido con log_destroy
     int status = inicializacion_y_pasos_iniciales(argc, argv);
 
     if(status == -1){
@@ -32,7 +33,7 @@ int main(int argc, char *argv[]){
 
         switch(codigo_operacion) {  
 
-            case EJECUTAR_PROCESO:
+            case EJECUTAR_PROCESO: {
                 pid_t pid_recibido = recibir_pid(conexion_ks);
 
                 pull_contexto(pid_recibido);
@@ -54,9 +55,11 @@ int main(int argc, char *argv[]){
                 //enviar_pid_actual_a_KS();
 
                 break;
+            }
 
             case ERROR:
                 log_error(log_cpu, "El servidor Kernel Scheduler se desconectó.");
+                log_destroy(log_cpu);
                 return EXIT_FAILURE;  
 
             case INTERRUPCION_FIN_QUANTUM:
@@ -80,7 +83,6 @@ int main(int argc, char *argv[]){
     }
     
     log_destroy(log_cpu);
-    config_destroy(config);
     
     return 0;
 }
@@ -89,9 +91,10 @@ t_log inicializar_log(int log_level){    //TODO2 ver si int puede ser enum de co
 
     char* log_filename = string_from_format("cpu_%d.log", id_cpu);
     char* log_header   = string_from_format("CPU <%d>", id_cpu);
-    log_cpu = log_create(log_filename, log_header, 1, log_level);
+    t_log logger = log_create(log_filename, log_header, 1, log_level);
     free(log_filename);
     free(log_header);
+    return logger
 
 }
 
@@ -114,7 +117,7 @@ pid_t recibir_pid(int fd){
 }
 
 void flush_buffers(){
-    log_debug("Finalizando ciclo: Limpiando buffers");
+    log_debug(log_debu, "Finalizando ciclo: Limpiando buffers");
     instruccion_buffer[0] = '\0';
     instruccion_actual = {0};
 }
@@ -159,6 +162,8 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
         log_destroy(log_cpu);
         return -1;
     }
+
+    config_destroy(config);
     
     //Envio de handshakes
     op_code handshake_cpu = HANDSHAKE_CPU;
@@ -226,8 +231,8 @@ void recibir_instruccion_de_km(){
 
     int res = recv(conexion_km, &largo, sizeof(int), MSG_WAITALL);
 
-    if(res = -1 || res = 0){
-        log_error("Fetch: ERROR en el pedido del largo de instruccion, la conexion se perdió");
+    if(res == -1 || res == 0){
+        log_error(log_cpu, "Fetch: ERROR en el pedido del largo de instruccion, la conexion se perdió");
         error_fatal = true;
         return;
     }
@@ -248,9 +253,9 @@ void recibir_instruccion_de_km(){
 
     log_debug(log_cpu, "Fetch: recibiendo la instruccion...");
     
-	int largo_recibido = recv(conexion_km, instruccion_buffer, *largo, MSG_WAITALL);
+	int largo_recibido = recv(conexion_km, instruccion_buffer, largo, MSG_WAITALL);
     
-    if(largo_recibido = -1 || largo_recibido = 0){
+    if(largo_recibido == -1 || largo_recibido == 0){
         log_error("Fetch: ERROR en el pedido de la instruccion la conexion se perdió");
         error_fatal = true;
         return;
@@ -262,9 +267,9 @@ void recibir_instruccion_de_km(){
         return;
     }
 
-    instruccion_buffer[size] = '\0';
+    instruccion_buffer[largo] = '\0';
 
-    log_debug("Fetch: Instruccion recibida y cargada en el buffer de instruccion");
+    log_debug(log_cpu, "Fetch: Instruccion recibida y cargada en el buffer de instruccion");
 
     return;
 }
@@ -274,16 +279,16 @@ void decode(){
     log_debug(log_cpu, "Decode: Iniciando decodificacion");
 
     if(instruccion_buffer[0] == '\0'){
-        log_error(log_cpu, "Decode: No se encontraron instrucciones en el buffer")
+        log_error(log_cpu, "Decode: No se encontraron instrucciones en el buffer");
         error_fatal = true;
-        return
+        return;
     }
 
     char ** splitted_instruction = string_split(instruccion_buffer, " ");
 
     instruccion_actual.icode = string_to_instruction_code(splitted_instruction[0]);
 
-    if (instruccion_actual.icode = INSTRUCTION_ERROR) {
+    if (instruccion_actual.icode == INSTRUCTION_ERROR) {
         error_fatal = true;
         string_array_destroy(splitted_instruction);
         return;
@@ -550,7 +555,7 @@ void limpiar_contexto(){
     cpu.edx = 0;
     cpu.si = 0;
     cpu.di = 0;
-    cpu_tabla_segmentos = NULL;
+    cpu.tabla_segmentos = NULL;
     //cpu.tabla_segmentos = *(t_list**)list_get(paquete_contexto, 12);
 
 }
@@ -588,7 +593,7 @@ int pull_contexto(pid_t pid_a_pedir) {
 
     list_destroy_and_destroy_elements(paquete_contexto, free);
 
-    if(cpu.pid != pid_recibido){
+    if(pid_a_pedir != cpu.pid){
         log_error(log_cpu, "El contexto recibido e integrado no corresponde al pid solicitado !");
         error_fatal = true;
         return -1;
