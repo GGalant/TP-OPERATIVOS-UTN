@@ -129,6 +129,7 @@ void decode();
 void execute();
 bool check_interrupt();
 
+pid_t recibir_pid_de_ks();
 /* 
 * Espera un tamanio y un string de Kernel Memory y lo carga en el buffer de instruccion.
 * Pertenece al Fetch.

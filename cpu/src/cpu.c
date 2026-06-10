@@ -34,7 +34,7 @@ int main(int argc, char *argv[]){
         switch(codigo_operacion) {  
 
             case EJECUTAR_PROCESO: {
-                pid_t pid_recibido = recibir_pid(conexion_ks);
+                pid_t pid_recibido = recibir_pid_de_ks();
 
                 pull_contexto(pid_recibido);
 
@@ -75,7 +75,6 @@ int main(int argc, char *argv[]){
         }
 
         if(error_fatal){
-            config_destroy(config);
             log_destroy(log_cpu);
             return EXIT_FAILURE;
         }
@@ -94,11 +93,11 @@ t_log inicializar_log(int log_level){    //TODO2 ver si int puede ser enum de co
     t_log logger = log_create(log_filename, log_header, 1, log_level);
     free(log_filename);
     free(log_header);
-    return logger
+    return logger;
 
 }
 
-pid_t recibir_pid(int fd){
+pid_t recibir_pid_de_ks(){
 
     pid_t pid_recibido;
 
@@ -117,9 +116,13 @@ pid_t recibir_pid(int fd){
 }
 
 void flush_buffers(){
-    log_debug(log_debu, "Finalizando ciclo: Limpiando buffers");
+    log_debug(log_debug, "Finalizando ciclo: Limpiando buffers");
     instruccion_buffer[0] = '\0';
-    instruccion_actual = {0};
+    instruccion_actual.cant_params = 0;
+    instruccion_actual.icode = INSTRUCTION_ERROR;
+    for(int i = 0; i++; i < MAX_INSTRUCTION_PARAMS){
+        instruccion_actual.params[i] = '\0';
+    }
 }
 
 int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
@@ -150,7 +153,7 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
     //TODO2 ver si int puede ser enum de commons
     int log_level = log_level_from_string(env.str_log_level);
     
-    log_cpu = inicializar_log(env);
+    log_cpu = inicializar_log(log_level);
 
     //Conexiones con modulos
     conexion_ks = conectar_modulo(env.ip_ks, env.puerto_ks, "Kernel Scheduler");
@@ -256,13 +259,13 @@ void recibir_instruccion_de_km(){
 	int largo_recibido = recv(conexion_km, instruccion_buffer, largo, MSG_WAITALL);
     
     if(largo_recibido == -1 || largo_recibido == 0){
-        log_error("Fetch: ERROR en el pedido de la instruccion la conexion se perdió");
+        log_error(log_cpu, "Fetch: ERROR en el pedido de la instruccion la conexion se perdió");
         error_fatal = true;
         return;
     }
     
     if(largo_recibido != largo){
-        log_error("Fetch: La instruccion recibida de KM no parece ser la prometida, no cumple con el largo informado justo antes");
+        log_error(log_cpu, "Fetch: La instruccion recibida de KM no parece ser la prometida, no cumple con el largo informado justo antes");
         error_fatal = true;
         return;
     }
