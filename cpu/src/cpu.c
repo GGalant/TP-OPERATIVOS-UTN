@@ -7,52 +7,157 @@ static char instruccion_buffer[128];
 int conexion_ms = -1;
 int conexion_ks = -1;
 int conexion_km = -1;
+int id_cpu = -1
 bool se_ejecuto_syscall = false;
 t_cpu cpu = {0};
 t_log* log_cpu = {0};
 t_instruccion instruccion_actual = {0};
+bool error_fatal = false
 
 int main(int argc, char *argv[]){
 
-    if(argc<3){
-        perror("No se proporcionaron todos los argumentos [Archivo Config] [Identificador]");
-        return EXIT_FAILURE;
-    }
-    
-    //Variables de inicializacion
-    char* config_path = argv[1]; 
-    char* id_cpu_str = argv[2];
-    int id_cpu = atoi(id_cpu_str);
-    
+    int status = inicializacion_y_pasos_iniciales(argc, argv);
 
-    //Variables de configuracion:
-    t_cpu_env env = {0};
-
-    t_config* config = config_create(config_path);
-
-    if(config == NULL){
+    if(status == -1){
         return EXIT_FAILURE;
     }
 
-    map_config_variables(config, &env);
+    while(true) {
 
-    int log_level = log_level_from_string(env.str_log_level);
+        log_debug(log_cpu, "¡ Estoy libre !");
+
+        op_code codigo_operacion = recibir_operacion(conexion_ks);
+
+        log_debug(log_cpu, "Kernel Scheduler mandó una operación");
+
+        switch(codigo_operacion) {  
+
+            case EJECUTAR_PROCESO:
+                pid_t pid_recibido = recibir_pid(conexion_ks);
+
+                pull_contexto(pid_recibido);
+
+                do { 
+
+                fetch();
+                decode();
+                execute();
+                flush_buffers();
+
+                } while (!check_interrupt());
+
+                push_contexto();
+                
+                limpiar_contexto();
+
+                //TODO hace falta enviar el pid a KS?
+                //enviar_pid_actual_a_KS();
+
+                break;
+
+            case ERROR:
+                log_error(log_cpu, "El servidor Kernel Scheduler se desconectó.");
+                return EXIT_FAILURE;  
+
+            case INTERRUPCION_FIN_QUANTUM:
+            case INTERRUPCION_DESALOJO:
+                //Si el Kernel Scheduler envia una interrupcion en el mismo momento que la CPU ejecuta una SYSCALL, 
+                //la interrupcion queda en el buffer y por lo tanto se lee en esta etapa, pero ya no tiene relevanica
+                log_debug(log_cpu, "Se recibio una Interrupcion fuera del ciclo de instruccion, se desestima.");
+                break;
+
+            default: 
+                log_warning(log_cpu, "Operacion desconocida: %d", codigo_operacion);
+                break;
+        }
+
+        if(error_fatal){
+            config_destroy(config);
+            log_destroy(log_cpu);
+            return EXIT_FAILURE;
+        }
+
+    }
+    
+    log_destroy(log_cpu);
+    config_destroy(config);
+    
+    return 0;
+}
+
+t_log inicializar_log(int log_level){    //TODO2 ver si int puede ser enum de commons
+
     char* log_filename = string_from_format("cpu_%d.log", id_cpu);
     char* log_header   = string_from_format("CPU <%d>", id_cpu);
     log_cpu = log_create(log_filename, log_header, 1, log_level);
     free(log_filename);
     free(log_header);
+
+}
+
+pid_t recibir_pid(int fd){
+
+    pid_t pid_recibido;
+
+    recv(conexion_ks, &pid_recibido, sizeof(pid_t), MSG_WAITALL);
+
+    if(pid_recibido == -1){
+        log_error(log_cpu, "Error al recibir el PID");
+        error_fatal = true;
+        return pid_recibido;
+    } 
+    
+    log_debug(log_cpu, "Se recibio el PID: %u", pid_recibido);
+
+    return pid_recibido;
+
+}
+
+void flush_buffers(){
+    log_debug("Finalizando ciclo: Limpiando buffers");
+    instruccion_buffer[0] = '\0';
+    instruccion_actual = {0};
+}
+
+int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
+    
+    if(argc<3){
+        perror("No se proporcionaron todos los argumentos [Archivo Config] [Identificador]");
+        return -1;
+    }
+    
+    //Argumentos iniciales
+    char* config_path = argv[1]; 
+    char* id_cpu_str = argv[2];
+    id_cpu = atoi(id_cpu_str);
+    
     log_info(log_cpu, "Iniciando CPU <%d>", id_cpu);
 
-    //conexiones con modulos
-    conexion_ks = conectar_modulo_logueando(env.ip_ks, env.puerto_ks, "Kernel Scheduler");
-    conexion_km = conectar_modulo_logueando(env.ip_km, env.puerto_km, "Kernel Memory");
-    conexion_ms = conectar_modulo_logueando(env.ip_ms, env.puerto_ms, "Memory Stick");
+    //Pase de "Archivo de configuracion" a estructura:
+    t_cpu_env env = {0};
+
+    t_config* config = config_create(config_path);
+
+    if(config == NULL){
+        return -1;
+    }
+
+    map_config_variables(config, &env);
+
+    //TODO2 ver si int puede ser enum de commons
+    int log_level = log_level_from_string(env.str_log_level);
+    
+    log_cpu = inicializar_log(env);
+
+    //Conexiones con modulos
+    conexion_ks = conectar_modulo(env.ip_ks, env.puerto_ks, "Kernel Scheduler");
+    conexion_km = conectar_modulo(env.ip_km, env.puerto_km, "Kernel Memory");
+    conexion_ms = conectar_modulo(env.ip_ms, env.puerto_ms, "Memory Stick");
 
     if(conexion_ks == -1 || conexion_km == -1 || conexion_ms == -1 ){
         config_destroy(config);
         log_destroy(log_cpu);
-        return EXIT_FAILURE;
+        return -1;
     }
     
     //Envio de handshakes
@@ -66,58 +171,6 @@ int main(int argc, char *argv[]){
     
     send(conexion_ms, &handshake_cpu, sizeof(op_code), 0);
 
-    while(true) {
-
-        log_debug(log_cpu, "¡ Estoy libre !");
-        op_code codigo_operacion = recibir_operacion(conexion_ks);
-        log_debug(log_cpu, "Kernel Scheduler mandó una operación");
-
-        switch(codigo_operacion) {  
-            case EJECUTAR_PROCESO:
-                pid_t pid_recibido;
-                recv(conexion_ks, &pid_recibido, sizeof(pid_t), MSG_WAITALL);
-
-                if(pid_recibido == -1){
-                    log_error(log_cpu, "Error al recibir el PID de Kernel Scheduler");
-                    config_destroy(config);
-                    log_destroy(log_cpu);
-                    return EXIT_FAILURE;
-                }
-
-                log_debug(log_cpu, "Recibido el PID: %u", pid_recibido);
-
-                cpu.pid = pid_recibido;
-
-                pull_contexto();
-
-                do { //TODO poner esto mas lindo que este dowhile horrible inencontrable
-                if(fetch() == NULL){
-                    log_error(log_cpu, "Error en fetch."); //Tal vez interrumpir y decirle al KS
-                    break;
-                };
-                decode();
-                execute();
-                } while (!check_interrupt());
-
-                push_contexto();
-                
-                //TODO hace falta enviar el pid a KS?
-                //enviar_pid_actual_a_KS();
-
-                break;
-            case -1:
-                log_error(log_cpu, "El servidor Kernel Scheduler se desconectó.");
-                return EXIT_FAILURE;  
-
-            default: //Si el Kernel Scheduler envia una interrupcion en el mismo momento que la CPU ejecuta una SYSCALL, la interrupcion queda en el buffer y por lo tanto se lee, pero ya no tiene relevanica
-                log_warning(log_cpu, "operacion desconocida: %d", codigo_operacion);
-                break;
-        }
-    }
-    
-    log_destroy(log_cpu);
-    config_destroy(config);
-    
     return 0;
 }
 
@@ -134,10 +187,6 @@ void enviar_pid_actual_a_KS(){ //TODO mejorar manejo
     return;
 }
 
-/*
-Envia un pedido de instruccion a Kernel Memory y la carga en el buffer de instruccion del CPU
-Devuelve NULL ante error, o el buffer estatico (instruccion_buffer) ante ejecucion exitosa.
-*/
 void* fetch(){
 
     log_info(log_cpu, "## PID: %u - FETCH - Program Counter: %u", cpu.pid, cpu.pc);
@@ -145,7 +194,6 @@ void* fetch(){
     t_paquete* paquete = crear_paquete(PEDIDO_INSTRUCCION);
     agregar_a_paquete(paquete, &cpu.pid, sizeof(pid_t));
     agregar_a_paquete(paquete, &cpu.pc, sizeof(uint32_t));
-
     enviar_paquete_send_all(paquete, conexion_km);
     eliminar_paquete(paquete);
 
@@ -153,61 +201,93 @@ void* fetch(){
     
     if(operacion == -1){
         log_error(log_cpu, "Fetch: Error al recibir_operacion");
+        error_fatal = true;
         return NULL;
     }
 
     if(operacion != RTA_PEDIDO_INSTRUCCION){
         log_error(log_cpu, "Fetch: La operacion recibida de Kernel Memory no fue la esperada, se recibio: %d", operacion);
+        error_fatal = true;
         return NULL;
     }
 
-    int size;
-    void* temp = recibir_buffer(&size, conexion_km);
-
-    log_debug(log_cpu, "Fetch: se recibió un buffer...");
-
-    if(temp == NULL){
-        log_error(log_cpu, "Fetch: El buffer recibido de KM es NULL o el tamanio es invalido");
-        return NULL;
-    }
-
-    if(size <= 0){
-        log_error(log_cpu, "Fetch: El size obtenido es invalido");
-        return NULL;
-    }
-
-    if(size >= MAX_BUFFER_INSTRUCCION){
-        log_error(log_cpu, "Fetch: La instruccion recibida de KM supera el tamanio maximo para una instruccion");
-        return NULL;
-    }
-
-    memcpy(instruccion_buffer, temp, size);
-    instruccion_buffer[size] = '\0';
-
-    free(temp);
+    recibir_instruccion_de_km();
+    
     log_debug(log_cpu, "Fetch: Finalizado exitosamente");
-
+    
     return instruccion_buffer;
     
 };
 
-/*
-Lee del Buffer Estatico de Instruccion (instruccion_buffer) y escribe la instruccion decodificada en el struct estatico instruccion_actual
-el icode de la instruccion puede ser ERROR.
-*/
+void recibir_instruccion_de_km(){
+    int largo;
+
+    log_debug(log_cpu, "Fetch: recibiendo la longitud de la instruccion...");
+
+    int res = recv(conexion_km, &largo, sizeof(int), MSG_WAITALL);
+
+    if(res = -1 || res = 0){
+        log_error("Fetch: ERROR en el pedido del largo de instruccion, la conexion se perdió");
+        error_fatal = true;
+        return;
+    }
+
+    log_debug(log_cpu, "Fetch: largo de la instruccion obtenida.");
+
+    if(largo <= 0){
+        log_error(log_cpu, "Fetch: El largo de instruccion obtenido es invalido");
+        error_fatal = true;
+        return;
+    }
+
+    if(largo >= MAX_BUFFER_INSTRUCCION){
+        log_error(log_cpu, "Fetch: La instruccion recibida de KM supera el largo maximo para una instruccion");
+        error_fatal = true;
+        return;
+    }
+
+    log_debug(log_cpu, "Fetch: recibiendo la instruccion...");
+    
+	int largo_recibido = recv(conexion_km, instruccion_buffer, *largo, MSG_WAITALL);
+    
+    if(largo_recibido = -1 || largo_recibido = 0){
+        log_error("Fetch: ERROR en el pedido de la instruccion la conexion se perdió");
+        error_fatal = true;
+        return;
+    }
+    
+    if(largo_recibido != largo){
+        log_error("Fetch: La instruccion recibida de KM no parece ser la prometida, no cumple con el largo informado justo antes");
+        error_fatal = true;
+        return;
+    }
+
+    instruccion_buffer[size] = '\0';
+
+    log_debug("Fetch: Instruccion recibida y cargada en el buffer de instruccion");
+
+    return;
+}
+
 void decode(){
 
     log_debug(log_cpu, "Decode: Iniciando decodificacion");
 
+    if(instruccion_buffer[0] == '\0'){
+        log_error(log_cpu, "Decode: No se encontraron instrucciones en el buffer")
+        error_fatal = true;
+        return
+    }
+
     char ** splitted_instruction = string_split(instruccion_buffer, " ");
 
-    if (splitted_instruction[0] == NULL) {
-        instruccion_actual.icode = ERROR;
+    instruccion_actual.icode = string_to_instruction_code(splitted_instruction[0]);
+
+    if (instruccion_actual.icode = INSTRUCTION_ERROR) {
+        error_fatal = true;
         string_array_destroy(splitted_instruction);
         return;
     }
-
-    instruccion_actual.icode = string_to_instruction_code(splitted_instruction[0]);
 
     int i = 0;
     while(splitted_instruction[i] != NULL && i < MAX_INSTRUCTION_PARAMS){
@@ -309,7 +389,7 @@ void execute(){
         ejecutar_exit();
     break;
     case INSTRUCTION_ERROR:
-    //TODO decidir que hacer ante error.
+        error_fatal = true;
     break;
     }
     return;
@@ -360,13 +440,10 @@ InstrucionCode string_to_instruction_code(char* s){
     if (strcmp(s, "INIT_PROC") == 0) return INIT_PROC;
     if (strcmp(s, "EXIT") == 0) return EXIT;
 
-    return ERROR;
+    return INSTRUCTION_ERROR;
 
 }
 
-/*
-Devuelve un puntero al registro de la CPU que coincida con la string o NULL en caso default.
-*/
 void * string_to_registro(char* s){
 
     if (strcmp(s, "AX") == 0) return &cpu.ax;
@@ -383,9 +460,7 @@ void * string_to_registro(char* s){
     return NULL;
 }
 
-
-//Conexion con modulo + log,
-int conectar_modulo_logueando(char* ip, char* puerto, char* nombre_modulo) {
+int conectar_modulo(char* ip, char* puerto, char* nombre_modulo) {
     int socket_conexion = crear_conexion(ip, puerto);
 
     if(socket_conexion == -1) {
@@ -399,7 +474,6 @@ int conectar_modulo_logueando(char* ip, char* puerto, char* nombre_modulo) {
 
 }
 
-//Mapea las variables del config a al struct pasado
 int map_config_variables(t_config* config, t_cpu_env* env){
 
     env->str_log_level = config_get_string_value(config, "LOG_LEVEL");
@@ -434,10 +508,6 @@ void integrar_contexto(t_list* paquete_contexto) {
 
 }
 
-/* 
-Toma los registros de la cpu y los empaqueta listo para enviar
-El invocador debera encargarse de invocar eliminar_paquete(t_paquete paquete);
-*/
 t_paquete *empaquetar_contexto(){
 
     t_paquete *paquete_contexto = crear_paquete(RECIBIR_CONTEXTO);
@@ -457,9 +527,8 @@ t_paquete *empaquetar_contexto(){
 
 }
 
-
-
 void push_contexto() { //TODO validar si cpu deberia encargarse de que esto no falle 
+    
     log_debug(log_cpu, "Enviando el contexto a Kernel Memory");
     t_paquete * paquete_contexto = empaquetar_contexto();
     enviar_paquete_send_all(paquete_contexto, conexion_km);
@@ -467,8 +536,27 @@ void push_contexto() { //TODO validar si cpu deberia encargarse de que esto no f
 
 }
 
-int pull_contexto() {
-    pid_t pid_a_pedir = cpu.pid;
+void limpiar_contexto(){
+
+    cpu.pid = 0;
+    cpu.pc = 0;
+    cpu.ax = 0;
+    cpu.bx = 0;
+    cpu.cx = 0;
+    cpu.dx = 0;
+    cpu.eax = 0;
+    cpu.ebx = 0;
+    cpu.ecx = 0;
+    cpu.edx = 0;
+    cpu.si = 0;
+    cpu.di = 0;
+    cpu_tabla_segmentos = NULL;
+    //cpu.tabla_segmentos = *(t_list**)list_get(paquete_contexto, 12);
+
+}
+
+int pull_contexto(pid_t pid_a_pedir) {
+
     op_code operacion = ENVIAR_CONTEXTO;
 
     send(conexion_km, &operacion, sizeof(op_code), 0);
@@ -477,19 +565,22 @@ int pull_contexto() {
     op_code resp_km = recibir_operacion(conexion_km);
 
     if (resp_km == -1) {
-        log_error(log_cpu, "Error: Kernel Memory se desconectó al pedir contexto.");
+        log_error(log_cpu, "pull_contexto: Error Kernel Memory se desconectó al pedir contexto.");
+        error_fatal = true;
         return -1;
     }
 
     if (resp_km != ENVIAR_CONTEXTO) {
-        log_error(log_cpu, "Error: KM devolvió operacion %d en vez del contexto", resp_km);
+        log_error(log_cpu, "pull_contexto: Error KM devolvió operacion %d en vez de ENVIAR_CONTEXTO", resp_km);
+        error_fatal = true;
         return -1;
     }
 
     t_list* paquete_contexto = recibir_paquete(conexion_km);
 
     if (paquete_contexto == NULL) {
-        log_error(log_cpu, "Error al recibir el buffer del contexto de Kernel Memory");
+        log_error(log_cpu, "pull_contexto: Error al recibir el buffer del contexto de Kernel Memory");
+        error_fatal = true;
         return -1;
     }
 
@@ -497,5 +588,14 @@ int pull_contexto() {
 
     list_destroy_and_destroy_elements(paquete_contexto, free);
 
+    if(cpu.pid != pid_recibido){
+        log_error(log_cpu, "El contexto recibido e integrado no corresponde al pid solicitado !");
+        error_fatal = true;
+        return -1;
+    }
+
+    log_debug(log_cpu, "pull_contexto: El contexto fue recibido e integrado correctamente. ");
+
     return 0;
+
 }
