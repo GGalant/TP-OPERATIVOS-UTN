@@ -116,7 +116,7 @@ int recibir_operacion(int socket_cliente){
 	}
 }
 
-int recibir_operacion_DONT_WAIT(int socket_cliente) {
+int recibir_operacion_DONT_WAIT(int socket_cliente, t_log *logger) {
     int cod_op;
     int bytes_recibidos = recv(socket_cliente, &cod_op, sizeof(int), MSG_DONTWAIT);
 
@@ -128,7 +128,7 @@ int recibir_operacion_DONT_WAIT(int socket_cliente) {
         return -1;
     }
 
-    log_error(log_cpu, "recibir_operacion_DONT_WAIT: Error en recv (bytes=%zd, errno=%d - %s)",
+    log_error(logger, "recibir_operacion_DONT_WAIT: Error en recv (bytes=%zd, errno=%d - %s)",
               bytes_recibidos, errno, strerror(errno));
     return -1;
 }

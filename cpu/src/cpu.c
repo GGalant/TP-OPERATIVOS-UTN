@@ -116,12 +116,12 @@ pid_t recibir_pid_de_ks(){
 }
 
 void flush_buffers(){
-    log_debug(log_debug, "Finalizando ciclo: Limpiando buffers");
+    log_debug(log_cpu, "Finalizando ciclo: Limpiando buffers");
     instruccion_buffer[0] = '\0';
     instruccion_actual.cant_params = 0;
     instruccion_actual.icode = INSTRUCTION_ERROR;
     for(int i = 0; i++; i < MAX_INSTRUCTION_PARAMS){
-        instruccion_actual.params[i] = '\0';
+        instruccion_actual.params[i][0] = '\0';
     }
 }
 
