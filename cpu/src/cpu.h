@@ -80,38 +80,99 @@ extern t_instruccion instruccion_actual;
 extern int conexion_ks;
 extern int conexion_km;
 extern int conexion_ms;
+extern int id_cpu;
 
 //region: DECLARACIONES DE FUNCIONES
 
-int get_registro_size(char* s);
-uint32_t get_registro_value(size_t registro_size, void* registro);
-void set_reg_value(size_t reg_size, void* registro, uint32_t valor);
+int inicializacion_y_pasos_iniciales(int argc, char* argv[]);
 
+/* 
+* Con el log_level crea un log y lo devuelve.
+* El invocador es responsable de destruirlo con log_destroy(log)
+*/
+t_log* inicializar_log(t_log_level log_level);
+
+/*
+* Devuelve un puntero al registro de la CPU que coincida con la string o NULL en caso default.
+*/
 void * string_to_registro(char* s);
+
 void* handle_ks(void* arg);
+
+/* 
+* Limpia el buffer de instruccion y el struct de instruccion
+*/
+void flush_buffers();
+
+/* 
+* Limpia el contexto.
+* Incluyendo la tabla de segmentos a null.
+*/
+void limpiar_contexto();
+
+/* 
+* Convierte string a enum de instruccion, default es INSTRUCTION_ERROR
+*/
 InstrucionCode string_to_instruction_code(char* s);
 
+/*
+* Envia un pedido de instruccion a Kernel Memory y la carga en el buffer de instruccion del CPU
+* Devuelve NULL ante error, o el buffer de instruccion (instruccion_buffer) ante ejecucion exitosa.
+*/
 void* fetch();
+
+/*
+* Lee del Buffer Estatico de Instruccion (instruccion_buffer) y escribe la instruccion decodificada en el struct estatico instruccion_actual
+* el icode de la instruccion puede ser ERROR.
+*/
 void decode();
 void execute();
 bool check_interrupt();
 
-int conectar_modulo_logueando(char* ip, char* puerto, char* nombre_modulo);
+pid_t recibir_pid_de_ks();
+/* 
+* Espera un tamanio y un string de Kernel Memory y lo carga en el buffer de instruccion.
+* Pertenece al Fetch.
+*/
+void recibir_instruccion_de_km();
+/* 
+* Conecta con el modulo indicado y devuelve el file descriptor.
+* Ademas, loguea el resultado de la conexion.
+*/
+int conectar_modulo(char* ip, char* puerto, char* nombre_modulo);
+
+//* Mapea las variables del config a al struct de cpu pasado
 int map_config_variables(t_config* config, t_cpu_env* env);
 
 /*
  * Solicita el contexto del proceso actual a Kernel Memoty y lo integra en la CPU.
  * Retorna 0 (éxito) o -1 (error);
  */
-int pull_contexto();
+int pull_contexto(pid_t pid_a_pedir);
 
 /*
  * Empaqueta el contexto de ejecución actual de la CPU y lo envía a Kernel Memory.
  */
 void push_contexto();
+
+/* 
+* Toma un paquete e integra todo su contenido al contexto de la cpu. 
+* Incluye la tabla de segmentos
+*/
 void integrar_contexto(t_list* paquete_contexto);
+
+/* 
+* Toma los registros de la cpu y los empaqueta listo para enviar
+* El invocador debera encargarse de invocar eliminar_paquete(t_paquete paquete);
+*/
 t_paquete *empaquetar_contexto();
+
 void enviar_pid_actual_a_KS();
+
+// utils de instrucciones
+int get_registro_size(char* s);
+uint32_t get_registro_value(size_t registro_size, void* registro);
+void set_reg_value(size_t reg_size, void* registro, uint32_t valor);
 
 //INSTRUCCIONES ORDINARIAS:
 

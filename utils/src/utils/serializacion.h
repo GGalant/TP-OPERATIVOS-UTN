@@ -26,6 +26,7 @@ t_paquete* crear_paquete(op_code codigo_operacion);
 void crear_buffer(t_paquete* paquete);
 void enviar_paquete_send_all(t_paquete* paquete, int socket_cliente);
 int recibir_operacion(int socket_cliente);
+int recibir_operacion_DONT_WAIT(int socket_cliente, t_log *logger);
 void recibir_mensaje(int socket_cliente, t_log *logger);
 //static int send_all(int fd, const void *buf, size_t len);
 void *recibir_buffer(int *size, int socket_cliente);
