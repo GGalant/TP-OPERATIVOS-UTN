@@ -3,11 +3,12 @@
 t_config_km config_km;
 
 //t_log* log_km;
+int posicion_memoria = 0;
+int contador_sticks = 0;
+
 
 int main(int argc, char *argv[]){
 
-    int contador_sticks = 0;
-    int posicion_memoria = 0;
 
     if(argc<2){
         perror("No se proporcionaron todos los argumentos [Archivo Config]");
@@ -408,25 +409,28 @@ void* handle_ms(void* arg){
             
             case CONECTAR_MS:
             {
-
                 contador_sticks += 1;
                 
-                //int tamanio_stick;
-                //recv(socket_ms, &tamanio_stick, sizeof(int),0);
 
-                //TODO revisar, copia sticks en misma variable??
                 t_memory_stick* nuevo_memory_stick = malloc(sizeof(t_memory_stick));
-
                 nuevo_memory_stick->id = contador_sticks;
+                nuevo_memory_stick->inicio = posicion_memoria;
                 nuevo_memory_stick->tamanio = tamanio_ms;
-                
+                //la primera vez, pos_mem = 0, luego se actualiza con cada MemStick agregado
+                //avanzamos +1 para no pisar el ultimo byte
                 posicion_memoria += tamanio_ms + 1;
 
-    
                 list_add(sticks_conectados, nuevo_memory_stick);
 
                 break;
-        
+            }
+
+            case DESCONECTAR_MS:
+            {
+                log_debug(log_km, "## BSOD: BLUE SCREEN OF DEATH");
+                //avisar a KS
+
+                break;
             }
             default:
                 log_warning(log_km, "operacion desconocida: %d", codigo_operacion);

@@ -47,6 +47,7 @@ typedef enum {
     //* INICIO: KERNEL MEMORY - MEMORY STICK
 
     CONECTAR_MS,
+    DESCONECTAR_MS,
 
     //* FIN: KERNEL MEMORY - MEMORY STICK
     // ======================================
