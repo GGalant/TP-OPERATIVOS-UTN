@@ -411,16 +411,16 @@ void* handle_ms(void* arg){
 
                 contador_sticks += 1;
                 
-                int tamanio_stick;
-                recv(socket_ms, &tamanio_stick, sizeof(int),0);
+                //int tamanio_stick;
+                //recv(socket_ms, &tamanio_stick, sizeof(int),0);
 
-                //tamanio_stick =
+                //TODO revisar, copia sticks en misma variable??
                 t_memory_stick* nuevo_memory_stick = malloc(sizeof(t_memory_stick));
 
                 nuevo_memory_stick->id = contador_sticks;
-                nuevo_memory_stick->tamanio = tamanio_stick;
+                nuevo_memory_stick->tamanio = tamanio_ms;
                 
-                posicion_memoria += tamanio_stick + 1;
+                posicion_memoria += tamanio_ms + 1;
 
     
                 list_add(sticks_conectados, nuevo_memory_stick);
