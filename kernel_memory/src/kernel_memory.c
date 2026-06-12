@@ -1,5 +1,6 @@
  #include "kernel_memory.h"
 //#include "globales.c" idea a desarrollar despues
+t_config_km config_km;
 
 //t_log* log_km;
 
@@ -25,22 +26,34 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    puerto_km = config_get_string_value(config,"PUERTO");
-    str_log_level = config_get_string_value(config, "LOG_LEVEL");
-    scripts_basepath = config_get_string_value("SCRIPTS_BASEPATH");
-    
-    if(puerto_km == NULL || str_log_level == NULL){
+    // puerto_km = config_get_string_value(config,"PUERTO");
+    // str_log_level = config_get_string_value(config, "LOG_LEVEL");
+    // scripts_basepath = config_get_string_value("SCRIPTS_BASEPATH");
+    config_km.puerto = config_get_string_value(config,"PUERTO");
+    config_km.log_level = config_get_string_value(config, "LOG_LEVEL");
+    config_km.segment_max_size = config_get_int_value(config, "SEGMENT_MAX_SIZE");
+    config_km.alloc_strategy = config_get_string_value(config, "ALLOCATION_STRATEGY");
+    config_km.instr_delay = config_get_int_value(config, "INSTRUCTION_DELAY");
+    config_km.compaction_delay = config_get_int_value(config, "COMPACTION_DELAY");
+    config_km.scripts_basepath = config_get_string_value(config,"SCRIPTS_BASEPATH");
+   
+    // if(puerto_km == NULL || str_log_level == NULL){
+    //     config_destroy(config);
+    //     return EXIT_FAILURE;
+    // }
+
+    if(config_km.puerto == NULL || config_km.log_level == NULL){
         config_destroy(config);
         return EXIT_FAILURE;
     }
     
-    int log_level = log_level_from_string(str_log_level);
+    int log_level = log_level_from_string(config_km.log_level);
     log_km = log_create("memory.log", "MEMORY", true, log_level);
     
-    server_km = iniciar_servidor(log_km, puerto_km);
-
+    //server_km = iniciar_servidor(log_km, puerto_km);
+    server_km = iniciar_servidor(log_km, config_km.puerto);
      if(server_km == -1){
-        log_error(log_km, "Error al iniciar el servidor en el puerto %s", puerto_km);
+        log_error(log_km, "Error al iniciar el servidor en el puerto %s", config_km.puerto);
         log_destroy(log_km);
         config_destroy(config);
         return EXIT_FAILURE;
@@ -123,7 +136,7 @@ void* handle_ks(void* arg) {
             
             case INICIALIZAR_PROCESO:
                 log_debug(log_km, "Kernel Scheduler solicitó INICIALIZAR_PROCESO");
-                char* base_path = scripts_basepath; //hardcodeado por ahora
+                char* base_path = config_km.scripts_basepath; //hardcodeado por ahora
 
                 // t_list* instrucciones = cargar_instrucciones(path_archivo_instrucciones);                
                 // dictionary_put(diccionario_instrucciones,str_pid_recibido,instrucciones);    

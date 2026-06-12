@@ -66,3 +66,14 @@ typedef struct {
     uint32_t inicio;   // dentro del espacio total
 } t_memory_stick;
 
+typedef struct{
+    char* puerto;
+    char* log_level;
+    int segment_max_size;
+    char* alloc_strategy;
+    int instr_delay;
+    int compaction_delay;
+    char* scripts_basepath;
+}t_config_km;
+
+extern t_config_km config_km;
