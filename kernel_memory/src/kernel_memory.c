@@ -16,6 +16,7 @@ int main(int argc, char *argv[]){
     char* config_path = argv[1];
     char* str_log_level;
     char* puerto_km;
+    char* scripts_basepath;
     t_config* config = config_create(config_path);
     pthread_t hilo_escucha;
     
@@ -26,6 +27,7 @@ int main(int argc, char *argv[]){
 
     puerto_km = config_get_string_value(config,"PUERTO");
     str_log_level = config_get_string_value(config, "LOG_LEVEL");
+    scripts_basepath = config_get_string_value("SCRIPTS_BASEPATH");
     
     if(puerto_km == NULL || str_log_level == NULL){
         config_destroy(config);
@@ -47,7 +49,7 @@ int main(int argc, char *argv[]){
 
     //inicializamos estructuras
     diccionario_contextos_ejecucion = dictionary_create();
-    diccionario_paths = dictionary_create();
+    diccionario_instrucciones = dictionary_create();
     sticks_conectados = list_create();
     huecos = list_create();
     
@@ -108,7 +110,7 @@ void* handle_connections(void* arg){
 void* handle_ks(void* arg) {    
     int socket_ks = *(int*)arg;
     
-    log_info(log_km, "Kernel Scheduler Conectado - FD del socket: %d", socket_ks);
+    log_info(log_km, "## Kernel Scheduler Conectado - FD del socket: %d", socket_ks);
 
     while(true) {   
         int codigo_operacion = recibir_operacion(socket_ks);
@@ -121,19 +123,22 @@ void* handle_ks(void* arg) {
             
             case INICIALIZAR_PROCESO:
                 log_debug(log_km, "Kernel Scheduler solicitó INICIALIZAR_PROCESO");
+                char* base_path = scripts_basepath; //hardcodeado por ahora
 
                 // t_list* instrucciones = cargar_instrucciones(path_archivo_instrucciones);                
-                // dictionary_put(diccionario_paths,str_pid_recibido,instrucciones);    
+                // dictionary_put(diccionario_instrucciones,str_pid_recibido,instrucciones);    
                 
                 t_list *proceso_inicial = recibir_paquete(socket_ks);
                 pid_t pid_recibido = *(pid_t*) list_get(proceso_inicial, 0);
                 char* path_instrucciones_recibido = (char*)list_get(proceso_inicial, 1);
                 char *str_pid_recibido = string_itoa(pid_recibido);
 
+                char* path_absoluto = string_from_format("%s%s", base_path, path_instrucciones_recibido);
                 log_debug(log_km, "Intentando cargar las instrucciones desde %s", path_instrucciones_recibido);
-                
-                t_list* instrucciones = cargar_instrucciones(path_instrucciones_recibido); //arreglarla
 
+                //t_list* instrucciones = cargar_instrucciones(path_instrucciones_recibido); //arreglarla
+                t_list* instrucciones = cargar_instrucciones(path_absoluto);
+                free(path_absoluto);
                 list_destroy_and_destroy_elements(proceso_inicial, free);
                 
                 if(instrucciones == NULL){
@@ -141,10 +146,13 @@ void* handle_ks(void* arg) {
                     return NULL;
                 }
 
-                dictionary_put(diccionario_paths,str_pid_recibido,instrucciones); //diccionaria con instrucciones x pid
+                dictionary_put(diccionario_instrucciones,str_pid_recibido,instrucciones); //diccionaria con instrucciones x pid
                 //log_debug(log_km_debug, "Instrucciones del proceso: <%d> guardadas correctamente", pid_recibido);
-                log_info(log_km, "Instrucciones del proceso: <%d> guardadas correctamente", pid_recibido);
+                log_debug(log_km, "Instrucciones del proceso: <%d> guardadas correctamente", pid_recibido);
                 
+                log_info(log_km, "## PID: <%d> - Proceso Creado", pid_recibido);
+                
+
                 t_contextoEjec* contexto_proceso = malloc(sizeof(t_contextoEjec));
                 contexto_proceso->pid = pid_recibido;
                 contexto_proceso->pc = 0;
@@ -175,25 +183,13 @@ void* handle_ks(void* arg) {
                 //por pedido del ks
                 t_list* pedido_lectura = recibir_paquete(socket_ks); //esperamos (PID), dirFisica y tamaño a leer
                 pid_t pid = *(pid_t*)list_get(pedido_lectura,0);
-                //char* direccion_logica = list_get(pedido_lectura, 1);
+                
                 char* direccion_fisica = list_get(pedido_lectura, 1);
                 void* bytes_a_leer = list_get(pedido_lectura,2);
-                
-                // op_code solicitud_traduccion = SOLICITUD_TRADUCCION;
-                // int tam_dirLogica = strlen(direccion_logica) + 1;
-                
-                // send(socket_cpu, &solicitud_traduccion, sizeof(solicitud_traduccion),0);
-                // send(socket_cpu, direccion_logica,sizeof(tam_dirLogica),0);
-                
-                //recibimos la dirección traducida
-                //int size_dirFisica;
-                //char* direccion_fisica = recibir_buffer(size_dirFisica,socket_cpu);
-                
-                
+        
                 /* LEER EL BLOQUE FISICO*/
                 
-                
-                // solicitar_lectura(direccion_fisica, socket_memory_stick); //TODO: FALTA IMPLEMENTARRRRR
+                //TODO solicitar_lectura(direccion_fisica, socket_memory_stick); //TODO: FALTA IMPLEMENTARRRRR
                 enviar_mensaje("LECTURA OK!", socket_ks);
 
                 log_info(log_km,"## PID: <%d> - <Escritura/Lectura> - Dir. Física: <%s> - Tamaño: <TAMAÑO>",pid, direccion_fisica);
@@ -241,7 +237,7 @@ void* handle_cpu(void* arg) {
     int id_cpu;
     recv(socket_cpu, &id_cpu, sizeof(int),0);
     
-    log_info(log_km, "CPU <%d> Conectada", id_cpu);
+    log_info(log_km, "## CPU <%d> Conectada", id_cpu);
 
     while(true) {   
         //int codigo_operacion = recibir_operacion(socket_cpu);
@@ -337,7 +333,7 @@ void* handle_cpu(void* arg) {
                 char* str_pid_recibido = string_itoa(pid_recibido);
                 //Deberíamos tener algo más o menos así.
 
-                t_list* instrucciones = dictionary_get(diccionario_paths, str_pid_recibido);
+                t_list* instrucciones = dictionary_get(diccionario_instrucciones, str_pid_recibido);
                 
                 char* instruccion = obtener_instruccion(instrucciones,pc);
                 int tam_instruccion = strlen(instruccion) + 1;
@@ -387,10 +383,12 @@ void* handle_ms(void* arg){
 
     int socket_ms = *(int*)arg;
     int id_ms;
+    int tamanio_ms;
     recv(socket_ms, &id_ms, sizeof(int),0);
+    recv(socket_ms, &tamanio_ms, sizeof(int),0);
     
-    log_info(log_km, "Memory Stick <ID> se ha conectado!");
-
+    log_info(log_km, "## Memory Stick de <%d> bytes Conectada", tamanio_ms); // log obligatorio:  “## Memory Stick de <TAMAÑO> bytes Conectada”
+    log_debug(log_km, "Se conecta memory stick <%d>",id_ms);
     while(true) {   
         op_code codigo_operacion = recibir_operacion(socket_ms);
         switch(codigo_operacion){

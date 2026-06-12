@@ -49,7 +49,7 @@ typedef struct {
 t_dictionary* diccionario_contextos_ejecucion; //se crea al iniciar el servidor de km, antes de los hilos.
 
 //guarda los paths de los archivos de instrucciones por pid
-t_dictionary* diccionario_paths; 
+t_dictionary* diccionario_instrucciones; 
 
 typedef struct{
     uint32_t base;
