@@ -38,48 +38,46 @@ void *handle_cpu(void *arg)
             log_debug(log_ks, "SYSCALL_INIT_PROC: Paquete recibido");
 
             pthread_mutex_lock(&mutex_cola_exec);
-            t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, cpu->pid_actual);
+            t_proceso_pcb *proceso_padre = remover_proceso_por_pid(cola_exec, cpu->pid_actual);
             pthread_mutex_unlock(&mutex_cola_exec);
 
             log_debug(log_ks, "SYSCALL_INIT_PROC: Proceso original removido de la cola");
             
-            if (proceso == NULL)
+            if (proceso_padre == NULL)
             {
                 log_error(log_ks, "Error: No se encontró el proceso con PID %d en la cola de EXEC.", cpu->pid_actual);
                 break;
             }
 
+            // Liberamos la CPU para que el planificador pueda usarla
             pthread_mutex_lock(&mutex_lista_cpu_conectadas);
             cpu->estado = CPU_LIBRE;
             cpu->pid_actual = -1;
+            pthread_cond_signal(&cond_lista_cpu_conectadas);
             pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-
             log_debug(log_ks, "SYSCALL_INIT_PROC: CPU <%d> liberada", cpu->cpu_id);
 
-            pid_t pid = generar_pid();
-
-            enviar_proceso(conexion_km, pid, path);
-
+            
+            pid_t pid_hijo = generar_pid();
+            enviar_proceso(conexion_km, pid_hijo, path);
             list_destroy_and_destroy_elements(paquete_init_proc, free);
 
-            // aca podria haber un problema de comunicacion 
             log_debug(log_ks, "Esperando confirmacion de Kernel Memory (INICIALIZAR_PROCESO_OK)...");
+            sem_wait(&sem_inicializar_proceso);
+            log_debug(log_ks, "Recibida confirmacion de Kernel Memory (INICIALIZAR_PROCESO_OK)");
 
-            //! NUNCA LEE ESTA OPERACION PORQUE EL MENSAJE DE KERNEL MEMORY ES LEIDO EN ./kernel_scheduler.c : handle_km()
-            op_code codigo_operacion = recibir_operacion(conexion_km);
+            t_proceso_pcb* pcb_hijo = crear_pcb(pid_hijo, prioridad);
 
-            if (codigo_operacion == INICIALIZAR_PROCESO_OK) {
-                t_proceso_pcb* pcb_proceso = crear_pcb(pid, prioridad);
+            pthread_mutex_lock(&mutex_cola_ready);
+            
+            cambiar_estado_proceso(proceso_padre, READY);
+            list_add(cola_ready, proceso_padre);
 
-                pthread_mutex_lock(&mutex_cola_ready);
-                list_add(cola_ready, pcb_proceso);
-                cambiar_estado_proceso(pcb_proceso, READY);
-                pthread_mutex_unlock(&mutex_cola_ready);
-                pthread_cond_signal(&cond_cola_ready);
-            } else {
-                log_error(log_ks, "Error al crear el proceso inicial en Kernel Memory. Código de op: %d", codigo_operacion);
-                break; 
-            }
+            list_add(cola_ready, pcb_hijo);
+            cambiar_estado_proceso(pcb_hijo, READY);
+
+            pthread_mutex_unlock(&mutex_cola_ready);
+            pthread_cond_signal(&cond_cola_ready);
 
             break;
         case SYSCALL_EXIT:
@@ -100,6 +98,7 @@ void *handle_cpu(void *arg)
             pthread_mutex_lock(&mutex_lista_cpu_conectadas);
             cpu->estado = CPU_LIBRE;
             cpu->pid_actual = -1;
+            pthread_cond_signal(&cond_lista_cpu_conectadas);
             pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
 
             pthread_mutex_lock(&mutex_cola_exit);
@@ -109,12 +108,14 @@ void *handle_cpu(void *arg)
             break;
         case SYSCALL_SLEEP: {
             t_list *paquete_sleep = recibir_paquete(socket_cpu);
-            pid_t pid = cpu->pid_actual;
             int tiempo_sleep = *(int *)list_get(paquete_sleep, 0);
             list_destroy_and_destroy_elements(paquete_sleep, free);
 
             log_debug(log_debug_ks,"REcibo paquete luego de SYSCALL_SLEEP");
             
+            // Guardamos el PID antes de modificar la CPU
+            pid_t pid = cpu->pid_actual;
+
             // Sacar el proceso de la cola de EXEC
             pthread_mutex_lock(&mutex_cola_exec);
             t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
@@ -143,7 +144,7 @@ void *handle_cpu(void *arg)
 
             enviar_proceso_a_io_sleep(pid, tiempo_sleep);
 
-            log_info(log_debug_ks, "PID: %d - Bloqueado por: SLEEP", cpu->pid_actual);
+            log_info(log_debug_ks, "PID: %d - Bloqueado por: SLEEP", pid);
 
             break;
         }
@@ -341,6 +342,8 @@ void enviar_proceso_a_io_sleep(pid_t pid, int tiempo_sleep)
     // avisamos a algun hilo IO Sleep
     pthread_cond_signal(&cond_sleep);
     pthread_mutex_unlock(&mutex_sleep);
+
+    log_debug(log_ks, "Se envia una peticion de sleep");
 
     return;
 }

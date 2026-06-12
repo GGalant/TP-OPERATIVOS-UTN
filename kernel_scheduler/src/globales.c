@@ -48,6 +48,7 @@ pthread_cond_t cond_sleep;
 pthread_cond_t cond_stdout;
 pthread_cond_t cond_cola_susp_ready;
 pthread_cond_t cond_cola_susp_block;
+sem_t sem_inicializar_proceso;
 
 void wait_mutex(t_mutex *mutex, pid_t pid_proceso)
 {

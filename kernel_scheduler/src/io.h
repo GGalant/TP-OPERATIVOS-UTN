@@ -11,7 +11,7 @@
 */
 #include "kernel_scheduler.h"
 typedef enum {
-    SLEEP, STDIN, STDOUT
+    STDIN, STDOUT, SLEEP
 } tipo_io;
 
 typedef enum {  

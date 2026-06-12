@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <commons/log.h>
 #include <commons/config.h>
+#include <semaphore.h>
 #include "globales.h"
 typedef enum {  
     NEW,

@@ -14,7 +14,7 @@ int main(int argc, char *argv[]){
 
     log_info(log_io, "## Conectado a Kernel Scheduler");
     op_code handshake_io = HANDSHAKE_IO;
-    send(conexion_ks, &handshake_io, sizeof(handshake), 0);
+    send(conexion_ks, &handshake_io, sizeof(handshake_io), 0);
     
     enviar_io();
 
@@ -62,10 +62,22 @@ void inicializar_io(int argc, char *argv[]) {
 }
 
 void handle_io_sleep() {
+    log_debug(log_io, "Se inicia la IO de tipo SLEEP");
     while (true) {
+        op_code op = recibir_operacion(conexion_ks);
+        if (op != SOLICITUD_IO_SLEEP) {
+            if (op == -1) {
+                log_error(log_io, "Se perdió la conexión con Kernel Scheduler. Terminando módulo de IO.");
+            } else {
+                log_error(log_io, "Operación no esperada de Kernel Scheduler: %d", op);
+            }
+            break;
+        }
+
         t_list* paquete_sleep = recibir_paquete(conexion_ks);
+        log_debug(log_io, "peticion recibida");
         if (paquete_sleep == NULL) {
-            log_error(log_io, "Se perdió la conexión con Kernel Scheduler. Terminando módulo de IO.");
+            log_error(log_io, "Error al recibir el paquete de SLEEP. Terminando módulo de IO.");
             break;
         }
         pid_t pid = *(int*)list_get(paquete_sleep, 0);
@@ -73,7 +85,7 @@ void handle_io_sleep() {
         list_destroy_and_destroy_elements(paquete_sleep, free);
 
         log_info(log_io, "## PID: %d - Inicio de IO", pid);
-        usleep(tiempo_sleep);
+        usleep(tiempo_sleep * 1000);
         log_info(log_io, "## PID: %d - Fin de IO", pid);    
 
         enviar_fin_io(pid);
@@ -92,9 +104,18 @@ void handle_io_stdin() {
 
 void handle_io_stdout() {
     while (true) {
+        op_code op = recibir_operacion(conexion_ks);
+        if (op != SOLICITUD_IO_STDOUT) {
+            if (op == -1) {
+                log_error(log_io, "Se perdió la conexión con Kernel Scheduler. Terminando módulo de IO.");
+            } else {
+                log_error(log_io, "Operación no esperada de Kernel Scheduler: %d", op);
+            }
+            break;
+        }
         t_list* paquete_stdout = recibir_paquete(conexion_ks);
         if (paquete_stdout == NULL) {
-            log_error(log_io, "Se perdió la conexión con Kernel Scheduler. Terminando módulo de IO.");
+            log_error(log_io, "Error al recibir el paquete de STDOUT. Terminando módulo de IO.");
             break;
         }
         pid_t pid = *(int*)list_get(paquete_stdout, 0);

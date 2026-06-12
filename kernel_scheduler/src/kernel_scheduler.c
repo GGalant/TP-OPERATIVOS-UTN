@@ -92,6 +92,7 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_cond_init(&cond_stdout, NULL);
     pthread_cond_init(&cond_cola_susp_ready, NULL);
     pthread_cond_init(&cond_cola_susp_block, NULL);
+    sem_init(&sem_inicializar_proceso, 0, 0);
 
     // INICIAR SERVIDOR
     server_ks = iniciar_servidor(log_ks, puerto);
@@ -146,6 +147,10 @@ void* handle_km(void* arg) {
         int codigo_operacion = recibir_operacion(socket_km);
 
         switch(codigo_operacion) {
+            case INICIALIZAR_PROCESO_OK:
+                log_debug(log_ks, "KM confirmo INICIALIZAR_PROCESO_OK");
+                sem_post(&sem_inicializar_proceso);
+                break;
             case -1:
                 log_error(log_ks, "El servidor Kernel Memory se desconectó. Terminando hilo.");
                 return NULL;
@@ -293,6 +298,7 @@ void liberar_recursos() {
     pthread_cond_destroy(&cond_stdout);
     pthread_cond_destroy(&cond_cola_susp_block);
     pthread_cond_destroy(&cond_cola_susp_ready);
+    sem_destroy(&sem_inicializar_proceso);
     free(conexion_km_ptr);
     free(config_path);
     free(path_proceso_inicial);
