@@ -229,7 +229,7 @@ const char* estado_to_string(t_estado_proceso estado) {
         case EXIT: return "EXIT";
         case SUSP_READY: return "SUSPENDED-READY";
         case SUSP_BLOCK: return "SUSPENDED-BLOCKED";
-        default: return "DESCONOCIDO";
+        default: return "DESCONOCIDO"; 
     }
 }
 

@@ -24,14 +24,14 @@ void *handle_cpu(void *arg)
     while (true)
     {
         // aca iria la logica de operaciones con CPU
-        op_code codigo_operacion = recibir_operacion(socket_cpu);
+        op_code codigo_operacion = recibir_operacion(cpu->socket_cpu);
 
         log_info(log_ks, "## Proceso ID(<%d>) - Solicitó syscall: <%s>", cpu->pid_actual, operacion_to_string(codigo_operacion));
 
         switch (codigo_operacion)
         {
         case SYSCALL_INIT_PROC:
-            t_list *paquete_init_proc = recibir_paquete(socket_cpu);
+            t_list *paquete_init_proc = recibir_paquete(cpu->socket_cpu);
             char *path = (char*)list_get(paquete_init_proc, 0);
             int prioridad = *(int *)list_get(paquete_init_proc, 1);
 
@@ -107,7 +107,7 @@ void *handle_cpu(void *arg)
             pthread_mutex_unlock(&mutex_cola_exit);
             break;
         case SYSCALL_SLEEP: {
-            t_list *paquete_sleep = recibir_paquete(socket_cpu);
+            t_list *paquete_sleep = recibir_paquete(cpu->socket_cpu);
             int tiempo_sleep = *(int *)list_get(paquete_sleep, 0);
             list_destroy_and_destroy_elements(paquete_sleep, free);
 
@@ -129,8 +129,8 @@ void *handle_cpu(void *arg)
 
             // Actualizar PCB, cambiar estado y mover a la cola de BLOCK
             // la cola de block es gestionada por el planificador de mediano plazo
-            cambiar_estado_proceso(proceso, BLOCK);
             pthread_mutex_lock(&mutex_cola_block);
+            cambiar_estado_proceso(proceso, BLOCK);
             list_add(cola_block, proceso);
             pthread_mutex_unlock(&mutex_cola_block);
 
@@ -151,7 +151,7 @@ void *handle_cpu(void *arg)
         case SYSCALL_STDOUT: {
             log_info(log_ks, "## (%d) - Solicitó syscall: STDOUT", cpu->pid_actual);
 
-            t_list *paquete_stdout = recibir_paquete(socket_cpu);
+            t_list *paquete_stdout = recibir_paquete(cpu->socket_cpu);
             pid_t pid;
             uint32_t direccion_logica = *(uint32_t *)list_get(paquete_stdout, 0);
             uint32_t tamanio = *(uint32_t *)list_get(paquete_stdout, 1);
@@ -190,7 +190,7 @@ void *handle_cpu(void *arg)
         }
         case INTERRUPCION_FIN_QUANTUM: {
             // La CPU nos avisa el fin de quantum
-            t_list *paquete_quantum = recibir_paquete(socket_cpu);
+            t_list *paquete_quantum = recibir_paquete(cpu->socket_cpu);
 
             pid_t pid = *(int *)list_get(paquete_quantum, 0);
             int pc_actualizado = *(int *)list_get(paquete_quantum, 1);
@@ -208,8 +208,6 @@ void *handle_cpu(void *arg)
                 log_error(log_ks, "No se encontró el proceso %d en EXEC por fin de quantum", pid);
                 break;
             }
-
-            proceso->pc = pc_actualizado;
 
             pthread_mutex_lock(&mutex_cola_ready);
 
@@ -231,6 +229,43 @@ void *handle_cpu(void *arg)
 
             break;
         }
+        case SYSCALL_MEM_ALLOC:
+            t_list* paquete_mem_alloc = recibir_paquete(cpu->socket_cpu);
+            
+            pid_t pid = cpu->pid_actual;
+            int id_segmento = *(int*)list_get(paquete_mem_alloc, 0);
+            int tamanio_segmento = *(int*)list_get(paquete_mem_alloc, 1);
+            
+            pthread_mutex_lock(&mutex_cola_exec);
+            t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
+            pthread_mutex_unlock(&mutex_cola_exec);
+
+            if (proceso == NULL) {  
+                log_error(log_ks, "No se encontró el proceso %d en EXEC", pid);
+                break;
+            }
+            
+            pthread_mutex_lock(&mutex_cola_ready);
+            cambiar_estado_proceso(proceso, READY);
+            list_add(cola_ready, proceso);
+            pthread_mutex_unlock(&mutex_cola_ready);
+
+            pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+            cpu->estado = CPU_LIBRE;
+            cpu->pid_actual = -1;
+            pthread_cond_signal(&cond_lista_cpu_conectadas);
+            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+            log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
+
+            t_paquete *paquete_segmento = crear_paquete(CREACION_DE_SEGMENTO);
+            agregar_a_paquete(paquete_segmento, &pid, sizeof(int));
+            agregar_a_paquete(paquete_segmento, &id_segmento, sizeof(int));
+            agregar_a_paquete(paquete_segmento, &tamanio_segmento, sizeof(int));
+
+            enviar_paquete_send_all(paquete_segmento, conexion_km);
+            eliminar_paquete(paquete_segmento);
+
+            break;
         case INTERRUPCION_DESALOJO:
             break;
         case SYSCALL_MUTEX_LOCK:
