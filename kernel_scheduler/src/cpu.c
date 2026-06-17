@@ -134,6 +134,8 @@ void *handle_cpu(void *arg)
             list_add(cola_block, proceso);
             pthread_mutex_unlock(&mutex_cola_block);
 
+            iniciar_temporizador_timeout(cpu->pid_actual);
+
             // Liberar la CPU
             pthread_mutex_lock(&mutex_lista_cpu_conectadas);
             cpu->estado = CPU_LIBRE;
@@ -174,6 +176,8 @@ void *handle_cpu(void *arg)
             pid = proceso->pid;
             list_add(cola_block, proceso);
             pthread_mutex_unlock(&mutex_cola_block);
+
+            iniciar_temporizador_timeout(cpu->pid_actual);
 
             pthread_mutex_lock(&mutex_lista_cpu_conectadas);
             cpu->estado = CPU_LIBRE;

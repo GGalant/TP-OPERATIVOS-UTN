@@ -332,3 +332,47 @@ t_proceso_pcb* remover_proceso_por_pid(t_list* cola, pid_t pid) {
     }
     return NULL;
 }
+
+void iniciar_temporizador_timeout(pid_t pid) {    
+    pthread_t hilo_timeout;
+    pid_t *pid_ptr = malloc(sizeof(pid_t));
+    *pid_ptr = pid;
+    pthread_create(&hilo_timeout, NULL, temporizador_timeout, (void*)pid_ptr); 
+    pthread_detach(hilo_timeout); 
+}
+
+void* temporizador_timeout(void* arg) {    
+    pid_t pid = *(pid_t*)arg;
+    free(arg);
+
+    sleep(suspension_timeout);
+
+    pthread_mutex_lock(&mutex_cola_block);
+    t_proceso_pcb *proceso = remover_proceso_por_pid(cola_block, pid);
+    if (proceso != NULL) {
+        // CASO A: El tiempo se agoto y la IO no termino ahora lo metemos a cola_susp_block
+        
+        pthread_mutex_lock(&mutex_cola_susp_block);
+        cambiar_estado_proceso(proceso, SUSP_BLOCK);
+        list_add(cola_susp_block, proceso);
+        pthread_mutex_unlock(&mutex_cola_susp_block);
+        
+        pthread_mutex_unlock(&mutex_cola_block); 
+
+        log_info(log_ks, "Timeout agotado. El proceso %d pasa a SUSP_BLOCK", pid);
+
+        // 3. LA ORDEN A MEMORIA (Swapping) aca tenemos que avisarle a memoria que suspenda el proceso
+        t_paquete *paquete_suspension = crear_paquete(SUSPENDER_PROCESO); 
+        agregar_a_paquete(paquete_suspension, &pid, sizeof(pid_t));
+
+        enviar_paquete_send_all(paquete_suspension, conexion_km);
+        eliminar_paquete(paquete_suspension); 
+        
+    } else {
+        // CASO B: El proceso no está en la cola block
+        // Esto significa que finalizar_io() corrio antes que nosotros y ya lo movió a READY
+        pthread_mutex_unlock(&mutex_cola_block);
+    }
+
+    return NULL;
+}
