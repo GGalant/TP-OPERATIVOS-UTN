@@ -236,11 +236,38 @@ void* handle_ks(void* arg) {
                 enviar_paquete_send_all(paquete_lectura, socket_ks); */
             }
                 break;
+                
+                
+            case CREACION_DE_SEGMENTO:
+
+                t_list* pedido_creacion_seg = recibir_paquete(socket_ks);
+                pid_t pid = *(pid_t*)list_get(pedido_creacion_seg, 0);
+                int id_segmento = list_get(pedido_creacion_seg, 1);
+                int tamanio_segmento = list_get(pedido_creacion_seg, 2);
+                char* pid_string = string_itoa(pid);
+                
+                if (config_km.alloc_strategy == 'BEST') {
+
+                    buscar_best_bloque(pid_string, id_segmento, tamanio_segmento);
+                }else if(config_km.alloc_strategy == 'WORST') {
+
+                    buscar_worst_bloque(pid_string, id_segmento, tamanio_segmento);
+                }else{
+                    perror("El algoritmo de asignacion no es valido");
+                    return EXIT_FAILURE;
+                }
+
+                break;
 
 
             default:
                 log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
                 break;
+        
+        
+            
+                
+
         }
     }
 }
@@ -401,7 +428,7 @@ void* handle_ms(void* arg){
     recv(socket_ms, &id_ms, sizeof(int),0);
     recv(socket_ms, &tamanio_ms, sizeof(int),0);
     
-    log_info(log_km, "## Memory Stick de <%d> bytes Conectada", tamanio_ms); // log obligatorio:  “## Memory Stick de <TAMAÑO> bytes Conectada”
+    log_info(log_km, "## Memory Stick de <%d> bytes Conectada", tamanio_ms);
     log_debug(log_km, "Se conecta memory stick <%d>",id_ms);
     while(true) {   
         op_code codigo_operacion = recibir_operacion(socket_ms);
@@ -411,15 +438,15 @@ void* handle_ms(void* arg){
             {
                 contador_sticks += 1;
                 
-
+                //creamos el stick nuevo que se agrega
+                //malloc para estructura, no para memoria
                 t_memory_stick* nuevo_memory_stick = malloc(sizeof(t_memory_stick));
                 nuevo_memory_stick->id = contador_sticks;
                 nuevo_memory_stick->inicio = posicion_memoria;
                 nuevo_memory_stick->tamanio = tamanio_ms;
                 //la primera vez, pos_mem = 0, luego se actualiza con cada MemStick agregado
                 //avanzamos +1 para no pisar el ultimo byte
-                posicion_memoria += tamanio_ms + 1;
-
+                posicion_memoria += tamanio_ms + 1; //TODO: PENSAR
                 list_add(sticks_conectados, nuevo_memory_stick);
 
                 break;
@@ -505,3 +532,135 @@ char* armar_argumentos(char** tokens) {
 //sino que abrirlo una sola vez y tener una lista de instrucciones
 
 // SI, la mmu tiene que realizar la traduccion de direc logica a fisica.
+
+//TODO: Desarrollar !!
+
+void buscar_best_bloque(pid_string, id_segmento, tamanio_segmento){
+    //1. Verificar tamaños
+    
+    //2. Encontrar bloque
+    //3. Llamar a crear_segmento()
+}
+
+///////////////////////////////////////////
+
+void buscar_best_bloque(char* pid_string, int id_segmento, int tamanio_segmento) {
+    // 1. Verificar tamaño máximo permitido por config
+    if (tamanio_segmento > config_km.segment_max_size) {
+        log_error(log_km,
+                  "No se puede crear el segmento <%d> del PID <%s>: tamaño <%d> supera SEGMENT_MAX_SIZE <%d>",
+                  id_segmento,
+                  pid_string,
+                  tamanio_segmento,
+                  config_km.segment_max_size);
+        return;
+    }
+
+    // 2. Buscar el mejor hueco: el más chico donde entre el segmento
+    t_hueco_libre* mejor_hueco = NULL;
+
+    for (int i = 0; i < list_size(huecos); i++) {
+        t_hueco_libre* hueco_actual = list_get(huecos, i);
+
+        if (hueco_actual->tamanio >= tamanio_segmento) {
+            if (mejor_hueco == NULL || hueco_actual->tamanio < mejor_hueco->tamanio) {
+                mejor_hueco = hueco_actual;
+            }
+        }
+    }
+
+    // 3. Si no hay hueco contiguo, no puede crear directamente
+    if (mejor_hueco == NULL) {
+        log_warning(log_km,
+                    "No hay hueco contiguo disponible para crear el segmento <%d> de tamaño <%d> del PID <%s>",
+                    id_segmento,
+                    tamanio_segmento,
+                    pid_string);
+
+        // TODO:
+        // evaluar si hay memoria total suficiente pero no contigua.
+        // Si hay memoria total suficiente -> pedir compactación.
+        // Si no hay memoria total suficiente -> responder error al Kernel Scheduler.
+        return;
+    }
+
+    // 4. Si encontró hueco, crea el segmento usando ese hueco
+    crear_segmento(mejor_hueco, pid_string, id_segmento, tamanio_segmento);
+}
+
+void buscar_worst_bloque(char* pid_string, int id_segmento, int tamanio_segmento) {
+    //1. Verificar tamaños
+    if (tamanio_segmento > config_km.segment_max_size) {
+        log_error(log_km,
+                  "No se puede crear el segmento <%d> del PID <%s>: tamaño <%d> supera SEGMENT_MAX_SIZE <%d>",
+                  id_segmento,
+                  pid_string,
+                  tamanio_segmento,
+                  config_km.segment_max_size);
+        return;
+    }
+
+    //2. Encontrar bloque
+    t_hueco_libre* peor_hueco = NULL;
+
+    for (int i = 0; i < list_size(huecos); i++) {
+        t_hueco_libre* hueco_actual = list_get(huecos, i);
+
+        if (hueco_actual->tamanio >= tamanio_segmento) {
+            if (peor_hueco == NULL || hueco_actual->tamanio > peor_hueco->tamanio) {
+                peor_hueco = hueco_actual;
+            }
+        }
+    }
+
+
+    //3. Llamar a crear_segmento()
+    if (peor_hueco == NULL) {
+       log_warning(log_km,
+                   "No hay hueco contiguo disponible para crear el segmento <%d> de tamaño <%d> del PID <%s>",
+                   id_segmento,
+                   tamanio_segmento,
+                   pid_string);
+
+        // TODO:
+        // evaluar si hay memoria total suficiente pero no contigua.
+        // Si hay memoria total suficiente -> pedir compactacion.
+        // Si no hay memoria total suficiente -> responder error al Kernel Scheduler.
+        return;
+    }
+
+    // 4. Si encontró hueco, crea el segmento usando ese hueco
+    crear_segmento(peor_hueco, pid_string, id_segmento, tamanio_segmento);
+}
+
+t_segmento crear_segmento(t_hueco_libre* hueco_hallado,char* pid, uint32_t id_segmento, uint32_t tamanio_segmento){
+    //1. Crear segmento
+    //2. Agregar a la lista de segmentos 
+    t_segmento* nuevo_segmento = malloc(sizeof(t_segmento));
+    nuevo_segmento->id_segmento = id_segmento;
+    nuevo_segmento->base = hueco_hallado->base; 
+    nuevo_segmento->limite = tamanio_segmento;
+    
+    t_contextoEjec* contexto_ejecucion = dictionary_get(diccionario_contextos_ejecucion,pid);
+    
+    list_add(contexto_ejecucion->tabla_segmentos, nuevo_segmento);
+    
+    log_info(log_km,"## PID: <%s> - Segmento Creado <%d> - Tamaño: <%d>", pid, id_segmento, tamanio_segmento);
+
+    ////////// LISTA DE HUECOS
+
+    int nuevoTamanioHuecoLibre = hueco_hallado->tamanio - tamanio_segmento;
+
+    if (nuevoTamanioHuecoLibre == 0){ //ya no hay espacio
+        list_remove_element(huecos, hueco_hallado);
+        free(hueco_hallado);
+    } else{
+
+    //si no ocupo todo el hueco    
+
+    hueco_hallado->base += tamanio_segmento;
+    hueco_hallado->tamanio = nuevoTamanioHuecoLibre;
+    //no lo agrego, ya esta en la lista
+
+    }
+}

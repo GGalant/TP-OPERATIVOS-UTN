@@ -20,6 +20,11 @@ void* handle_ms(void* arg);
 t_list* cargar_instrucciones(char* path_instrucciones);
 char* obtener_instruccion(t_list* instrucciones, uint32_t pc_actual);
 char* armar_argumentos(char** tokens);
+
+void void buscar_best_bloque(char* pid_string, int id_segmento, int tamanio_segmento);
+void void buscar_worst_bloque(char* pid_string, int id_segmento, int tamanio_segmento);
+t_segmento crear_segmento(t_hueco_libre hueco_hallado,char* pid, uint32_t id_segmento, uint32_t tamanio_segmento);
+
 typedef struct {
     int id_segmento;
     uint32_t base;
