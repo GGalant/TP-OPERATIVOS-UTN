@@ -234,43 +234,99 @@ void *handle_cpu(void *arg)
             break;
         }
         case SYSCALL_MEM_ALLOC:
+        // *** IMPORTANTE: Esta syscall y las que esten relacionadas a memoria, deberian volver a ejecutar el proceso en la CPU que la solicito
             t_list* paquete_mem_alloc = recibir_paquete(cpu->socket_cpu);
             
             pid_t pid = cpu->pid_actual;
             int id_segmento = *(int*)list_get(paquete_mem_alloc, 0);
             int tamanio_segmento = *(int*)list_get(paquete_mem_alloc, 1);
-            
-            pthread_mutex_lock(&mutex_cola_exec);
-            t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
-            pthread_mutex_unlock(&mutex_cola_exec);
 
             if (proceso == NULL) {  
                 log_error(log_ks, "No se encontró el proceso %d en EXEC", pid);
                 break;
             }
-            
-            pthread_mutex_lock(&mutex_cola_ready);
-            cambiar_estado_proceso(proceso, READY);
-            list_add(cola_ready, proceso);
-            pthread_mutex_unlock(&mutex_cola_ready);
-
-            pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-            cpu->estado = CPU_LIBRE;
-            cpu->pid_actual = -1;
-            pthread_cond_signal(&cond_lista_cpu_conectadas);
-            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-            log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
 
             t_paquete *paquete_segmento = crear_paquete(CREACION_DE_SEGMENTO);
             agregar_a_paquete(paquete_segmento, &pid, sizeof(int));
             agregar_a_paquete(paquete_segmento, &id_segmento, sizeof(int));
             agregar_a_paquete(paquete_segmento, &tamanio_segmento, sizeof(int));
 
+            // Aca deberia ir un mutex para que la creacion del segmento lo haga un proceso a la vez.
             enviar_paquete_send_all(paquete_segmento, conexion_km);
             eliminar_paquete(paquete_segmento);
 
+            op_code respuesta_km = recibir_operacion(conexion_km);
+
+            if (respuesta_km == CREACION_DE_SEGMENTO_OK) {
+                log_debug(log_ks, "La Creacion de Segmento fue exitosa, devolviendo el proceso a la CPU")
+                enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid);
+                break;
+            }
+
+            if (respuesta_km == DISPARO_COMPACTACION) {
+
+                pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+                
+                //TODO 1. MOVER PROCESOS DE COLA READY A UNA COLA AUXILIAR 
+                
+                for (int i = 0; i < list_size(lista_cpu_conectadas); i++) {
+                    t_cpu* cpu_a_desalojar = list_get(lista_cpu_conectadas, i);
+                    cpu_a_desalojar->estado = CPU_LIBRE;
+                    cpu_a_desalojar->pid_actual = -1;
+                    
+                    pthread_mutex_lock(&mutex_cola_exec);
+                    t_proceso_pcb* proceso_a_desalojar = remover_proceso_por_pid(cola_exec, cpu_a_desalojar->pid_actual);
+                    //TODO 2. PONER PROCESO EN COLA READY
+                    pthread_mutex_unlock(&mutex_cola_exec);
+
+                    pthread_mutex_lock(&mutex_cola_ready);
+                    cambiar_estado_proceso(proceso_a_desalojar, READY);
+                    list_add(cola_ready, proceso_a_desalojar);
+                    pthread_mutex_unlock(&mutex_cola_ready);
+
+                    send(cpu_a_desalojar->socket_cpu, &(op_code){INTERRUPCION_DESALOJO}, sizeof(op_code), 0);
+                }
+
+                //TODO 3. MOVER PROCESOS DE COLA AUXILIAR A COLA READY
+
+                send(conexion_km, &(op_code){CPUS_DESALOJADAS}, sizeof(op_code), 0);
+                respuesta_km = recibir_operacion(conexion_km);
+                
+                if (respuesta_km != COMPACTACION_OK) {
+                    log_error(log_ks, "LA COMPACTACION FALLO");
+                    break;
+                }                
+                 
+                pthread_mutex_lock(&mutex_cola_ready);
+                cambiar_estado_proceso(remover_proceso_por_pid(cola_ready, pid), READY);
+                pthread_mutex_unlock(&mutex_cola_ready);
+
+                cpu->estado = CPU_OCUPADA;
+                cpu->pid_actual = pid;
+                enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid);
+                
+                pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+                pthread_cond_signal(&cond_lista_cpu_conectadas);
+                
+                break;
+            }
+
+            log_error(log_ks, "LA CREACION DE SEGMENTO FALLO (EL PROCESO FUE ASESINADO)")
+            
+            pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+            cpu->estado = CPU_LIBRE;
+            cpu->pid_actual = -1;
+            pthread_cond_signal(&cond_lista_cpu_conectadas);
+            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+            log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
+            
             break;
-        case INTERRUPCION_DESALOJO:
+        case SYSCALL_MEM_FREE:
+        
+            int id_segmento;
+        
+            recv(socket, &id_segmento, sizeof(int), MSG_WAITALL);
+            
             break;
         case SYSCALL_MUTEX_LOCK:
             break;
@@ -360,9 +416,7 @@ t_proceso_pcb *buscar_proceso_por_id(pid_t pid, t_list *cola)
     for (int i = 0; i < list_size(cola); i++)
     {
         t_proceso_pcb *proceso = list_get(cola, i);
-        if (proceso->pid == pid)
-            ;
-        return proceso;
+        if (proceso->pid == pid) return proceso;
     }
     return NULL;
 }
