@@ -245,17 +245,36 @@ void* handle_ks(void* arg) {
                 int id_segmento = list_get(pedido_creacion_seg, 1);
                 int tamanio_segmento = list_get(pedido_creacion_seg, 2);
                 char* pid_string = string_itoa(pid);
-                
-                if (config_km.alloc_strategy == 'BEST') {
 
-                    buscar_best_bloque(pid_string, id_segmento, tamanio_segmento);
-                }else if(config_km.alloc_strategy == 'WORST') {
+                if(verificar_tamanio_valido(tamanio_segmento)){
 
-                    buscar_worst_bloque(pid_string, id_segmento, tamanio_segmento);
+                  if (existe_hueco_contiguo(tamanio_segmento)){
+                    //TODO: meter comparacion de algoritmos en una funcion
+
+                    elegir_algoritmo(pid_string, id_segmento, tamanio_segmento);
+                    
                 }else{
-                    perror("El algoritmo de asignacion no es valido");
-                    return EXIT_FAILURE;
+                    //buscamos si hay espacio libre en toda la memoria
+                    uint32_t memoria_libre_total = calcular_memoria_libre();
+                    if(memoria_libre_total >= tamanio_segmento){
+                        log_debug(log_km, "Hay espacio en memoria pero no contiguo. Es necesario compactar");
+                        //TODO: COMPACTAR
+                        //1. avisar al KS de la compactacion. Solicitar desalojo de cpus
+                        //2. Compactar memoria despues de confirmacion de desalojo
+                        //3. Avisar compactacion OK
+                    }else{
+                        log_error(log_km, "No hay espacio en memoria, no se puede crear el segmento <%d> de tamanio <%d> del PID <%d>. Memoria libre total: <%d>",
+                        id_segmento,
+                        tamanio_segmento,
+                        pid,
+                        memoria_libre_total);
+                        return;
+                        //TODO: avisar ks?
+                    }
+                }  
                 }
+                free(pid_string);
+                list_destroy_and_destroy_elements(pedido_creacion_seg, free);
 
                 break;
 
@@ -535,27 +554,9 @@ char* armar_argumentos(char** tokens) {
 
 //TODO: Desarrollar !!
 
-void buscar_best_bloque(pid_string, id_segmento, tamanio_segmento){
-    //1. Verificar tamaños
-    
-    //2. Encontrar bloque
-    //3. Llamar a crear_segmento()
-}
-
 ///////////////////////////////////////////
 
 void buscar_best_bloque(char* pid_string, int id_segmento, int tamanio_segmento) {
-    // 1. Verificar tamaño máximo permitido por config
-    if (tamanio_segmento > config_km.segment_max_size) {
-        log_error(log_km,
-                  "No se puede crear el segmento <%d> del PID <%s>: tamaño <%d> supera SEGMENT_MAX_SIZE <%d>",
-                  id_segmento,
-                  pid_string,
-                  tamanio_segmento,
-                  config_km.segment_max_size);
-        return;
-    }
-
     // 2. Buscar el mejor hueco: el más chico donde entre el segmento
     t_hueco_libre* mejor_hueco = NULL;
 
@@ -589,16 +590,6 @@ void buscar_best_bloque(char* pid_string, int id_segmento, int tamanio_segmento)
 }
 
 void buscar_worst_bloque(char* pid_string, int id_segmento, int tamanio_segmento) {
-    //1. Verificar tamaños
-    if (tamanio_segmento > config_km.segment_max_size) {
-        log_error(log_km,
-                  "No se puede crear el segmento <%d> del PID <%s>: tamaño <%d> supera SEGMENT_MAX_SIZE <%d>",
-                  id_segmento,
-                  pid_string,
-                  tamanio_segmento,
-                  config_km.segment_max_size);
-        return;
-    }
 
     //2. Encontrar bloque
     t_hueco_libre* peor_hueco = NULL;
@@ -612,7 +603,6 @@ void buscar_worst_bloque(char* pid_string, int id_segmento, int tamanio_segmento
             }
         }
     }
-
 
     //3. Llamar a crear_segmento()
     if (peor_hueco == NULL) {
@@ -663,4 +653,55 @@ t_segmento crear_segmento(t_hueco_libre* hueco_hallado,char* pid, uint32_t id_se
     //no lo agrego, ya esta en la lista
 
     }
+}
+
+bool verificar_tamanio_valido(int tamanio_segmento){
+    if(tamanio_segmento <= 0){
+        log_error(log_km, "tamanio invalido (0 o negativo)");
+        return false;
+    }
+    else if (tamanio_segmento > config_km.segment_max_size) {
+        log_error(log_km, "No se puede crear el segmento: tamaño <%d> supera SEGMENT_MAX_SIZE <%d>",
+        tamanio_segmento,
+        config_km.segment_max_size);
+        return false; 
+    }
+    return true;
+}
+
+uint32_t calcular_memoria_libre() {
+    uint32_t memoria_libre_total = 0;
+
+    for (int i = 0; i < list_size(huecos); i++) {
+        t_hueco_libre* hueco = list_get(huecos, i);
+        memoria_libre_total += hueco->tamanio;
+    }
+
+    return memoria_libre_total;
+}
+
+bool existe_hueco_contiguo(uint32_t tamanio_segmento) {
+    for (int i = 0; i < list_size(huecos); i++) {
+        t_hueco_libre* hueco = list_get(huecos, i);
+
+        if (hueco->tamanio >= tamanio_segmento) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void elegir_algoritmo(char* pid_string, int id_segmento, int tamanio_segmento){
+    if (strcmp(config_km.alloc_strategy,"BEST") == 0) {
+        buscar_best_bloque(pid_string, id_segmento, tamanio_segmento);
+
+    }else if(strcmp(config_km.alloc_strategy,"WORST") == 0) {
+        buscar_worst_bloque(pid_string, id_segmento, tamanio_segmento);
+              
+    }else{
+        perror("El algoritmo de asignacion no es valido");
+        return; //TODO: AVISAR AL KS
+    }
+
 }

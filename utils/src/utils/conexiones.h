@@ -92,6 +92,7 @@ typedef enum {
     STDOUT_LECTURA,
     STDIN_ESCRITURA,
     CREACION_DE_PROCESO,
+    CREACION_DE_SEGMENTO,
 
     //* FIN: KERNEL SCHEDULER - KERNEL MEMORY
     // ======================================
