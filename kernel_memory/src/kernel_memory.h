@@ -11,6 +11,7 @@ int server_km;
 int socket_memory_stick;
 int socket_swap;
 int socket_cpu;
+
 ///////////////////////
 
 void* handle_connections(void* arg);
@@ -88,5 +89,10 @@ void buscar_worst_bloque(char* pid_string, int id_segmento, int tamanio_segmento
 t_segmento crear_segmento(t_hueco_libre* hueco_hallado,char* pid, uint32_t id_segmento, uint32_t tamanio_segmento);
 bool verificar_tamanio_valido(int tamanio_seg);
 uint32_t calcular_memoria_libre();
+uint32_t calcular_memoria_total();
 bool existe_hueco_contiguo(uint32_t tamanio_segmento);
 void elegir_algoritmo(char* pid_string, int id_segmento, int tamanio_segmento);
+
+t_list* obtener_todos_los_segmentos();
+void obtener_segmentos(char* pid_str, void* contexto_ejec);
+bool comparar_segmentos_por_base(void* a, void* b);

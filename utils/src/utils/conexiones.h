@@ -93,6 +93,8 @@ typedef enum {
     STDIN_ESCRITURA,
     CREACION_DE_PROCESO,
     CREACION_DE_SEGMENTO,
+    DESALOJAR_CPU,
+    DESALOJAR_CPU_OK
 
     //* FIN: KERNEL SCHEDULER - KERNEL MEMORY
     // ======================================

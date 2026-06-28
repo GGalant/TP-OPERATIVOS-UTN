@@ -5,7 +5,7 @@ t_config_km config_km;
 //t_log* log_km;
 int posicion_memoria = 0;
 int contador_sticks = 0;
-
+static t_list* segmentos_para_compactar = NULL;
 
 int main(int argc, char *argv[]){
 
@@ -258,9 +258,14 @@ void* handle_ks(void* arg) {
                     uint32_t memoria_libre_total = calcular_memoria_libre();
                     if(memoria_libre_total >= tamanio_segmento){
                         log_debug(log_km, "Hay espacio en memoria pero no contiguo. Es necesario compactar");
+                        op_code desalojar = DESALOJAR_CPU;
+                        send(socket_ks, &desalojar,sizeof(desalojar),0);
                         //TODO: COMPACTAR
                         //1. avisar al KS de la compactacion. Solicitar desalojo de cpus
+                        op_code desalojo_ok;
+                        recv(socket_ks,&desalojo_ok,sizeof(desalojo_ok),0);
                         //2. Compactar memoria despues de confirmacion de desalojo
+                        iniciar_compactacion();
                         //3. Avisar compactacion OK
                     }else{
                         log_error(log_km, "No hay espacio en memoria, no se puede crear el segmento <%d> de tamanio <%d> del PID <%d>. Memoria libre total: <%d>",
@@ -703,5 +708,96 @@ void elegir_algoritmo(char* pid_string, int id_segmento, int tamanio_segmento){
         perror("El algoritmo de asignacion no es valido");
         return; //TODO: AVISAR AL KS
     }
+
+}
+
+void iniciar_compactacion(){
+   
+    list_sort(segmentos_para_compactar, comparar_segmentos_por_base);
+   
+    uint32_t proxima_base_libre = 0;
+
+    for (int i = 0; i < list_size(segmentos_para_compactar); i++){
+
+        t_segmento* segmento = list_get(segmentos_para_compactar, i);
+        
+        uint32_t base_vieja = segmento->base;
+        uint32_t base_nueva = proxima_base_libre;
+        uint32_t tamanio_segmento = segmento->limite;
+
+        if (base_vieja != base_nueva) {
+            log_debug(log_km,
+                      "Compactando segmento <%d>: base vieja <%d> - base nueva <%d> - tamaño <%d>",
+                      segmento->id_segmento,
+                      base_vieja,
+                      base_nueva,
+                      tamanio_segmento);
+
+            /*
+             * TODO: CAMNIAR REALMENTE LA MEMORIA EN MEMORY STICK
+             * Acá después hay q que mover los bytes reales:
+             * leer desde base_vieja
+             * escribir en base_nueva
+             *
+             *
+             */
+            segmento->base = base_nueva;
+        }
+
+        proxima_base_libre += tamanio_segmento;
+    }
+
+    reconstruir_huecos_despues_de_compactar(proxima_base_libre);
+
+    list_destroy(segmentos_para_compactar);
+
+    log_debug(log_km, "## Fin de compactación");
+
+}
+
+bool comparar_segmentos_por_base(void* a, void* b) {
+    t_segmento* segmento_a = (t_segmento*) a;
+    t_segmento* segmento_b = (t_segmento*) b;
+
+    return segmento_a->base < segmento_b->base;
+}
+
+void reconstruir_huecos_despues_de_compactar(uint32_t proxima_base_libre){
+   
+    list_clean_and_destroy_elements(huecos, free);
+
+    uint32_t memoria_total = calcular_memoria_total();
+
+        if (proxima_base_libre < memoria_total) {
+        t_hueco_libre* hueco_libre_nuevo = malloc(sizeof(t_hueco_libre));
+
+        hueco_libre_nuevo->base = proxima_base_libre;
+        hueco_libre_nuevo->tamanio = memoria_total - proxima_base_libre;
+
+        list_add(huecos, hueco_libre_nuevo);
+    }
+
+}
+
+t_list* obtener_todos_los_segmentos(){
+    segmentos_para_compactar = list_create();
+    dictionary_iterator(diccionario_contextos_ejecucion, obtener_segmentos);
+    return segmentos_para_compactar;
+
+}
+
+void obtener_segmentos(char* pid_str, void* contexto_ejec){
+    t_contextoEjec* contexto = (t_contextoEjec*) contexto_ejec;
+    list_add_all(segmentos_para_compactar, contexto->tabla_segmentos);
+}
+
+
+uint32_t calcular_memoria_total(){
+    uint32_t memoria_total = 0;
+    for(int i=0; i<list_size(sticks_conectados); i++){
+        t_memory_stick* stick = list_get(sticks_conectados, i);
+        memoria_total += stick->tamanio;
+    }
+    return memoria_total;
 
 }
