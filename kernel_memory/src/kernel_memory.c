@@ -213,17 +213,16 @@ void* handle_ks(void* arg) {
             
 
             case STDIN_ESCRITURA:
-            { //por pedido del ks
+            { //por pedido del ks TODO: CHEQUEAR CON TEAM SCHEDULER y chequear que gabi este mandando los pedidos de A UNO.
                 t_list* pedido_escritura = recibir_paquete(socket_ks); //esperamos (PID), dirFisica y tamaño a ESCRIBIR
                 pid_t pid = *(pid_t*)list_get(pedido_escritura, 0);
-                //char* direccion_logica = list_get(direccion_logica, 1);
                 char* direccion_fisica = list_get(pedido_escritura, 1);
-                void* bytes_a_escribir = list_get(pedido_escritura,2); 
+                int cantidad_bytes = list_get(pedido_escritura,2); 
+                char* contenido_a_escribir = list_get(pedido_escritura,3);
+//                solicitar_escritura(direccion_fisica,socket_memory_stick);
 
-                //char* direccion_fisica; //entrada --> magia -->traduccion
-                
-                /* AÚN MÁS MAGIA */
-              //  solicitar_escritura(direccion_fisica,socket_memory_stick);
+                t_paquete* solicitud_escritura = crear_paquete(ESCRITURA);
+                agregar_a_paquete(solicitud_escritura, direccion_fisica, sizeof)
 
                 enviar_mensaje("ESCRITURA OK!", socket_ks);
 

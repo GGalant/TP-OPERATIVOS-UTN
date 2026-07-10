@@ -53,6 +53,14 @@ typedef enum {
     // ======================================
 
     // ======================================
+    //* INICIO: KERNEL MEMORY - SWAP
+
+    ESCRITURA_DE_BLOQUE,
+    LECTURA_DE_BLOQUE,
+    //* FIN: KERNEL MEMORY - SWAP
+    // ======================================
+
+    // ======================================
     //* INICIO: KERNEL SCHEDULER - CPU:
 
     EJECUTAR_PROCESO,
