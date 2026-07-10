@@ -197,17 +197,27 @@ void* handle_ks(void* arg) {
                 //por pedido del ks
                 t_list* pedido_lectura = recibir_paquete(socket_ks); //esperamos (PID), dirFisica y tamaño a leer
                 pid_t pid = *(pid_t*)list_get(pedido_lectura,0);
-                
                 char* direccion_fisica = list_get(pedido_lectura, 1);
-                void* bytes_a_leer = list_get(pedido_lectura,2);
-        
-                /* LEER EL BLOQUE FISICO*/
-                
-                //TODO solicitar_lectura(direccion_fisica, socket_memory_stick); //TODO: FALTA IMPLEMENTARRRRR
-                enviar_mensaje("LECTURA OK!", socket_ks);
+                void* cantidad_bytes = list_get(pedido_lectura,2);
 
-                log_info(log_km,"## PID: <%d> - <Escritura/Lectura> - Dir. Física: <%s> - Tamaño: <TAMAÑO>",pid, direccion_fisica);
+                t_paquete* solicitud_lectura = crear_paquete(SOLICITUD_LECTURA);
 
+                agregar_a_paquete(solicitud_lectura, direccion_fisica, sizeof(direccion_fisica));
+                agregar_a_paquete(solicitud_lectura, cantidad_bytes,sizeof(cantidad_bytes));
+
+                enviar_paquete_send_all(solicitud_lectura,socket_memory_stick);
+
+                op_code lectura_ok;
+                recv(socket_memory_stick,&lectura_ok,sizeof(lectura_ok),0);
+
+                if(lectura_ok == LECTURA_OK){
+                    send(socket_ks,&lectura_ok, sizeof(lectura_ok),0);
+                    log_info(log_km,"## PID: <%d> - <Escritura/Lectura> - Dir. Física: <%s> - Tamaño: <TAMAÑO>",pid, direccion_fisica);
+
+                }else{
+                    log_error(log_km, "Ocurrio un error: No se pudo leer el bloque.");
+                    printf("soy el print del error de leer de bloque");
+                }
             }
                 break;
             
@@ -219,20 +229,29 @@ void* handle_ks(void* arg) {
                 char* direccion_fisica = list_get(pedido_escritura, 1);
                 int cantidad_bytes = list_get(pedido_escritura,2); 
                 char* contenido_a_escribir = list_get(pedido_escritura,3);
-//                solicitar_escritura(direccion_fisica,socket_memory_stick);
 
-                t_paquete* solicitud_escritura = crear_paquete(ESCRITURA);
-                agregar_a_paquete(solicitud_escritura, direccion_fisica, sizeof)
-
-                enviar_mensaje("ESCRITURA OK!", socket_ks);
-
-                log_info(log_km,"## PID: <%d> - <Escritura/Lectura> - Dir. Física: <%s> - Tamaño: <TAMAÑO>", pid, direccion_fisica);
+                t_paquete* solicitud_escritura = crear_paquete(SOLICITUD_ESCRITURA);
                 
-                /*t_paquete* paquete_lectura = crear_paquete(RTA_STDOUT_LECTURA);
-                
-                // retorna los bytes leidos que despues ks envia a IO
+                agregar_a_paquete(solicitud_escritura, direccion_fisica, sizeof(direccion_fisica));
+                agregar_a_paquete(solicitud_escritura, cantidad_bytes,sizeof(cantidad_bytes));
+                agregar_a_paquete(solicitud_escritura, contenido_a_escribir, sizeof(contenido_a_escribir));
 
-                enviar_paquete_send_all(paquete_lectura, socket_ks); */
+
+                enviar_paquete_send_all(solicitud_escritura,socket_memory_stick);
+
+                op_code escritura_ok;
+
+                recv(socket_memory_stick,&escritura_ok,sizeof(escritura_ok),0);
+
+                if(escritura_ok == ESCRITURA_OK){
+                    send(socket_ks,&escritura_ok, sizeof(escritura_ok),0);
+                    log_info(log_km,"## PID: <%d> - <Escritura/Lectura> - Dir. Física: <%s> - Tamaño: <%d>", pid, direccion_fisica, cantidad_bytes);
+
+                }else{
+                    log_error(log_km, "Ocurrio un error: No se pudo escribir el bloque.");
+                    printf("soy el print del error de escritura de bloque");
+                }
+                
             }
                 break;
                 
@@ -257,7 +276,7 @@ void* handle_ks(void* arg) {
                     uint32_t memoria_libre_total = calcular_memoria_libre();
                     if(memoria_libre_total >= tamanio_segmento){
                         log_debug(log_km, "Hay espacio en memoria pero no contiguo. Es necesario compactar");
-                        op_code desalojar = DESALOJAR_CPU;
+                        op_code desalojar = DESALOJAR_CPU; // TODO FIJARSE CON GABI Q LO MANDE ASI
                         send(socket_ks, &desalojar,sizeof(desalojar),0);
                         //TODO: COMPACTAR
                         //1. avisar al KS de la compactacion. Solicitar desalojo de cpus

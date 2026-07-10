@@ -48,6 +48,10 @@ typedef enum {
 
     CONECTAR_MS,
     DESCONECTAR_MS,
+    ESCRITURA_OK,
+    LECTURA_OK,
+    SOLICITUD_LECTURA,
+    SOLICITUD_ESCRITURA,
 
     //* FIN: KERNEL MEMORY - MEMORY STICK
     // ======================================
@@ -106,6 +110,7 @@ typedef enum {
 
     //* FIN: KERNEL SCHEDULER - KERNEL MEMORY
     // ======================================
+    
 
 }op_code;
 
