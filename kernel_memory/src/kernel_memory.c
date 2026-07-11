@@ -197,27 +197,60 @@ void* handle_ks(void* arg) {
                 //por pedido del ks
                 t_list* pedido_lectura = recibir_paquete(socket_ks); //esperamos (PID), dirFisica y tamaño a leer
                 pid_t pid = *(pid_t*)list_get(pedido_lectura,0);
-                char* direccion_fisica = list_get(pedido_lectura, 1);
-                void* cantidad_bytes = list_get(pedido_lectura,2);
+                uint32_t direccion_fisica = *(uint32_t*)list_get(pedido_lectura, 1);
+                int cantidad_bytes = *(int*)list_get(pedido_lectura,2);
 
                 t_paquete* solicitud_lectura = crear_paquete(SOLICITUD_LECTURA);
 
-                agregar_a_paquete(solicitud_lectura, direccion_fisica, sizeof(direccion_fisica));
-                agregar_a_paquete(solicitud_lectura, cantidad_bytes,sizeof(cantidad_bytes));
+                agregar_a_paquete(solicitud_lectura, &direccion_fisica, sizeof(uint32_t));
+                agregar_a_paquete(solicitud_lectura, &cantidad_bytes,sizeof(int));
 
                 enviar_paquete_send_all(solicitud_lectura,socket_memory_stick);
 
-                op_code lectura_ok;
-                recv(socket_memory_stick,&lectura_ok,sizeof(lectura_ok),0);
+                eliminar_paquete(solicitud_lectura);
 
-                if(lectura_ok == LECTURA_OK){
-                    send(socket_ks,&lectura_ok, sizeof(lectura_ok),0);
-                    log_info(log_km,"## PID: <%d> - <Escritura/Lectura> - Dir. Física: <%s> - Tamaño: <TAMAÑO>",pid, direccion_fisica);
+                op_code respuesta_lectura;
+                int recibidos = recv(socket_memory_stick,&respuesta_lectura,sizeof(respuesta_lectura),MSG_WAITALL);
+                if(recibidos != sizeof(respues)){
+                    log_error(log_km, "NO recibimos respuesta del Memory Stick");
+                    list_destroy_and_destroy_elements(pedido_lectura, free);
+                    break;
+                }
 
+                if(respuesta_lectura == LECTURA_OK){
+                    void* contenido_leido = malloc(cantidad_bytes);
+
+                    if (contenido_leido == NULL) {
+                        log_error(log_km, "No se pudo reservar memoria para la lectura");
+                        list_destroy_and_destroy_elements(pedido_lectura, free);
+                        break;
+                    }
+
+                    int bytes_leidos = recv(socket_memory_stick, contenido_leido,cantidad_bytes, MSG_WAITALL);
+                    
+                    if (bytes_leidos != cantidad_bytes) {
+                        log_error(log_km,"Se esperaban <%d> bytes pero se recibieron <%d>", cantidad_bytes,bytes_leidos);
+                    
+                        free(contenido_leido);
+                        list_destroy_and_destroy_elements(pedido_lectura,free);
+
+                        break;
+                    }
+
+                    send(socket_ks,&respuesta_lectura, sizeof(respuesta_lectura), 0);
+                    send(socket_ks,contenido_leido, cantidad_bytes,0);
+                    log_info(log_km,"## PID: <%d> - <Lectura> - Dir. Física: <%u> - Tamaño: <%d>",pid, direccion_fisica,cantidad_bytes);
+                    free(contenido_leido);
                 }else{
                     log_error(log_km, "Ocurrio un error: No se pudo leer el bloque.");
                     printf("soy el print del error de leer de bloque");
+                    //TODO: avisar a team KS que tienen que manejar el caso de error
+
+                    send(socket_ks, &respuesta_lectura, sizeof(respuesta_lectura), 0); 
+                    
                 }
+
+                list_destroy_and_destroy_elements(pedido_lectura, free);
             }
                 break;
             
@@ -226,31 +259,45 @@ void* handle_ks(void* arg) {
             { //por pedido del ks TODO: CHEQUEAR CON TEAM SCHEDULER y chequear que gabi este mandando los pedidos de A UNO.
                 t_list* pedido_escritura = recibir_paquete(socket_ks); //esperamos (PID), dirFisica y tamaño a ESCRIBIR
                 pid_t pid = *(pid_t*)list_get(pedido_escritura, 0);
-                char* direccion_fisica = list_get(pedido_escritura, 1);
-                int cantidad_bytes = list_get(pedido_escritura,2); 
-                char* contenido_a_escribir = list_get(pedido_escritura,3);
+                uint32_t direccion_fisica = *(uint32_t*)list_get(pedido_escritura, 1);
+                int cantidad_bytes = *(int*)list_get(pedido_escritura,2); 
+                char* contenido_a_escribir = (char*)list_get(pedido_escritura,3);
 
                 t_paquete* solicitud_escritura = crear_paquete(SOLICITUD_ESCRITURA);
                 
-                agregar_a_paquete(solicitud_escritura, direccion_fisica, sizeof(direccion_fisica));
-                agregar_a_paquete(solicitud_escritura, cantidad_bytes,sizeof(cantidad_bytes));
-                agregar_a_paquete(solicitud_escritura, contenido_a_escribir, sizeof(contenido_a_escribir));
+                agregar_a_paquete(solicitud_escritura, &direccion_fisica, sizeof(uint32_t));
+                agregar_a_paquete(solicitud_escritura, &cantidad_bytes,sizeof(int));
+                agregar_a_paquete(solicitud_escritura, contenido_a_escribir, cantidad_bytes);
 
 
                 enviar_paquete_send_all(solicitud_escritura,socket_memory_stick);
 
-                op_code escritura_ok;
+                eliminar_paquete(solicitud_escritura);
 
-                recv(socket_memory_stick,&escritura_ok,sizeof(escritura_ok),0);
+                op_code respuesta_escritura;
 
-                if(escritura_ok == ESCRITURA_OK){
-                    send(socket_ks,&escritura_ok, sizeof(escritura_ok),0);
-                    log_info(log_km,"## PID: <%d> - <Escritura/Lectura> - Dir. Física: <%s> - Tamaño: <%d>", pid, direccion_fisica, cantidad_bytes);
+                int recibidos = recv(socket_memory_stick,&respuesta_escritura,sizeof(respuesta_escritura),MSG_WAITALL);
+                
+                if(recibidos != sizeof(respuesta_escritura)){
+                    log_error(log_km, "NO recibimos respuesta del Memory Stick");
+                    list_destroy_and_destroy_elements(pedido_escritura, free);
+                    break;
+                }
+
+                if(respuesta_escritura == ESCRITURA_OK){
+                    send(socket_ks,&respuesta_escritura, sizeof(respuesta_escritura),0);
+                    log_info(log_km,"## PID: <%d> - <Escritura> - Dir. Física: <%u> - Tamaño: <%d>", pid, direccion_fisica, cantidad_bytes);
 
                 }else{
                     log_error(log_km, "Ocurrio un error: No se pudo escribir el bloque.");
                     printf("soy el print del error de escritura de bloque");
+                    //TODO: avisar a team KS que tienen que manejar el caso de error
+
+
+                    send(socket_ks, &respuesta_escritura, sizeof(respuesta_escritura), 0); 
                 }
+
+                list_destroy_and_destroy_elements(pedido_escritura, free);
                 
             }
                 break;
@@ -380,12 +427,14 @@ void* handle_cpu(void* arg) {
                 // caso de error si se intenta guardar el pcb de un proceso no creado
                 if (contexto == NULL) {
                     
-                    log_info(log_km, "El proceso con id: <%d> nunca fue creado en Kernel Memory", contexto->pid);
+                    log_info(log_km, "El proceso con id: <%d> nunca fue creado en Kernel Memory", pid);
                 
                     //liberamos porque no usamos key nueva, era una ya existente
                     free(str_pid_recibido);
-                    free(contexto);
                     //return EXIT_FAILURE;
+
+                    free(str_pid_recibido);
+                    list_destroy_and_destroy_elements(contexto_cpu,free);
                     return NULL; 
                 }
                 
@@ -411,7 +460,7 @@ void* handle_cpu(void* arg) {
             case PEDIDO_INSTRUCCION: {
                 t_list* instruccion_pedida = recibir_paquete(socket_cpu);
                 pid_t pid_recibido = *(pid_t*)list_get(instruccion_pedida, 0);
-                uint32_t pc = *(int*)list_get(instruccion_pedida,1);
+                uint32_t pc = *(uint32_t*)list_get(instruccion_pedida,1);
                 
                 char* str_pid_recibido = string_itoa(pid_recibido);
                 //Deberíamos tener algo más o menos así.

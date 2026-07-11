@@ -17,6 +17,8 @@ int main(int argc, char *argv[]){
     char* puerto;
     int log_level;
     int err;
+
+    int memory_delay;
    
     if (config == NULL){
         return EXIT_FAILURE;
@@ -31,8 +33,13 @@ int main(int argc, char *argv[]){
 
     puerto = config_get_string_value(config, "PUERTO");
 
+    memory_delay = config_get_int_value(config, "MEMORY_DELAY");
+
     //iniciar servidor
     server_ms = iniciar_servidor(log_ms, puerto);
+
+    //malloc del tamaño del ms
+    malloc(tamanio);
 
     //conexiones con Kernel Memory
     int conexion_km = crear_conexion(ip_km, puerto_km);
@@ -105,9 +112,54 @@ void* handle_km(void* arg) {
         int codigo_operacion = recibir_operacion(socket_km);
 
         switch(codigo_operacion) {
+            case SOLICITUD_ESCRITURA:
+            {
+
+                t_list* solicitud_escritura = recibir_paquete(socket_km);
+                uint32_t direccion_fisica = *(uint32_t*)list_get(solicitud_escritura,0);
+                int cantidad_bytes = *(int*)list_get(solicitud_escritura,1);
+                char* contenido_a_escribir = (char*)list_get(solicitud_escritura,2);
+
+                //escribir bloque
+
+                //aplicar memory delay
+
+                sleep(memory_delay);
+
+
+                //confirmacion
+                op_code escritura_ok = ESCRITURA_OK;
+                send(socket_km, &escritura_ok,sizeof(escritura_ok),0);
+
+                log_info(log_ms, "## Escritura de <%d> bytes",cantidad_bytes);
+            }
+                break;
+
+            case SOLICITUD_LECTURA:
+            {
+                t_list* solicitud_lectura = recibir_paquete(socket_km);
+                uint32_t direccion_fisica = *(uint32_t*)list_get(solicitud_lectura,0);
+                int cantidad_bytes = *(int*)list_get(solicitud_lectura,1);
+
+                //leer bloques
+
+                //aplicar memory_delay
+
+                sleep(memory_delay);
+
+                //confirmacion
+                op_code lectura_ok = LECTURA_OK;
+                send(socket_km, &lectura_ok,sizeof(lectura_ok),0);
+
+                log_info(log_ms, "## Lectura de <%d> bytes",cantidad_bytes);
+            }
+                break;
+            
             case -1:
                 log_error(log_ms, "El servidor Kernel Memory se desconectó. Terminando hilo.");
                 return NULL;
+            
+            
             default:
                 log_warning(log_ms, "operacion desconocida: %d", codigo_operacion);
                 break;
