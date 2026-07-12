@@ -1,4 +1,5 @@
 #include "memory_stick.h"
+int memory_delay;
 
 int main(int argc, char *argv[]){
 
@@ -8,7 +9,7 @@ int main(int argc, char *argv[]){
     }
     
     char* config_path = argv[1]; 
-    char* tamanio = argv[2];
+    int tamanio = argv[2];
     t_config* config = config_create(config_path);
     char* str_log_level;
     char* puerto_scheduler;
@@ -18,7 +19,7 @@ int main(int argc, char *argv[]){
     int log_level;
     int err;
 
-    int memory_delay;
+   
    
     if (config == NULL){
         return EXIT_FAILURE;
@@ -39,7 +40,12 @@ int main(int argc, char *argv[]){
     server_ms = iniciar_servidor(log_ms, puerto);
 
     //malloc del tamaño del ms
-    malloc(tamanio);
+    void* inicio_memoria = malloc(tamanio);
+    
+    if(inicio_memoria == NULL){
+        log_error(log_ms, "No se pudo reservar la memoria indicada");
+        return EXIT_FAILURE;
+    }
 
     //conexiones con Kernel Memory
     int conexion_km = crear_conexion(ip_km, puerto_km);
@@ -120,11 +126,21 @@ void* handle_km(void* arg) {
                 int cantidad_bytes = *(int*)list_get(solicitud_escritura,1);
                 char* contenido_a_escribir = (char*)list_get(solicitud_escritura,2);
 
-                //escribir bloque
+                //verficiar que entre en el ms
+                bool escritura_valida = cantidad_bytes > 0 && direccion_fisica < tamanio_memoria && (uint32_t) cantidad_bytes <= tamanio_memoria - direccion_fisica;
+
+                if (!escritura_valida) {
+                    log_error(log_ms, "Escritura fuera de rango");
+                    op_code error_escritura = ERROR_ESCRITURA;
+                    send(socket_km, &error_escritura, sizeof(escritura_error),0);
+
+                    list_destroy_and_destroy_elements(solicitud_escritura, free);
+                    return EXIT_FAILURE;
+                    
+                }
 
                 //aplicar memory delay
-
-                sleep(memory_delay);
+                usleep(memory_delay * 1000);
 
 
                 //confirmacion

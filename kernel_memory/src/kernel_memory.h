@@ -4,6 +4,7 @@
 #include <pthread.h>
 
 // GLOBALES
+
 int contador_sticks;
 int posicion_memoria;
 t_log* log_km;
@@ -13,6 +14,7 @@ int socket_swap;
 int socket_cpu;
 
 ///////////////////////
+
 
 void* handle_connections(void* arg);
 void* handle_ks(void* arg);
@@ -25,6 +27,7 @@ typedef struct {
     uint32_t base;
     uint32_t limite;
 } t_segmento; // revisar 
+
 
 
 typedef struct {
@@ -46,9 +49,12 @@ typedef struct {
 }t_contextoEjec;
 
 //guarda los contextos de ejecucion por pid (registros)
+
 t_dictionary* diccionario_contextos_ejecucion; //se crea al iniciar el servidor de km, antes de los hilos.
 
+
 //guarda los paths de los archivos de instrucciones por pid
+
 t_dictionary* diccionario_instrucciones; 
 
 typedef struct{
@@ -64,6 +70,7 @@ typedef struct {
     int id;
     uint32_t tamanio;
     uint32_t inicio;   // dentro del espacio total
+
 } t_memory_stick;
 
 typedef struct{
@@ -79,6 +86,9 @@ typedef struct{
 extern t_config_km config_km;
 
 // FUNCIONES
+bool acceso_valido_en_segmentos(pid_t pid, uint32_t direccion_fisica, uint32_t cantidad_bytes);
+
+
 t_list* cargar_instrucciones(char* path_instrucciones);
 char* obtener_instruccion(t_list* instrucciones, uint32_t pc_actual);
 char* armar_argumentos(char** tokens);

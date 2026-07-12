@@ -52,6 +52,7 @@ typedef enum {
     LECTURA_OK,
     SOLICITUD_LECTURA,
     SOLICITUD_ESCRITURA,
+    ERROR_ESCRITURA,
 
     //* FIN: KERNEL MEMORY - MEMORY STICK
     // ======================================
