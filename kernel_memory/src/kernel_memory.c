@@ -282,7 +282,7 @@ void *handle_ks(void *arg)
             t_list *pedido_escritura = recibir_paquete(socket_ks); // esperamos (PID), dirFisica y tamaño a ESCRIBIR
             pid_t pid = *(pid_t *)list_get(pedido_escritura, 0);
             uint32_t direccion_fisica = *(uint32_t *)list_get(pedido_escritura, 1);
-            uint32_t cantidad_bytes = *(int *)list_get(pedido_escritura, 2); // estanusando uint para el tamanio (lpm)
+            uint32_t cantidad_bytes = *(uint32_t *)list_get(pedido_escritura, 2); // estanusando uint para el tamanio (lpm)
                                                                         //  e ok, es actualizar los tipos
             char *contenido_a_escribir = (char *)list_get(pedido_escritura, 3);
 

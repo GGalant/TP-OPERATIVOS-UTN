@@ -1,5 +1,6 @@
 #include "memory_stick.h"
 int memory_delay;
+void* espacio_memoria;
 
 int main(int argc, char *argv[]){
 
@@ -40,9 +41,10 @@ int main(int argc, char *argv[]){
     server_ms = iniciar_servidor(log_ms, puerto);
 
     //malloc del tamaño del ms
-    void* inicio_memoria = malloc(tamanio);
+    //void* inicio_memoria = malloc(tamanio);
+    espacio_memoria = malloc(tamanio);
     
-    if(inicio_memoria == NULL){
+    if(espacio_memoria == NULL){
         log_error(log_ms, "No se pudo reservar la memoria indicada");
         return EXIT_FAILURE;
     }
@@ -109,9 +111,14 @@ void* handle_km(void* arg) {
     int socket_km = (int)(void*)arg;
     
     log_info(log_ms, "## Conectado a Kernel Memory");
-    
-    op_code handshake_ks = HANDSHAKE_KS;
-    send(socket_km, &handshake_ks, sizeof(op_code), 0);
+
+
+    //como deliramos aca ee --------------------------------------------
+    // op_code handshake_ks = HANDSHAKE_KS; 
+    // send(socket_km, &handshake_ks, sizeof(op_code), 0);
+
+    op_code handshake_ms = HANDSHAKE_MEMORYSTICK;
+    send(socket_km, &handshake_ms, sizeof(op_code), 0);
 
     while(true) {   
         // aca iria la logica de operaciones con Kernel Memory
@@ -123,11 +130,11 @@ void* handle_km(void* arg) {
 
                 t_list* solicitud_escritura = recibir_paquete(socket_km);
                 uint32_t direccion_fisica = *(uint32_t*)list_get(solicitud_escritura,0);
-                int cantidad_bytes = *(int*)list_get(solicitud_escritura,1);
+                uint32_t cantidad_bytes = *(uint32_t*)list_get(solicitud_escritura,1);
                 char* contenido_a_escribir = (char*)list_get(solicitud_escritura,2);
 
                 //verficiar que entre en el ms
-                bool escritura_valida = cantidad_bytes > 0 && direccion_fisica < tamanio_memoria && (uint32_t) cantidad_bytes <= tamanio_memoria - direccion_fisica;
+                bool escritura_valida = cantidad_bytes > 0 && direccion_fisica < tamanio && (uint32_t) cantidad_bytes <= tamanio - direccion_fisica;
 
                 if (!escritura_valida) {
                     log_error(log_ms, "Escritura fuera de rango");
@@ -135,12 +142,16 @@ void* handle_km(void* arg) {
                     send(socket_km, &error_escritura, sizeof(escritura_error),0);
 
                     list_destroy_and_destroy_elements(solicitud_escritura, free);
-                    return EXIT_FAILURE;
+                    //return EXIT_FAILURE;
+                    break;
                     
                 }
 
                 //aplicar memory delay
                 usleep(memory_delay * 1000);
+                //escribir los bytes
+                memcpy((char*)espacio_memoria + direccion_fisica, contenido_a_escribir,cantidad_bytes);
+
 
 
                 //confirmacion
@@ -157,15 +168,20 @@ void* handle_km(void* arg) {
                 uint32_t direccion_fisica = *(uint32_t*)list_get(solicitud_lectura,0);
                 int cantidad_bytes = *(int*)list_get(solicitud_lectura,1);
 
-                //leer bloques
+                bool lectura_valida = cantidad_bytes > 0 && direccion_fisica < tamanio && (uint32_t) cantidad_bytes <= tamanio - direccion_fisica;
 
                 //aplicar memory_delay
 
-                sleep(memory_delay);
+                usleep(memory_delay * 1000);
+                //leer bloques
+                void* temp = malloc(cantidad_bytes);
+
+                memcpy(temp, espacio_memoria + direccion_fisica,cantidad_bytes);
 
                 //confirmacion
                 op_code lectura_ok = LECTURA_OK;
                 send(socket_km, &lectura_ok,sizeof(lectura_ok),0);
+                send(socket_km,temp, cantidad_bytes,0);
 
                 log_info(log_ms, "## Lectura de <%d> bytes",cantidad_bytes);
             }
