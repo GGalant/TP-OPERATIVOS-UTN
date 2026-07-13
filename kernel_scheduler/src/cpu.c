@@ -68,16 +68,9 @@ void *handle_cpu(void *arg)
 
             t_proceso_pcb* pcb_hijo = crear_pcb(pid_hijo, prioridad);
 
-            pthread_mutex_lock(&mutex_cola_ready);
-            
-            cambiar_estado_proceso(proceso_padre, READY);
-            list_add(cola_ready, proceso_padre);
-
-            list_add(cola_ready, pcb_hijo);
-            cambiar_estado_proceso(pcb_hijo, READY);
-
-            pthread_mutex_unlock(&mutex_cola_ready);
-            pthread_cond_signal(&cond_cola_ready);
+            // Usar la nueva función productora genérica para agregar procesos a ready
+            agregar_proceso_a_ready(proceso_padre);
+            agregar_proceso_a_ready(pcb_hijo);
 
             break;
         case SYSCALL_EXIT:
@@ -213,13 +206,8 @@ void *handle_cpu(void *arg)
                 break;
             }
 
-            pthread_mutex_lock(&mutex_cola_ready);
-
-            cambiar_estado_proceso(proceso, READY);
-            list_add(cola_ready, proceso);
-            pthread_cond_signal(&cond_cola_ready);
-
-            pthread_mutex_unlock(&mutex_cola_ready);
+            // Usar la nueva función productora genérica para agregar procesos a ready
+            agregar_proceso_a_ready(proceso);
 
             pthread_mutex_lock(&mutex_lista_cpu_conectadas);
 
@@ -241,11 +229,6 @@ void *handle_cpu(void *arg)
             int id_segmento = *(int*)list_get(paquete_mem_alloc, 0);
             int tamanio_segmento = *(int*)list_get(paquete_mem_alloc, 1);
 
-            if (proceso == NULL) {  
-                log_error(log_ks, "No se encontró el proceso %d en EXEC", pid);
-                break;
-            }
-
             t_paquete *paquete_segmento = crear_paquete(CREACION_DE_SEGMENTO);
             agregar_a_paquete(paquete_segmento, &pid, sizeof(int));
             agregar_a_paquete(paquete_segmento, &id_segmento, sizeof(int));
@@ -258,8 +241,8 @@ void *handle_cpu(void *arg)
             op_code respuesta_km = recibir_operacion(conexion_km);
 
             if (respuesta_km == CREACION_DE_SEGMENTO_OK) {
-                log_debug(log_ks, "La Creacion de Segmento fue exitosa, devolviendo el proceso a la CPU")
-                enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid);
+                log_debug(log_ks, "La Creacion de Segmento fue exitosa, devolviendo el proceso a la CPU");
+                enviar_proceso_a_cpu(cpu->socket_cpu, pid);
                 break;
             }
 
@@ -276,13 +259,12 @@ void *handle_cpu(void *arg)
                     
                     pthread_mutex_lock(&mutex_cola_exec);
                     t_proceso_pcb* proceso_a_desalojar = remover_proceso_por_pid(cola_exec, cpu_a_desalojar->pid_actual);
-                    //TODO 2. PONER PROCESO EN COLA READY
                     pthread_mutex_unlock(&mutex_cola_exec);
 
-                    pthread_mutex_lock(&mutex_cola_ready);
-                    cambiar_estado_proceso(proceso_a_desalojar, READY);
-                    list_add(cola_ready, proceso_a_desalojar);
-                    pthread_mutex_unlock(&mutex_cola_ready);
+                    if (proceso_a_desalojar != NULL) {
+                        // Usar la nueva función productora genérica para agregar procesos a ready
+                        agregar_proceso_a_ready(proceso_a_desalojar);
+                    }
 
                     send(cpu_a_desalojar->socket_cpu, &(op_code){INTERRUPCION_DESALOJO}, sizeof(op_code), 0);
                 }
@@ -297,13 +279,10 @@ void *handle_cpu(void *arg)
                     break;
                 }                
                  
-                pthread_mutex_lock(&mutex_cola_ready);
-                cambiar_estado_proceso(remover_proceso_por_pid(cola_ready, pid), READY);
-                pthread_mutex_unlock(&mutex_cola_ready);
-
+                // Restaurar el proceso original a ready
                 cpu->estado = CPU_OCUPADA;
                 cpu->pid_actual = pid;
-                enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid);
+                enviar_proceso_a_cpu(cpu->socket_cpu, pid);
                 
                 pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
                 pthread_cond_signal(&cond_lista_cpu_conectadas);
@@ -311,7 +290,7 @@ void *handle_cpu(void *arg)
                 break;
             }
 
-            log_error(log_ks, "LA CREACION DE SEGMENTO FALLO (EL PROCESO FUE ASESINADO)")
+            log_error(log_ks, "LA CREACION DE SEGMENTO FALLO (EL PROCESO FUE ASESINADO)");
             
             pthread_mutex_lock(&mutex_lista_cpu_conectadas);
             cpu->estado = CPU_LIBRE;
@@ -323,9 +302,9 @@ void *handle_cpu(void *arg)
             break;
         case SYSCALL_MEM_FREE:
         
-            int id_segmento;
+            // int id_segmento;
         
-            recv(socket, &id_segmento, sizeof(int), MSG_WAITALL);
+            // recv(socket, &id_segmento, sizeof(int), MSG_WAITALL);
             
             break;
         case SYSCALL_MUTEX_LOCK:

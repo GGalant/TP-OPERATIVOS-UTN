@@ -27,7 +27,7 @@ int main(int argc, char *argv[]){
     pthread_t hilo_planificacion;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
     pthread_create(&hilo_km, NULL, handle_km, conexion_km_ptr);
-    pthread_create(&hilo_planificacion, NULL, handle_planificacion, algoritmo_planificacion);
+    pthread_create(&hilo_planificacion, NULL, hilo_planificador_principal, NULL);
 
     pthread_join(hilo_escucha, NULL);
     pthread_join(hilo_km, NULL);
@@ -59,21 +59,31 @@ void inicializar_ks(int argc, char *argv[]) {
     str_log_level = config_get_string_value(config, "LOG_LEVEL");
     puerto = config_get_string_value(config, "PUERTO");
     algoritmo_planificacion = config_get_string_value(config, "PLANIFICATION_ALGORITHM");
+    
+    // Obtener el algoritmo global y el flag de preemption
+    algoritmo_global = string_to_algoritmo(algoritmo_planificacion);
+    queue_preemption = config_get_int_value(config, "QUEUE_PREEMPTION") != 0;
+    
+    // Obtener parámetros de planificación
+    rr_quantum = config_get_int_value(config, "RR_QUANTUM");
+    suspension_timeout = config_get_int_value(config, "SUSPENSION_TIMEOUT");
+    
     log_level = log_level_from_string(str_log_level);
 
     log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
     log_debug_ks = log_create("scheduler_debug.log", "SCHEDULER_DEBUG", true, DEBUG);
 
-    cola_ready = list_create();
+    // Inicializar colas de estados (READY ahora es array_colas_ready)
     cola_block = list_create();
     cola_exec = list_create();
     cola_exit = list_create();
     cola_espera_sleep = list_create();
     cola_espera_stdout = list_create();
+    cola_susp_block = list_create();
+    cola_susp_ready = list_create();
     lista_io_conectadas = list_create();
     lista_cpu_conectadas = list_create();
 
-    pthread_mutex_init(&mutex_cola_ready, NULL);
     pthread_mutex_init(&mutex_cola_block, NULL);
     pthread_mutex_init(&mutex_cola_exec, NULL);
     pthread_mutex_init(&mutex_cola_exit, NULL);
@@ -85,7 +95,6 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_mutex_init(&mutex_stdout, NULL);
     pthread_mutex_init(&mutex_cola_susp_block, NULL);
     pthread_mutex_init(&mutex_cola_susp_ready, NULL);
-    pthread_cond_init(&cond_cola_ready, NULL);
     pthread_cond_init(&cond_cola_block, NULL);
     pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
     pthread_cond_init(&cond_sleep, NULL);
@@ -93,6 +102,10 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_cond_init(&cond_cola_susp_ready, NULL);
     pthread_cond_init(&cond_cola_susp_block, NULL);
     sem_init(&sem_inicializar_proceso, 0, 0);
+
+    // Inicializar el planificador con la estructura de colas adaptativa
+    inicializar_planificador();
+    log_info(log_ks, "Estructura de planificación inicializada correctamente");
 
     // INICIAR SERVIDOR
     server_ks = iniciar_servidor(log_ks, puerto);
@@ -128,7 +141,6 @@ void* handle_connections(void* arg){
                 pthread_t hilo_io;
 				pthread_create(&hilo_io, NULL, handle_io, socket_cliente);
 				pthread_detach(hilo_io);
- 				//TODO IMPLEMENTAR
  				break;
             default:
  				log_warning(log_ks, "Handshake no reconocido: %d", handshake_modulo);
@@ -173,11 +185,8 @@ void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {
         log_debug(log_ks, "Kernel Memory confirmo INICIALIZAR_PROCESO_OK PARA EL PROCESO INICIAL");
         t_proceso_pcb* pcb_proceso_inicial = crear_pcb(0, PRIORIDAD_MAXIMA);
 
-        pthread_mutex_lock(&mutex_cola_ready);
-        list_add(cola_ready, pcb_proceso_inicial);
-        cambiar_estado_proceso(pcb_proceso_inicial, READY);
-        pthread_mutex_unlock(&mutex_cola_ready);
-        pthread_cond_signal(&cond_cola_ready);
+        // Usar la nueva función productora genérica
+        agregar_proceso_a_ready(pcb_proceso_inicial);
     } else {
         log_error(log_ks, "Error al crear el proceso inicial en Kernel Memory. Código de op: %d", codigo_operacion);
         return; 
@@ -279,7 +288,6 @@ void liberar_recursos() {
     log_destroy(log_ks);
     log_destroy(log_debug_ks);
     config_destroy(config);
-    pthread_mutex_destroy(&mutex_cola_ready);
     pthread_mutex_destroy(&mutex_cola_block);
     pthread_mutex_destroy(&mutex_cola_exec);
     pthread_mutex_destroy(&mutex_cola_exit);
@@ -291,7 +299,6 @@ void liberar_recursos() {
     pthread_mutex_destroy(&mutex_stdout);
     pthread_mutex_destroy(&mutex_cola_susp_block);
     pthread_mutex_destroy(&mutex_cola_susp_ready);
-    pthread_cond_destroy(&cond_cola_ready);
     pthread_cond_destroy(&cond_cola_block);
     pthread_cond_destroy(&cond_lista_cpu_conectadas);
     pthread_cond_destroy(&cond_sleep);
@@ -307,7 +314,7 @@ void liberar_recursos() {
     free(puerto_km);
     free(ip_km);
     free(algoritmo_planificacion);
-    list_destroy(cola_ready);
+    liberar_planificador();
     list_destroy(cola_block);
     list_destroy(cola_exec);
     list_destroy(cola_exit);
