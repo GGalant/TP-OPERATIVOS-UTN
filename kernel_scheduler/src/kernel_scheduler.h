@@ -41,7 +41,7 @@ const char* estado_to_string(t_estado_proceso estado);
 char* solicitar_contenido_a_km(int socket_km, pid_t pid, uint32_t direccion_fisica, uint32_t tamanio);
 t_proceso_pcb* crear_pcb(pid_t pid, int prioridad);
 t_proceso_pcb* remover_proceso_por_pid(t_list* cola, pid_t pid);
-
+void solicitar_mem_free_a_km(int socket_km, pid_t pid, uint32_t id_segmento);
 
 
 #endif /* KERNEL_SCHEDULER_H_ */
