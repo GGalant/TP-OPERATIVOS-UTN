@@ -109,6 +109,8 @@ t_list* obtener_todos_los_segmentos();
 void obtener_segmentos(char* pid_str, void* contexto_ejec);
 bool comparar_segmentos_por_base(void* a, void* b);
 void reconstruir_huecos_despues_de_compactar(uint32_t proxima_base_libre);
+void *obtener_contenido_segmento(t_segmento *segmento);
+bool solicitar_lectura_a_stick(t_memory_stick *stick, uint32_t base_segmento_en_stick, uint32_t tamanio, void *destino);
 
 
 void iniciar_compactacion();

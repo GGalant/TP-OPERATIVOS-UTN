@@ -112,7 +112,7 @@ void *handle_connections(void *arg)
             // Guardamos el socket de MS de forma global y NO CREAMOS HILO, ya que no es necesariamente asincrono.
             // handle_ms();
             pthread_t hilo_ms;
-            pthread_create(&hilo_ms, NULL, handle_ms,socket_cliente)
+            pthread_create(&hilo_ms, NULL, handle_ms,socket_cliente);
             //socket_memory_stick = *socket_cliente;
             //free(socket_cliente);
             break;
@@ -336,6 +336,7 @@ void *handle_ks(void *arg)
         break;
 
         case CREACION_DE_SEGMENTO:
+        {
 
             t_list *pedido_creacion_seg = recibir_paquete(socket_ks);
             pid_t pid = *(pid_t *)list_get(pedido_creacion_seg, 0);
@@ -384,15 +385,16 @@ void *handle_ks(void *arg)
             }
             free(pid_string);
             list_destroy_and_destroy_elements(pedido_creacion_seg, free);
-
+        }
             break;
 
         case DESUSPENDER_PROCESO:
-
+        {
             pid_t pid;
             recv(socket_ks, &pid, sizeof(pid_t), 0);
             
-        
+        }
+            break;
 
         case SUSPENDER_PROCESO:
         {
@@ -402,7 +404,7 @@ void *handle_ks(void *arg)
 
             //1. BUscar en diccionario el pid
             char* pid_str = string_itoa(pid);
-            t_contextoEjec* contexto_aux = dictionary_get(diccionario_contextos_ejecucion,pid_str);
+            t_contextoEjec* contexto = dictionary_get(diccionario_contextos_ejecucion,pid_str);
             free(pid_str);
 
             if (contexto == NULL) {
@@ -410,7 +412,7 @@ void *handle_ks(void *arg)
                 break;
             }
 
-            t_list* segmentos = contexto_aux->tabla_segmentos;
+            t_list* segmentos = contexto->tabla_segmentos;
 
             t_list* direcciones_logicas = list_create();
             t_segmento* segmento;
@@ -422,7 +424,7 @@ void *handle_ks(void *arg)
                 void* buffer = malloc(segmento->limite); //limite = tamanio del segmento !!!!!!!!!!!
                 
                 encontrar_stick_por_base_del_segmento(segmento->base);
-                obtener_contenido(segmento);
+                obtener_contenido_segmento(segmento);
 
 
                 
@@ -437,11 +439,11 @@ void *handle_ks(void *arg)
             //chau juira traduccion mala
             //t_paquete traducir = crear_paquete(SOLICITAR_TRADUCCION);
 
-            agregar_a_paquete(traducir, direcciones_logicas, sizeof(direcciones_logicas));
+            // agregar_a_paquete(traducir, direcciones_logicas, sizeof(direcciones_logicas));
 
-            enviar_paquete_send_all(traducir, socket_cpu);
+            // enviar_paquete_send_all(traducir, socket_cpu);
 
-            eliminar_paquete(traducir);
+            // eliminar_paquete(traducir);
 
             
 
@@ -1099,14 +1101,7 @@ void *obtener_contenido_segmento(t_segmento *segmento){
             bytes_a_leer = bytes_disponibles_en_stick;
         }
 
-        bool lectura_ok =
-            solicitar_lectura_a_stick(
-                stick,
-                base_segmento_en_stick,
-                bytes_a_leer,
-                (char *)contenido_completo
-                    + desplazamiento_buffer
-            );
+        bool lectura_ok = solicitar_lectura_a_stick(stick, base_segmento_en_stick, bytes_a_leer, (char *)contenido_completo+ desplazamiento_buffer);
 
         if (!lectura_ok)
         {
@@ -1114,15 +1109,7 @@ void *obtener_contenido_segmento(t_segmento *segmento){
             return NULL;
         }
 
-        log_debug(
-            log_km,
-            "Segmento <%d> - MS <%d> - BASE <%u> - BASE_segmento_en_stick <%u> - Bytes <%u>",
-            segmento->id_segmento,
-            stick->id,
-            base_segmento,
-            base_segmento_en_stick,
-            bytes_a_leer
-        );
+        log_debug(log_km, "Segmento <%d> - MS <%d> - BASE <%u> - BASE_segmento_en_stick <%u> - Bytes <%u>", segmento->id_segmento,stick->id,base_segmento,base_segmento_en_stick,bytes_a_leer);
 
         base_segmento += bytes_a_leer;
         bytes_restantes -= bytes_a_leer;
@@ -1136,80 +1123,31 @@ void *obtener_contenido_segmento(t_segmento *segmento){
 // falta agregarlas al .h
 // pensar si lo que hicimos esta bien jiji
 
-bool solicitar_lectura_a_stick(
-    t_memory_stick *stick,
-    uint32_t base_local,
-    uint32_t tamanio,
-    void *destino
-)
+bool solicitar_lectura_a_stick(t_memory_stick *stick, uint32_t base_segmento_en_stick, uint32_t tamanio, void *destino)
 {
-    t_paquete *pedido =
-        crear_paquete(SOLICITUD_LECTURA);
-
-    agregar_a_paquete(
-        pedido,
-        &base_local,
-        sizeof(uint32_t)
-    );
-
-    agregar_a_paquete(
-        pedido,
-        &tamanio,
-        sizeof(uint32_t)
-    );
-
-    enviar_paquete_send_all(
-        pedido,
-        stick->socket
-    );
-
+    t_paquete *pedido = crear_paquete(SOLICITUD_LECTURA);
+    agregar_a_paquete(pedido, &base_segmento_en_stick, sizeof(uint32_t));
+    agregar_a_paquete(pedido, &tamanio, sizeof(uint32_t));
+    enviar_paquete_send_all(pedido, stick->socket);
     eliminar_paquete(pedido);
 
     op_code respuesta;
+    int recibidos = recv(stick->socket, &respuesta, sizeof(respuesta), MSG_WAITALL);
 
-    int recibidos = recv(
-        stick->socket,
-        &respuesta,
-        sizeof(respuesta),
-        MSG_WAITALL
-    );
-
-    if (recibidos != sizeof(respuesta))
-    {
-        log_error(
-            log_km,
-            "No se recibió respuesta del MS <%d>",
-            stick->id
-        );
+    if (recibidos != sizeof(respuesta)){
+        log_error(log_km, "No se recibió respuesta del MS <%d>", stick->id);
         return false;
     }
 
-    if (respuesta != LECTURA_OK)
-    {
-        log_error(
-            log_km,
-            "El MS <%d> rechazó la lectura",
-            stick->id
-        );
+    if (respuesta != LECTURA_OK){
+        log_error(log_km, "El MS <%d> rechazó la lectura", stick->id);
         return false;
     }
 
-    recibidos = recv(
-        stick->socket,
-        destino,
-        tamanio,
-        MSG_WAITALL
-    );
+    recibidos = recv(stick->socket, destino, tamanio, MSG_WAITALL);
 
-    if (recibidos != tamanio)
-    {
-        log_error(
-            log_km,
-            "MS <%d>: se esperaban <%u> bytes y se recibieron <%d>",
-            stick->id,
-            tamanio,
-            recibidos
-        );
+    if (recibidos != tamanio){
+        log_error(log_km, "MS <%d>: se esperaban <%u> bytes y se recibieron <%d>", stick->id, tamanio, recibidos);
         return false;
     }
 
