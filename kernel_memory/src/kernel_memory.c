@@ -343,7 +343,9 @@ void *handle_ks(void *arg)
             int id_segmento = *(int *)list_get(pedido_creacion_seg, 1);
             int tamanio_segmento = *(int *)list_get(pedido_creacion_seg, 2);
             char *pid_string = string_itoa(pid);
-            
+
+            void iniciar_creacion_segmento(pid, id_segmento, tamanio_segmento, socket_ks);
+            /*
             if (verificar_tamanio_valido(tamanio_segmento))
             {
 
@@ -383,7 +385,7 @@ void *handle_ks(void *arg)
                     }
                 }
             }
-        
+        */
             free(pid_string);
             list_destroy_and_destroy_elements(pedido_creacion_seg, free);
         }
@@ -395,8 +397,8 @@ void *handle_ks(void *arg)
             recv(socket_ks, &pid, sizeof(pid_t), 0);
 
             char* pid_str = string_itoa(pid);
-            t_list* segmentos_del_proceso_suspendido = list_create();
-            segmentos_del_proceso_suspendido = dictionary_get(diccionario_procesos_suspendidos, pid_str);
+            t_list* segmentos_del_proceso_suspendido = dictionary_get(diccionario_procesos_suspendidos, pid_str);
+            
             free(pid_str);
 
             
@@ -407,17 +409,24 @@ void *handle_ks(void *arg)
 
             /////////////////////////////////////////////////
 
-            t_metadata_swap contexto_suspendido;
             
             for (int i = 0; i < list_size(segmentos_del_proceso_suspendido); i++){
                 
-                contexto_suspendido = list_get(segmentos_del_proceso_suspendido, i);
+                //traemos la metadata
+                t_metadata_swap* contexto_suspendido = list_get(segmentos_del_proceso_suspendido, i);
                 
-                iniciar_creacion_segmento(
+                //
+                t_segmento* segmento_restaurado = iniciar_creacion_segmento(
                     contexto_suspendido->pid,
-                    contexto_suspendido->id_segmento,//id_segmento,
-                    contexto_suspendido->limite //tamanio
+                    contexto_suspendido->id_segmento, //id_segmento,
+                    contexto_suspendido->limite, //tamanio,
+                    socket_ks
                 ); //TODO: IMPLEMENTAR
+
+                void* contenido = leer_bloque_swap(contexto_suspendido->bloque_swap);
+
+                //TODO: PENSAR si esto se escribe siempre --> creeria q si
+                escribir_segmento_en_ms(segmento_restaurado, contenido);
             }
         }
             break;
@@ -884,6 +893,11 @@ void crear_segmento(t_hueco_libre *hueco_hallado, char *pid, uint32_t id_segment
 
     t_contextoEjec *contexto_ejecucion = dictionary_get(diccionario_contextos_ejecucion, pid);
 
+    if (contexto_ejecucion == NULL){
+    log_error(log_km, "No existe contexto para el PID <%s>", pid);
+    return;
+}
+
     list_add(contexto_ejecucion->tabla_segmentos, nuevo_segmento);
 
     log_info(log_km, "## PID: <%s> - Segmento Creado <%d> - Tamaño: <%d>", pid, id_segmento, tamanio_segmento);
@@ -1240,7 +1254,53 @@ uint32_t obtener_bloque_libre_swap(){
 }
 
 
-void iniciar_creacion_segmento(pid_t pid, int id_segmento, uint32_t limite){
+t_segmento* iniciar_creacion_segmento(pid_t pid, int id_segmento, uint32_t tamanio_segmento, int socket_ks){
 
+    char* pid_string = string_itoa(pid);
+
+      if (verificar_tamanio_valido(tamanio_segmento))
+            {
+
+                if (existe_hueco_contiguo(tamanio_segmento))
+                {
+                    // TODO: meter comparacion de algoritmos en una funcion
+
+                    elegir_algoritmo(pid_string, id_segmento, tamanio_segmento);
+                }
+                else
+                {
+                    // buscamos si hay espacio libre en toda la memoria
+                    uint32_t memoria_libre_total = calcular_memoria_libre();
+                    if (memoria_libre_total >= tamanio_segmento)
+                    {
+                        log_debug(log_km, "Hay espacio en memoria pero no contiguo. Es necesario compactar");
+                        op_code desalojar = DESALOJAR_CPU; // TODO FIJARSE CON GABI Q LO MANDE ASI
+                        send(socket_ks, &desalojar, sizeof(desalojar), 0);
+                        // TODO: COMPACTAR
+                        // 1. avisar al KS de la compactacion. Solicitar desalojo de cpus
+                        op_code desalojo_ok;
+                        recv(socket_ks, &desalojo_ok, sizeof(desalojo_ok), 0);
+                        // 2. Compactar memoria despues de confirmacion de desalojo
+                        iniciar_compactacion();
+                        // 3. Avisar compactacion OK
+                    }
+                    else
+                    {
+                        log_error(log_km, "No hay espacio en memoria, no se puede crear el segmento <%d> de tamanio <%d> del PID <%d>. Memoria libre total: <%d>",
+                                  id_segmento,
+                                  tamanio_segmento,
+                                  pid,
+                                  memoria_libre_total);
+                        //return;
+                        break;
+                        // TODO: avisar ks?
+                    }
+                }
+            }
 
 }
+
+ escribir_segmento_en_ms(t_segmento* segmento_restaurado, void* contenido){
+    t_stick* stick = encontrar_stick_por_base_del_segmento(segmento_restaurado->base);
+
+ }
