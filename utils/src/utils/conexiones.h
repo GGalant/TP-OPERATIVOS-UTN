@@ -63,6 +63,7 @@ typedef enum {
 
     ESCRITURA_DE_BLOQUE,
     LECTURA_DE_BLOQUE,
+    SOLICITUD_BLOQUE_LIBRE,
     //* FIN: KERNEL MEMORY - SWAP
     // ======================================
 

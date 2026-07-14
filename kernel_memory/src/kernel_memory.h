@@ -74,6 +74,15 @@ typedef struct {
 } t_memory_stick;
 
 typedef struct{
+    pid_t pid;
+    int id_segmento;
+    uint32_t limite;
+    uint32_t bloque_swap;
+}t_metadata_swap;
+
+t_dictionary* diccionario_procesos_suspendidos;
+
+typedef struct{
     char* puerto;
     char* log_level;
     int segment_max_size;

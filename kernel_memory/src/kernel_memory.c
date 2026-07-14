@@ -343,7 +343,7 @@ void *handle_ks(void *arg)
             int id_segmento = *(int *)list_get(pedido_creacion_seg, 1);
             int tamanio_segmento = *(int *)list_get(pedido_creacion_seg, 2);
             char *pid_string = string_itoa(pid);
-
+            
             if (verificar_tamanio_valido(tamanio_segmento))
             {
 
@@ -383,6 +383,7 @@ void *handle_ks(void *arg)
                     }
                 }
             }
+        
             free(pid_string);
             list_destroy_and_destroy_elements(pedido_creacion_seg, free);
         }
@@ -392,7 +393,32 @@ void *handle_ks(void *arg)
         {
             pid_t pid;
             recv(socket_ks, &pid, sizeof(pid_t), 0);
+
+            char* pid_str = string_itoa(pid);
+            t_list* segmentos_del_proceso_suspendido = list_create();
+            segmentos_del_proceso_suspendido = dictionary_get(diccionario_procesos_suspendidos, pid_str);
+            free(pid_str);
+
             
+            if (segmentos_del_proceso_suspendido == NULL) {
+                log_error(log_km, "Error al desuspender PID %d", pid);
+                break;
+            }
+
+            /////////////////////////////////////////////////
+
+            t_metadata_swap contexto_suspendido;
+            
+            for (int i = 0; i < list_size(segmentos_del_proceso_suspendido); i++){
+                
+                contexto_suspendido = list_get(segmentos_del_proceso_suspendido, i);
+                
+                iniciar_creacion_segmento(
+                    contexto_suspendido->pid,
+                    contexto_suspendido->id_segmento,//id_segmento,
+                    contexto_suspendido->limite //tamanio
+                ); //TODO: IMPLEMENTAR
+            }
         }
             break;
 
@@ -413,29 +439,67 @@ void *handle_ks(void *arg)
             }
 
             t_list* segmentos = contexto->tabla_segmentos;
-
-            t_list* direcciones_logicas = list_create();
+            //t_list* direcciones_logicas = list_create();
             t_segmento* segmento;
+            void* contenido;
+            t_list* backup_metadata = list_create();
             
             for (int i = 0; i < list_size(segmentos); i++){
                 
                 segmento = list_get(segmentos, i);
                 
-                void* buffer = malloc(segmento->limite); //limite = tamanio del segmento !!!!!!!!!!!
-                
-                encontrar_stick_por_base_del_segmento(segmento->base);
-                obtener_contenido_segmento(segmento);
+                //void* buffer_contenido = malloc(segmento->limite); //limite = tamanio del segmento !!!!!!!!!!!
+                contenido = obtener_contenido_segmento(segmento);
+                if(contenido == NULL){
+                    log_error(log_km, "NO se pudo obtener el segmento <%d> del PID <%d>",segmento->id_segmento, pid);
+                    break;
+                }
+                //encontrar_stick_por_base_del_segmento(segmento->base); --> ahora lo hace obtener_contenido_segmento()
+               //obtener_contenido_segmento(segmento);
+                uint32_t bloque_en_swap = enviar_segmento_a_swap(pid, segmento, contenido);
+                free(contenido);
+
+                if(contenido_guardado < 0){
+                    log_error(log_km,"Ocurrio un error y no se pudo guardar el segmento <%d> del PID <%d> en SWAP", segmento->id_segmento, pid);
+                    break;
+                }
+                // int id = segmento->id_segmento; 
+                // int despl = segmento->limite;
+
+                // int dl = id + despl;
+
+                // list_add(direcciones_logicas, dl); 
 
 
-                
-                int id = segmento->id_segmento; 
-                int despl = segmento->limite;
+                //guardo metadata del segmento --> puede ir todo en enviar_segmento_a_swap() ----???
+                t_metadata_swap* backup = malloc(sizeof(t_metadata_swap));
+                backup->id_segmento = segmento->id_segmento;
+                backup->limite = segmento->limite;
+                backup->pid = segmento->pid;
+                backup->bloque_swap = bloque_en_swap;
 
-                int dl = id + despl;
-
-                list_add(direcciones_logicas, dl);
- 
+                list_add(backup_metadata,backup);
             }
+
+            dictionary_put(diccionario_procesos_suspendidos, pid_str,backup_metadata);
+
+           
+
+            //como le seteo el bloque?
+
+            //ahora que se esta guardado, limpiamos la tabla de segmentos
+
+            for(int i = 0, list_size(segmentos), i++){
+                t_segmento* segmento_aux = list_get(segmentos,i);
+
+                // TODO: PENSAR --> funcion para liberar segmentos? liberar manualmente con free?
+            } 
+
+            list_clean_and_destroy_elements(segmentos, free);
+
+            log_debug(log_km, "Proceso suspendido correctamente. PID <%d>: ",pid);
+
+
             //chau juira traduccion mala
             //t_paquete traducir = crear_paquete(SOLICITAR_TRADUCCION);
 
@@ -445,15 +509,6 @@ void *handle_ks(void *arg)
 
             // eliminar_paquete(traducir);
 
-            
-
-    
-            //Avisamos al ms que necesitamos suspender
-            
-            //2. recibir del ms los segmentos del proceso a suspender
-            //3. copiarlo 1 x 1 al swap
-            //4. borrar estructuras del ms
-            // 
         }
             break;
         default:
@@ -1123,8 +1178,7 @@ void *obtener_contenido_segmento(t_segmento *segmento){
 // falta agregarlas al .h
 // pensar si lo que hicimos esta bien jiji
 
-bool solicitar_lectura_a_stick(t_memory_stick *stick, uint32_t base_segmento_en_stick, uint32_t tamanio, void *destino)
-{
+bool solicitar_lectura_a_stick(t_memory_stick *stick, uint32_t base_segmento_en_stick, uint32_t tamanio, void *destino){
     t_paquete *pedido = crear_paquete(SOLICITUD_LECTURA);
     agregar_a_paquete(pedido, &base_segmento_en_stick, sizeof(uint32_t));
     agregar_a_paquete(pedido, &tamanio, sizeof(uint32_t));
@@ -1152,4 +1206,41 @@ bool solicitar_lectura_a_stick(t_memory_stick *stick, uint32_t base_segmento_en_
     }
 
     return true;
+}
+
+uint32_t enviar_segmento_a_swap(pid_t pid, t_segmento* segmento, void* contenido){
+    uint32_t bloque_libre = obtener_bloque_libre_swap();
+    //el backup se hace en el case SUSPENDER_PROCESO
+    // t_metadata_swap* backup = malloc(sizeof(t_metadata_swap));
+    //     backup->id_segmento = segmento->id_segmento;
+    //     backup->limite = segmento->limite;
+    //     backup->pid = segmento->pid;
+    //     backup->bloque_swap = bloque_libre;
+    
+    t_paquete* segmento_a_guardar = crear_paquete(GUARDAR_SEGMENTO);
+    agregar_a_paquete(segmento_a_guardar, segmento->id_segmento, sizeof(int));
+    agregar_a_paquete(segmento_a_guardar, segmento->base, sizeof(uint32_t));
+    agregar_a_paquete(segmento_a_guardar, segmento->limite, sizeof(segmento));
+    agregar_a_paquete(segmento_a_guardar,contenido,sizeof(contenido));
+    agregar_a_paquete(segmento_a_guardar, bloque_libre, sizeof(uint32_t));
+    //por las dudas re pensar si hace falta mandar el pid o no
+
+    return bloque_libre;
+}
+
+
+//TODO: IMPLEMENTAR RTA EN SWAP !!!!!!!!!!!!!!!!!!!!!!
+uint32_t obtener_bloque_libre_swap(){
+    op_code solicitud_bloque_libre = SOLICITUD_BLOQUE_LIBRE;
+    send(socket_swap,&solicitud_bloque_libre, sizeof(solicitud_bloque_libre),0);
+    //verificacion de enviado????
+    uint32_t bloque;
+    recv(socket_swap, bloque, sizeof(int), MSG_WAITALL);
+    return bloque;
+}
+
+
+void iniciar_creacion_segmento(pid_t pid, int id_segmento, uint32_t limite){
+
+
 }
