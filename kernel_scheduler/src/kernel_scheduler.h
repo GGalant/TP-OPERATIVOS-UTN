@@ -30,6 +30,7 @@ void* temporizador_timeout(void* arg);
 void iniciar_temporizador_timeout(pid_t pid);
 
 
+void solicitar_mem_free_a_km(int socket_km, pid_t pid, uint32_t id_segmento);
 
 
 #endif /* KERNEL_SCHEDULER_H_ */
