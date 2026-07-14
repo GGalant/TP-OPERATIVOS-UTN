@@ -152,7 +152,7 @@ void *handle_cpu(void *arg)
 
             t_list *paquete_stdout = recibir_paquete(socket_cpu);
             pid_t pid;
-            uint32_t direccion_logica = *(uint32_t *)list_get(paquete_stdout, 0);
+            uint32_t direccion_fisica = *(uint32_t *)list_get(paquete_stdout, 0);
             uint32_t tamanio = *(uint32_t *)list_get(paquete_stdout, 1);
             list_destroy_and_destroy_elements(paquete_stdout, free);
 
@@ -181,7 +181,7 @@ void *handle_cpu(void *arg)
             pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
             log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
 
-            char *contenido = solicitar_contenido_a_km(conexion_km, proceso->pid, direccion_logica, tamanio);
+            char *contenido = solicitar_contenido_a_km(conexion_km, proceso->pid, direccion_fisica, tamanio);
 
             enviar_proceso_a_io_stdout(pid, contenido);
 
