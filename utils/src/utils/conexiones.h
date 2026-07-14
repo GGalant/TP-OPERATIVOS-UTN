@@ -39,6 +39,7 @@ typedef enum {
     RECIBIR_CONTEXTO,
     PEDIDO_INSTRUCCION,
     RTA_PEDIDO_INSTRUCCION,
+    SOLICITAR_TRADUCCION,
 
     //*FIN: KERNEL MEMORY - CPU
     // ======================================
@@ -107,7 +108,9 @@ typedef enum {
     CREACION_DE_PROCESO,
     CREACION_DE_SEGMENTO,
     DESALOJAR_CPU,
-    DESALOJAR_CPU_OK
+    DESALOJAR_CPU_OK,
+    DESUSPENDER_PROCESO,
+    SUSPENDER_PROCESO
 
     //* FIN: KERNEL SCHEDULER - KERNEL MEMORY
     // ======================================

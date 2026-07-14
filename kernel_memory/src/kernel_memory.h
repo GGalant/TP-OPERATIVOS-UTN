@@ -70,7 +70,7 @@ typedef struct {
     int id;
     uint32_t tamanio;
     uint32_t inicio;   // dentro del espacio total
-
+    int socket;
 } t_memory_stick;
 
 typedef struct{
@@ -88,6 +88,8 @@ extern t_config_km config_km;
 // FUNCIONES
 bool acceso_valido_en_segmentos(pid_t pid, uint32_t direccion_fisica, uint32_t cantidad_bytes);
 
+t_memory_stick* encontrar_stick_por_base_del_segmento(uint32_t base_segmento);
+
 
 t_list* cargar_instrucciones(char* path_instrucciones);
 char* obtener_instruccion(t_list* instrucciones, uint32_t pc_actual);
@@ -96,7 +98,7 @@ char* armar_argumentos(char** tokens);
 
 void buscar_best_bloque(char* pid_string, int id_segmento, int tamanio_segmento);
 void buscar_worst_bloque(char* pid_string, int id_segmento, int tamanio_segmento);
-t_segmento crear_segmento(t_hueco_libre* hueco_hallado,char* pid, uint32_t id_segmento, uint32_t tamanio_segmento);
+void crear_segmento(t_hueco_libre* hueco_hallado,char* pid, uint32_t id_segmento, uint32_t tamanio_segmento);
 bool verificar_tamanio_valido(int tamanio_seg);
 uint32_t calcular_memoria_libre();
 uint32_t calcular_memoria_total();
@@ -106,3 +108,7 @@ void elegir_algoritmo(char* pid_string, int id_segmento, int tamanio_segmento);
 t_list* obtener_todos_los_segmentos();
 void obtener_segmentos(char* pid_str, void* contexto_ejec);
 bool comparar_segmentos_por_base(void* a, void* b);
+void reconstruir_huecos_despues_de_compactar(uint32_t proxima_base_libre);
+
+
+void iniciar_compactacion();

@@ -174,16 +174,16 @@ void* handle_km(void* arg) {
 
                 usleep(memory_delay * 1000);
                 //leer bloques
-                void* temp = malloc(cantidad_bytes);
+                void* buffer_temp = malloc(cantidad_bytes);
 
-                memcpy(temp, espacio_memoria + direccion_fisica,cantidad_bytes);
+                memcpy(buffer_temp, espacio_memoria + direccion_fisica,cantidad_bytes);
 
                 //confirmacion
                 op_code lectura_ok = LECTURA_OK;
                 send(socket_km, &lectura_ok,sizeof(lectura_ok),0);
-                send(socket_km,temp, cantidad_bytes,0);
+                send(socket_km, buffer_temp, cantidad_bytes,0);
 
-                log_info(log_ms, "## Lectura de <%d> bytes",cantidad_bytes);
+                log_info(log_ms, "## Lectura de <%d> bytes", cantidad_bytes);
             }
                 break;
             
