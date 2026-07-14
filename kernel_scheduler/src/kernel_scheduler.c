@@ -149,7 +149,7 @@ void* handle_km(void* arg) {
             case -1:
                 log_error(log_ks, "El servidor Kernel Memory se desconectó. Terminando hilo.");
                 return NULL;
-            case RESPUESTA_MEM_FREE; {
+            case RESPUESTA_MEM_FREE: {
                 t_list *paquete_respuesta = recibir_paquete(socket_km);
 
                 pid_t pid = *(pid_t *)list_get(paquete_respuesta, 0);
