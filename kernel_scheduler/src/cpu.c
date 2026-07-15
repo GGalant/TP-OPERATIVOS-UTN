@@ -300,13 +300,6 @@ void *handle_cpu(void *arg)
             log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
             
             break;
-        case SYSCALL_MEM_FREE:
-        
-            // int id_segmento;
-        
-            // recv(socket, &id_segmento, sizeof(int), MSG_WAITALL);
-            
-            break;
         case SYSCALL_MUTEX_LOCK:
             break;
         case SYSCALL_MUTEX_UNLOCK:
@@ -314,47 +307,26 @@ void *handle_cpu(void *arg)
         case SYSCALL_MEM_FREE: {
             t_list *paquete_mem_free = recibir_paquete(socket_cpu);
 
-            pid_t pid = cpu->pid_actual; // guardo pid
+            pid_t pid = cpu->pid_actual;
 
             uint32_t id_segmento = *(uint32_t *)list_get(paquete_mem_free, 0);
 
             list_destroy_and_destroy_elements(paquete_mem_free, free);
 
-            // Entiendo que el proceso debe bloquearse para hacer el mem_Free, tengo dudas.
+            // Envio soli a km
+            solicitar_mem_free_a_km(conexion_km, pid, id_segmento);
 
-            pthread_mutex_lock(&mutex_cola_exec);
+            op_code respuesta_km = recibir_operacion(conexion_km);
 
-            t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
-
-            pthread_mutex_unlock(&mutex_cola_exec);
-
-            if (proceso == NULL)
+            if (respuesta_km == RESPUESTA_MEM_FREE)
             {
-                log_error(log_ks, "Error: No se encontró el proceso con PID %d en la cola de EXEC.", pid);
+                log_debug(log_ks, "MEM_FREE exitoso, devolviendo el PID <%d> a la CPU <%d>", pid, cpu->cpu_id);
+
+                enviar_proceso_a_cpu(cpu->socket_cpu, pid);
+
                 break;
             }
-
-            cambiar_estado_proceso(proceso, BLOCK);
-
-            pthread_mutex_lock(&mutex_cola_block);
-            list_add(cola_block, proceso);
-            pthread_mutex_unlock(&mutex_cola_block);
-
-            pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-
-            cpu->estado = CPU_LIBRE;
-            cpu->pid_actual = -1;
-
-            pthread_cond_signal(&cond_lista_cpu_conectadas);
-
-            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-        
-            log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
-
-            //Envio soli a km
-
-            solicitar_mem_free_a_km(conexion_km ,pid , id_segmento);
-            
+            log_error(log_ks, "MEM_FREE falló para el PID <%d> - Segmento <%u>", pid, id_segmento);
             break;
         }
         case ERROR:
