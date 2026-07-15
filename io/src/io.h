@@ -24,3 +24,5 @@ void handle_io_stdin();
 void handle_io_stdout();
 void liberar_recursos();
 void enviar_fin_io(pid_t pid);
+char* leer_y_validar_contenido(uint32_t tamanio);
+void enviar_fin_io_stdin(pid_t pid, uint32_t direccion_fisica, char* contenido);

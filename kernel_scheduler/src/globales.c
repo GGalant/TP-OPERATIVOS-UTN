@@ -1,6 +1,13 @@
 #include "kernel_scheduler.h"
 
-t_list *cola_ready;
+// Planificación - nuevas estructuras
+t_cola_nivel* array_colas_ready;
+int cantidad_niveles;
+sem_t sem_procesos_ready;
+t_algoritmo_planificacion algoritmo_global;
+bool queue_preemption;
+
+// Colas de estados
 t_list *cola_block;
 t_list *cola_exec;
 t_list *cola_exit;
@@ -8,8 +15,10 @@ t_list *lista_cpu_conectadas;
 t_list *lista_io_conectadas;
 t_list *cola_espera_sleep;
 t_list *cola_espera_stdout;
+t_list *cola_espera_stdin;
 t_list *cola_susp_block;
 t_list *cola_susp_ready;
+t_list *lista_mutex;
 t_log *log_ks;
 t_log *log_debug_ks;
 t_config *config;
@@ -20,6 +29,8 @@ char *str_log_level;
 char *puerto_km;
 char *ip_km;
 char *algoritmo_planificacion;
+char* buffer_global_contenido_km = NULL;
+uint32_t buffer_global_tamanio_contenido_km = 0;
 const int PRIORIDAD_MAXIMA = 0;
 int *conexion_km_ptr;
 int id_io_global = -1;
@@ -29,7 +40,8 @@ int conexion_km;
 int log_level;
 int suspension_timeout;
 int rr_quantum;
-pthread_mutex_t mutex_cola_ready;
+bool bsod_activo = false; //avisa a los hilos que tienen q terminar
+
 pthread_mutex_t mutex_cola_block;
 pthread_mutex_t mutex_cola_exec;
 pthread_mutex_t mutex_cola_exit;
@@ -39,15 +51,20 @@ pthread_mutex_t mutex_generador_id_io;
 pthread_mutex_t mutex_generador_pid;
 pthread_mutex_t mutex_sleep;
 pthread_mutex_t mutex_stdout;
+pthread_mutex_t mutex_stdin;
 pthread_mutex_t mutex_cola_susp_block;
 pthread_mutex_t mutex_cola_susp_ready;
-pthread_cond_t cond_cola_ready;
+pthread_mutex_t mutex_lista_mutex;
+pthread_mutex_t mutex_solicitud_km;
 pthread_cond_t cond_cola_block;
 pthread_cond_t cond_lista_cpu_conectadas;
 pthread_cond_t cond_sleep;
 pthread_cond_t cond_stdout;
+pthread_cond_t cond_stdin;
 pthread_cond_t cond_cola_susp_ready;
 pthread_cond_t cond_cola_susp_block;
+sem_t sem_inicializar_proceso;
+sem_t sem_respuesta_contenido_km;
 
 void wait_mutex(t_mutex *mutex, pid_t pid_proceso)
 {
@@ -93,4 +110,60 @@ void signal_mutex(t_mutex *mutex)
         mutex->pid_proceso = -1;
         log_info(log_ks, "## Proceso libero Mutex %s. Estado: LIBRE", mutex->nombre_mutex);
     }
+}
+
+/**
+ * agregar_proceso_a_ready: Función productora genérica para agregar procesos a ready.
+ * Implementa la regla: CMN usa prioridad como índice, FIFO/RR siempre usa índice 0.
+ * Si CMN y queue_preemption es true, invoca chequear_desalojo antes de post.
+ */
+void agregar_proceso_a_ready(t_proceso_pcb* proceso)
+{
+    if (proceso == NULL || array_colas_ready == NULL) {
+        log_error(log_ks, "agregar_proceso_a_ready: proceso o array_colas_ready es NULL");
+        return;
+    }
+
+    // Determina el índice según el algoritmo global
+    int indice_cola;
+    if (algoritmo_global == CMN) {
+        indice_cola = proceso->prioridad;
+        // Validar que el índice esté dentro de rango
+        if (indice_cola < 0 || indice_cola >= cantidad_niveles) {
+            log_error(log_ks, "agregar_proceso_a_ready: prioridad %d fuera de rango [0, %d]", 
+                      indice_cola, cantidad_niveles-1);
+            indice_cola = 0; // fallback a la primera cola
+        }
+    } else {
+        // FIFO o RR: siempre índice 0
+        indice_cola = 0;
+    }
+
+    // Lock del mutex de la cola específica
+    pthread_mutex_lock(&array_colas_ready[indice_cola].mutex);
+    list_add(array_colas_ready[indice_cola].cola, proceso);
+    cambiar_estado_proceso(proceso, READY);
+    pthread_mutex_unlock(&array_colas_ready[indice_cola].mutex);
+
+    log_debug(log_debug_ks, "Proceso PID<%d> agregado a READY en cola nivel %d", 
+              proceso->pid, indice_cola);
+
+    // Si CMN y queue_preemption está habilitado, chequear desalojo
+    if (algoritmo_global == CMN && queue_preemption) {
+        chequear_desalojo(proceso);
+    }
+
+    // Signal al semáforo contador
+    sem_post(&sem_procesos_ready);
+}
+
+/**
+ * chequear_desalojo: Placeholder para lógica de preemption en CMN.
+ * TODO: Implementar lógica para interrumpir procesos de menor prioridad si es necesario.
+ */
+void chequear_desalojo(t_proceso_pcb* proceso_nuevo)
+{
+    // TODO: Implementar lógica de interrupción/desalojo
+    log_debug(log_debug_ks, "chequear_desalojo: PID<%d> - preemption check (placeholder)", 
+              proceso_nuevo->pid);
 }

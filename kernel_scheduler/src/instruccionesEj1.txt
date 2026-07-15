@@ -1,4 +1,0 @@
-INIT_PROC proceso_1.prc 1
-SLEEP 1000
-INIT_PROC proceso_2.prc 
-EXIT

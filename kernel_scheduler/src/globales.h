@@ -1,6 +1,37 @@
 #ifndef GLOBALES_H_
 #define GLOBALES_H_
 
+#include <pthread.h>
+#include <commons/collections/list.h>
+#include <stdbool.h>
+
+typedef enum {
+    FIFO,
+    RR,
+    CMN,
+    INVALIDO
+} t_algoritmo_planificacion;
+
+typedef enum {  
+    NEW,
+    READY,
+    BLOCK,
+    EXEC,
+    EXIT,
+    SUSP_READY,
+    SUSP_BLOCK 
+} t_estado_proceso;
+
+typedef struct t_proceso_pcb {
+    pid_t pid;
+    int prioridad;
+    int pc;
+    int quantum;
+    t_estado_proceso estado;
+    char* nombre_mutex;
+    pthread_t id_hilo_quantum;
+    bool tiene_hilo_quantum;
+} t_proceso_pcb;
 typedef struct
 {
     char *nombre_mutex;
@@ -8,6 +39,13 @@ typedef struct
     pid_t pid_proceso;
     t_list *cola_procesos; // Habria que ver si es solo el pid del proceso o todo el pcb (por ahora asumimos que es el pid)
 } t_mutex;
+
+typedef struct
+{
+    t_list* cola;
+    pthread_mutex_t mutex;
+    t_algoritmo_planificacion algoritmo;
+} t_cola_nivel;
 
 typedef struct
 {
@@ -21,8 +59,21 @@ typedef struct
     char* contenido;
 } t_peticion_stdout;
 
-// Declaraciones de variables globales
-extern t_list *cola_ready;
+typedef struct 
+{
+    pid_t pid;
+    uint32_t tamanio;
+    uint32_t direccion_fisica;
+} t_peticion_stdin;
+
+// Declaraciones de variables globales - Planificación
+extern t_cola_nivel* array_colas_ready;
+extern int cantidad_niveles;
+extern sem_t sem_procesos_ready;
+extern t_algoritmo_planificacion algoritmo_global;
+extern bool queue_preemption;
+
+// Declaraciones de variables globales - Colas de estados obsoletas (excepto cola_ready, mutex_cola_ready, cond_cola_ready que se eliminan)
 extern t_list *cola_block;
 extern t_list *cola_exec;
 extern t_list *cola_exit;
@@ -32,6 +83,8 @@ extern t_list *cola_susp_block;
 extern t_list *cola_susp_ready;
 extern t_list *cola_espera_sleep;
 extern t_list *cola_espera_stdout;
+extern t_list *cola_espera_stdin;
+extern t_list *lista_mutex;
 extern t_log *log_ks;
 extern t_log *log_debug_ks;
 extern t_config *config;
@@ -42,6 +95,8 @@ extern char *str_log_level;
 extern char *puerto_km;
 extern char *ip_km;
 extern char *algoritmo_planificacion;
+extern char* buffer_global_contenido_km;
+extern uint32_t buffer_global_tamanio_contenido_km;
 extern int *conexion_km_ptr;
 extern int server_ks;
 extern int conexion_km;
@@ -51,7 +106,6 @@ extern int id_io_global;
 extern pid_t id_proceso_global;
 extern int rr_quantum;
 extern int suspension_timeout;
-extern pthread_mutex_t mutex_cola_ready;
 extern pthread_mutex_t mutex_cola_block;
 extern pthread_mutex_t mutex_cola_exec;
 extern pthread_mutex_t mutex_cola_exit;
@@ -61,17 +115,25 @@ extern pthread_mutex_t mutex_generador_id_io;
 extern pthread_mutex_t mutex_generador_pid;
 extern pthread_mutex_t mutex_sleep;
 extern pthread_mutex_t mutex_stdout;
+extern pthread_mutex_t mutex_stdin;
 extern pthread_mutex_t mutex_cola_susp_block;
 extern pthread_mutex_t mutex_cola_susp_ready;
-extern pthread_cond_t cond_cola_ready;
+extern pthread_mutex_t mutex_lista_mutex;
+extern pthread_mutex_t mutex_solicitud_km;
 extern pthread_cond_t cond_cola_block;
 extern pthread_cond_t cond_lista_cpu_conectadas;
 extern pthread_cond_t cond_sleep;
 extern pthread_cond_t cond_stdout;
+extern pthread_cond_t cond_stdin;
 extern pthread_cond_t cond_cola_susp_ready;
 extern pthread_cond_t cond_cola_susp_block;
+extern sem_t sem_inicializar_proceso;
+extern sem_t sem_respuesta_contenido_km;
+extern bool bsod_activo;
 
 void wait_mutex(t_mutex *mutex, pid_t pid_proceso);
 void signal_mutex(t_mutex *mutex);
+void agregar_proceso_a_ready(t_proceso_pcb* proceso);
+void chequear_desalojo(t_proceso_pcb* proceso_nuevo);
 
 #endif /* GLOBALES_H_ */

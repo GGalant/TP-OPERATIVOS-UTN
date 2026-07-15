@@ -1,101 +1,286 @@
 #include "kernel_scheduler.h"
 #include "planificacion.h"
 #include "cpu.h"
+#include <string.h>
 
 typedef struct {
-    t_cpu* cpu;
+    int cpu_id;
     pid_t pid;
 } t_args_quantum;
 
-void *handle_planificacion(void *arg) {
-    t_algoritmo_planificacion algoritmo_planificacion = string_to_algoritmo((char*)arg);  
-    
-    switch (algoritmo_planificacion) {    
-        case FIFO:
-            planificacion_fifo();
-            break;
-        case RR:
-            planificacion_rr();
-            break;
-        case CMN:
-            //planificacion_colas_multinivel()
-            break;
-        default:
-            perror("Algoritmo de planificacion invalido");
+void cancelar_hilo_quantum_si_existe(t_proceso_pcb* proceso, const char* motivo) {
+    if (proceso != NULL && proceso->tiene_hilo_quantum) {
+        // No es necesario hacer join, el hilo se cancelará en el usleep
+        pthread_cancel(proceso->id_hilo_quantum);
+        proceso->tiene_hilo_quantum = false;
+        log_debug(log_debug_ks, "Hebra quantum para PID<%d> cancelada. Motivo: %s.", proceso->pid, motivo);
     }
-    return NULL;
 }
 
-void planificacion_fifo() { 
-    while(true) {   
+/**
+ * inicializar_planificador: Inicializa la estructura de colas ready según el algoritmo.
+ * - FIFO/RR: 1 cola
+ * - CMN: N colas según QUEUES_ALGORITHMS de la config
+ */
+void inicializar_planificador()
+{
+    log_debug(log_debug_ks, "Inicializando planificador con algoritmo: %d", algoritmo_global);
 
-        pthread_mutex_lock(&mutex_cola_ready);
-        while (list_is_empty(cola_ready)) { 
-            pthread_cond_wait(&cond_cola_ready, &mutex_cola_ready);
-            // alguien deberia despertar el hilo cuando haya un proceso en la cola
+    if (algoritmo_global == FIFO || algoritmo_global == RR) {
+        cantidad_niveles = 1;
+        array_colas_ready = malloc(sizeof(t_cola_nivel));
+        if (array_colas_ready == NULL) {
+            log_error(log_ks, "Error al asignar memoria para array_colas_ready");
+            return;
         }
-        
-        t_proceso_pcb* proceso = list_remove(cola_ready, 0);
-        
-        pthread_mutex_unlock(&mutex_cola_ready);
 
-        // aca deberiamos buscar una cpu libre para enviar a ejecutar el proces
-        // Bloqueamos la lista de CPUs para buscar una libre de forma segura
-        pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-        t_cpu* cpu = NULL;
-        while ((cpu = buscar_cpu_libre()) == NULL) {   
-            // Si no hay CPUs libres, esperamos a que alguna se libere.
-            // pthread_cond_wait desbloquea el mutex mientras espera y lo vuelve a bloquear al despertar.
-            pthread_cond_wait(&cond_lista_cpu_conectadas, &mutex_lista_cpu_conectadas);
+        array_colas_ready[0].cola = list_create();
+        pthread_mutex_init(&array_colas_ready[0].mutex, NULL);
+        array_colas_ready[0].algoritmo = algoritmo_global;
 
-            log_debug(log_ks, "Continuando while de busqueda de CPU...");
+        log_info(log_ks, "Planificador inicializado con 1 cola (%s)", 
+                 algoritmo_global == FIFO ? "FIFO" : "RR");
+
+    } else if (algoritmo_global == CMN) {
+        // Obtener array de strings desde la config
+        char** queues_algorithms = config_get_array_value(config, "QUEUES_ALGORITHMS");
+        if (queues_algorithms == NULL) {
+            log_error(log_ks, "QUEUES_ALGORITHMS no definido en config para CMN");
+            cantidad_niveles = 1;
+            array_colas_ready = malloc(sizeof(t_cola_nivel));
+            array_colas_ready[0].cola = list_create();
+            pthread_mutex_init(&array_colas_ready[0].mutex, NULL);
+            array_colas_ready[0].algoritmo = FIFO;
+            return;
+        }
+
+        // Contar cantidad de niveles
+        cantidad_niveles = 0;
+        for (int i = 0; queues_algorithms[i] != NULL; i++) {
+            cantidad_niveles++;
+        }
+
+        log_debug(log_debug_ks, "CMN: cantidad_niveles = %d", cantidad_niveles);
+
+        // Asignar memoria para el array de colas
+        array_colas_ready = malloc(sizeof(t_cola_nivel) * cantidad_niveles);
+        if (array_colas_ready == NULL) {
+            log_error(log_ks, "Error al asignar memoria para array_colas_ready (CMN)");
+            return;
+        }
+
+        // Inicializar cada cola con su algoritmo
+        for (int i = 0; i < cantidad_niveles; i++) {
+            array_colas_ready[i].cola = list_create();
+            pthread_mutex_init(&array_colas_ready[i].mutex, NULL);
             
+            t_algoritmo_planificacion algo = string_to_algoritmo(queues_algorithms[i]);
+            array_colas_ready[i].algoritmo = algo;
+
+            log_debug(log_debug_ks, "Cola %d inicializada con algoritmo: %d", i, algo);
         }
 
-        log_debug(log_debug_ks, "Se encontro una CPU libre");
+        log_info(log_ks, "Planificador CMN inicializado con %d niveles", cantidad_niveles);
+
+    } else {
+        log_error(log_ks, "Algoritmo de planificación inválido: %d", algoritmo_global);
+        cantidad_niveles = 0;
+        array_colas_ready = NULL;
+    }
+
+    // Inicializar semáforo contador
+    sem_init(&sem_procesos_ready, 0, 0);
+    log_debug(log_debug_ks, "Semáforo sem_procesos_ready inicializado");
+}
+
+/**
+ * liberar_planificador: Libera recursos del planificador.
+ */
+void liberar_planificador()
+{
+    if (array_colas_ready != NULL) {
+        for (int i = 0; i < cantidad_niveles; i++) {
+            list_destroy(array_colas_ready[i].cola);
+            pthread_mutex_destroy(&array_colas_ready[i].mutex);
+        }
+        free(array_colas_ready);
+        array_colas_ready = NULL;
+    }
+    
+    sem_destroy(&sem_procesos_ready);
+    log_debug(log_debug_ks, "Planificador liberado");
+}
+
+/**
+ * hilo_planificador_principal: Hilo consumidor genérico.
+ * Implementa la lógica del patrón Productor-Consumidor:
+ * 1. sem_wait(&sem_procesos_ready)
+ * 2. Loop por niveles de prioridad
+ * 3. Buscar CPU libre
+ * 4. Enviar proceso a CPU
+ * 5. Repetir
+ */
+void* hilo_planificador_principal(void* arg)
+{
+    (void)arg; // unused
+    
+    log_info(log_ks, "Hilo planificador principal iniciado");
+
+    while (true) {
+        // PASO 1: Esperar a que haya un proceso en ready
+        sem_wait(&sem_procesos_ready);
+
+        if (bsod_activo) {
+            log_debug(log_debug_ks, "BSOD activo. Finalizando hilo planificador principal.");
+            break;
+        }
+
+        log_debug(log_debug_ks, "Semáforo decrementado, buscando proceso en colas ready...");
+
+        // PASO 2: Buscar proceso respetando prioridad (FIFO sobre CMN)
+        t_proceso_pcb* proceso = NULL;
+        t_algoritmo_planificacion algoritmo_cola = FIFO;
+        int indice_cola_obtenida = -1;
+
+        for (int i = 0; i < cantidad_niveles; i++) {
+            pthread_mutex_lock(&array_colas_ready[i].mutex);
+
+            if (!list_is_empty(array_colas_ready[i].cola)) {
+                proceso = list_remove(array_colas_ready[i].cola, 0);
+                algoritmo_cola = array_colas_ready[i].algoritmo;
+                indice_cola_obtenida = i;
+                
+                log_debug(log_debug_ks, "Proceso PID<%d> extraído de cola nivel %d", 
+                         proceso->pid, i);
+            }
+
+            pthread_mutex_unlock(&array_colas_ready[i].mutex);
+
+            // Si encontramos un proceso, salimos del loop de búsqueda
+            if (proceso != NULL) {
+                break;
+            }
+        }
+
+        // Validar que se extrajo un proceso
+        if (proceso == NULL) {
+            log_error(log_debug_ks, "ERROR: sem_wait retornó pero no hay proceso en ninguna cola");
+            continue; // Reintentar
+        }
+
+        // PASO 3: Buscar CPU libre (IMPORTANTE: No mantener mutex de ready)
+        pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+        //Terminar BSOD
+        t_cpu* cpu = NULL;
+        while (!bsod_activo && (cpu = buscar_cpu_libre()) == NULL) {
+            log_debug(log_debug_ks, "Esperando por CPU libre para PID<%d>...", proceso->pid);
+            pthread_cond_wait(&cond_lista_cpu_conectadas, &mutex_lista_cpu_conectadas);
+        }
+
+        if (bsod_activo) {
+            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+
+            pthread_mutex_lock(&mutex_cola_exit);
+            cambiar_estado_proceso(proceso, EXIT);
+            list_add(cola_exit, proceso);
+            pthread_mutex_unlock(&mutex_cola_exit);
+
+            log_debug(log_debug_ks,
+                      "BSOD activo. PID<%d> movido a EXIT y planificador finalizado.",
+                      proceso->pid);
+            break;
+        }
 
         cpu->estado = CPU_OCUPADA;
         cpu->pid_actual = proceso->pid;
-        pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
         
-        enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid);
-        log_debug(log_debug_ks, "Se envia el proceso ID<%d> a la cpu ID<%d>", proceso->pid, cpu->cpu_id);
+        pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
 
-        // Bloqueamos para cambiar el estado y mover el proceso a la cola de EXEC de forma atómica.
+        log_debug(log_debug_ks, "CPU ID<%d> asignada a PID<%d>", cpu->cpu_id, proceso->pid);
+
+        // PASO 4: Enviar proceso a CPU y mover a EXEC
+        enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid);
+
         pthread_mutex_lock(&mutex_cola_exec);
         cambiar_estado_proceso(proceso, EXEC);
         list_add(cola_exec, proceso);
         pthread_mutex_unlock(&mutex_cola_exec);
-    } 
+
+        log_info(log_debug_ks, "Proceso PID<%d> enviado a CPU ID<%d>", 
+                proceso->pid, cpu->cpu_id);
+
+        // PASO 5: Si es RR, iniciar el quantum
+        if (algoritmo_cola == RR) {
+            iniciar_hilo_quantum(proceso, cpu->cpu_id);
+            log_debug(log_debug_ks, "Quantum iniciado para PID<%d> en CPU<%d>", 
+                     proceso->pid, cpu->cpu_id);
+        }
+    }
+
+    return NULL;
 }
 
-t_cpu* buscar_cpu_libre() {
-    // IMPORTANTE: Esta función debe ser llamada con el mutex_lista_cpu_conectadas bloqueado.
-    log_debug(log_debug_ks, "Entra en la funcion buscar cpu libre ");
+/**
+ * buscar_cpu_libre: Busca una CPU libre.
+ * IMPORTANTE: Debe ser llamada con mutex_lista_cpu_conectadas bloqueado.
+ */
+t_cpu* buscar_cpu_libre()
+{
+    log_debug(log_debug_ks, "Buscando CPU libre...");
     
     for (int i = 0; i < list_size(lista_cpu_conectadas); i++) {
-
-        log_debug(log_debug_ks, "entra en el for de buscar cpu libre");
-
         t_cpu* cpu = list_get(lista_cpu_conectadas, i);
-        if (cpu->estado == CPU_LIBRE) {
-            log_debug(log_debug_ks, "¡CPU %d libre encontrada!", cpu->cpu_id);
+        if (cpu != NULL && cpu->estado == CPU_LIBRE) {
+            log_debug(log_debug_ks, "¡CPU ID<%d> libre encontrada!", cpu->cpu_id);
             return cpu;
         }
     }
-    log_debug(log_debug_ks, "No se encontraron CPUs libres en este momento.");
-	return NULL;
+    
+    log_debug(log_debug_ks, "No se encontraron CPUs libres");
+    return NULL;
 }
 
-void enviar_proceso_a_cpu(int socket_cpu, pid_t pid_proceso) {   
+/**
+ * iniciar_hilo_quantum: Inicia un hilo que controla el quantum (RR).
+ */
+void iniciar_hilo_quantum(t_proceso_pcb* proceso, int cpu_id)
+{
+    t_args_quantum* args = malloc(sizeof(t_args_quantum));
+    if (args == NULL) {
+        log_error(log_ks, "No se pudo reservar memoria para quantum del PID<%d>", proceso->pid);
+        return;
+    }
+
+    args->cpu_id = cpu_id;
+    args->pid = proceso->pid;
+
+    // Guardamos el ID del hilo en el PCB para poder cancelarlo si es necesario
+    pthread_create(&proceso->id_hilo_quantum, NULL, controlar_quantum, args);
+    proceso->tiene_hilo_quantum = true;
+    pthread_detach(proceso->id_hilo_quantum);
+}
+
+/**
+ * enviar_proceso_a_cpu: Envía un proceso a una CPU para ejecución.
+ */
+void enviar_proceso_a_cpu(int socket_cpu, pid_t pid_proceso)
+{
     op_code operation_code = EJECUTAR_PROCESO;
     send(socket_cpu, &operation_code, sizeof(op_code), 0);
     send(socket_cpu, &pid_proceso, sizeof(int), 0);
 
-    return;
+    log_debug(log_debug_ks, "Operación EJECUTAR_PROCESO enviada a CPU con PID<%d>", 
+             pid_proceso);
 }
 
-t_algoritmo_planificacion string_to_algoritmo(const char* algoritmo) {
+/**
+ * string_to_algoritmo: Convierte string a enum de algoritmo.
+ */
+t_algoritmo_planificacion string_to_algoritmo(const char* algoritmo)
+{
+    if (algoritmo == NULL) {
+        return INVALIDO;
+    }
 
     if (strcmp(algoritmo, "FIFO") == 0) {
         return FIFO;
@@ -111,86 +296,83 @@ t_algoritmo_planificacion string_to_algoritmo(const char* algoritmo) {
     }
 }
 
-void planificacion_rr() { 
-    while(true) {   
-        pthread_mutex_lock(&mutex_cola_ready);
+/**
+ * controlar_quantum: Hilo que controla el tiempo de quantum.
+ * Envía interrupción de fin de quantum cuando se agota el tiempo.
+ */
+void* controlar_quantum(void* arg)
+{
+    t_args_quantum* args = (t_args_quantum*)arg;
+    pid_t pid = args->pid;
+    int cpu_id = args->cpu_id;
+    free(args);
 
-        while (list_is_empty(cola_ready)) { 
-                pthread_cond_wait(&cond_cola_ready, &mutex_cola_ready);
-            }
-
-        t_proceso_pcb* proceso = list_remove(cola_ready, 0);
-
-        pthread_mutex_unlock(&mutex_cola_ready);
-
-        pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-
-        t_cpu* cpu = NULL;
-
-        while ((cpu = buscar_cpu_libre()) == NULL) {   
-            pthread_cond_wait(&cond_lista_cpu_conectadas, &mutex_lista_cpu_conectadas);
-        }//Busca CPU libre para el proceso
-
-        cpu->estado = CPU_OCUPADA;
-        cpu->pid_actual = proceso->pid;
-
-        pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-
-        pthread_mutex_lock(&mutex_cola_exec);
-
-        cambiar_estado_proceso(proceso, EXEC); //Pasa el proceso a estado execute 
-        list_add(cola_exec, proceso); // añade el proceso a la cola de exec 
-
-        pthread_mutex_unlock(&mutex_cola_exec); 
-
-        enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid); //manda a cpu el proceso 
-
-        log_debug(log_debug_ks, "Se envia el proceso ID<%d> a la cpu ID<%d> por RR", proceso->pid, cpu->cpu_id);
-
-        iniciar_quantum(cpu, proceso->pid); // inicia el timer de quantum para ese proceso
-    } 
-    // La lógica para enviar el proceso a la CPU sería similar a la de FIFO, pero con la diferencia de que aca tambien tendriamos que manejar el quantum y las interrupciones por fin de quantum o desalojo, lo cual implicaría agregar lógica adicional para manejar esos casos específicos.
-}
-
-void iniciar_quantum(t_cpu* cpu, pid_t pid) {
-    t_args_quantum* args = malloc(sizeof(t_args_quantum)); //crea la estructura
-
-    if (args == NULL) {
-        log_error(log_ks, "No se pudo reservar memoria para el quantum del PID %d", pid);
-        return;
-    }
-
-    args->cpu = cpu; //guarda los datos dentro de la estructura
-    args->pid = pid;
-
-    pthread_t hilo_quantum;
-    pthread_create(&hilo_quantum, NULL, controlar_quantum, args);
-    pthread_detach(hilo_quantum);
-}
-
-void* controlar_quantum(void* arg) {
-    t_args_quantum* args = (t_args_quantum*) arg;
-
+    // Convertir microsegundos a milisegundos
     usleep(rr_quantum * 1000);
 
+    log_debug(log_debug_ks, "Quantum agotado para PID<%d>", pid);
+
+    // Buscar la CPU correspondiente
     pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-//si la cpu esta ocupadaa manda interrupcion de fin de quantum a la cpu 
-    if (args->cpu->estado == CPU_OCUPADA && args->cpu->pid_actual == args->pid) {
+
+    t_cpu* cpu = NULL;
+    for (int i = 0; i < list_size(lista_cpu_conectadas); i++) {
+        t_cpu* cpu_tmp = list_get(lista_cpu_conectadas, i);
+        if (cpu_tmp != NULL && cpu_tmp->cpu_id == cpu_id) {
+            cpu = cpu_tmp;
+            break;
+        }
+    }
+
+    if (cpu != NULL && cpu->estado == CPU_OCUPADA && cpu->pid_actual == pid) {
         op_code codigo = INTERRUPCION_FIN_QUANTUM;
+        send(cpu->socket_cpu, &codigo, sizeof(op_code), 0);
+        
+        pthread_mutex_lock(&mutex_cola_exec);
 
-        send(args->cpu->socket_cpu, &codigo, sizeof(op_code), 0);
+        t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
 
-        log_debug(
-            log_debug_ks,
-            "Se envia interrupcion de fin de quantum a CPU ID<%d> por PID <%d>",
-            args->cpu->cpu_id,
-            args->pid
-        );
+        pthread_mutex_unlock(&mutex_cola_exec);
+
+        if (proceso == NULL)
+        {
+            log_error(log_ks, "No se encontró el proceso %d en EXEC por fin de quantum", pid);
+            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+            return NULL;
+        }
+
+        // El hilo cumplió su propósito, reseteamos el flag
+        proceso->tiene_hilo_quantum = false;
+        agregar_proceso_a_ready(proceso);
+
+        cpu->estado = CPU_LIBRE;
+        cpu->pid_actual = -1;
+        pthread_cond_signal(&cond_lista_cpu_conectadas);
+
+        log_info(log_ks, "## (%d) - Desalojado por fin de quantum", pid);
+
+        log_debug(log_debug_ks, 
+                 "Interrupción de fin de quantum enviada a CPU ID<%d> para PID<%d>",
+                 cpu_id, pid);
+    } else {
+        log_debug(log_debug_ks, 
+                 "CPU o proceso no coincide para fin de quantum (PID<%d> esperado en CPU<%d>)",
+                 pid, cpu_id);
     }
 
     pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
 
-    free(args);
-
     return NULL;
+}
+
+/**
+ * handle_planificacion: Legacy - Wrapper que delega al hilo principal.
+ * Se mantiene por compatibilidad pero simplemente inicia el hilo consumidor.
+ */
+void *handle_planificacion(void *arg)
+{
+    (void)arg; // unused
+    
+    log_debug(log_ks, "handle_planificacion: iniciando hilo planificador principal");
+    return hilo_planificador_principal(NULL);
 }
