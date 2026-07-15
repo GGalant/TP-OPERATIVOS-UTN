@@ -126,4 +126,4 @@ t_segmento* iniciar_creacion_segmento(pid_t pid, int id_segmento, uint32_t taman
 uint32_t enviar_segmento_a_swap(pid_t pid, t_segmento* segmento, char* contenido);
 uint32_t obtener_bloque_libre_swap();
 
-void iniciar_compactacion();
+void iniciar_compactacion(int socket_ks);

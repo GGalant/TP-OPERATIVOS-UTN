@@ -121,6 +121,8 @@ typedef enum {
     SOLICITAR_MEM_FREE,
     RESPUESTA_MEM_FREE,
     MEMORIA_CORRUPTA,
+    LECTURA_OK,
+    ESCRITURA_OK,
 
     //* FIN: KERNEL SCHEDULER - KERNEL MEMORY
     // ======================================

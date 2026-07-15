@@ -256,10 +256,11 @@ void *handle_ks(void *arg)
 
                     break;
                 }
-
-                send(socket_ks, &respuesta_lectura, sizeof(respuesta_lectura), 0);
-                send(socket_ks, contenido_leido, cantidad_bytes, 0);
-                log_info(log_km, "## PID: <%d> - <Lectura> - Dir. Física: <%u> - Tamaño: <%d>", pid, direccion_fisica, cantidad_bytes);
+                t_paquete* enviar_respuesta_lectura = crear_paquete(respuesta_lectura);
+                agregar_a_paquete(enviar_respuesta_lectura,contenido_leido);
+                // send(socket_ks, &respuesta_lectura, sizeof(respuesta_lectura), 0);
+                // send(socket_ks, contenido_leido, cantidad_bytes, 0);
+                log_info(log_km, "## PID: %d - Lectura - Dir. Física: %u - Tamaño: %d", pid, direccion_fisica, cantidad_bytes);
                 free(contenido_leido);
             }
             else
@@ -341,6 +342,9 @@ void *handle_ks(void *arg)
             char *pid_string = string_itoa(pid);
 
             iniciar_creacion_segmento(pid, id_segmento, tamanio_segmento, socket_ks);
+
+            log_info(log_km, "## PID: %s - Segmento Creado %d - Tamaño: %d", pid, id_segmento, tamanio_segmento);
+
            
             free(pid_string);
             list_destroy_and_destroy_elements(pedido_creacion_seg, free);
@@ -839,8 +843,6 @@ t_segmento* crear_segmento(t_hueco_libre *hueco_hallado, char *pid, uint32_t id_
 
     list_add(contexto_ejecucion->tabla_segmentos, nuevo_segmento);
 
-    log_info(log_km, "## PID: <%s> - Segmento Creado <%d> - Tamaño: <%d>", pid, id_segmento, tamanio_segmento);
-
     ////////// LISTA DE HUECOS
 
     int nuevoTamanioHuecoLibre = hueco_hallado->tamanio - tamanio_segmento;
@@ -927,7 +929,7 @@ t_segmento* elegir_algoritmo(char *pid_string, int id_segmento, int tamanio_segm
     return nuevo_segmento;
 }
 
-void iniciar_compactacion()
+void iniciar_compactacion(int socket_ks)
 {
     segmentos_para_compactar = obtener_todos_los_segmentos();
 
@@ -972,6 +974,10 @@ void iniciar_compactacion()
     list_destroy(segmentos_para_compactar);
 
     log_debug(log_km, "## Fin de compactación");
+
+    op_code compactacion_ok;
+    send(socket_ks, &compactacion_ok,sizeof(compactacion_ok),0);
+
 }
 
 bool comparar_segmentos_por_base(void *a, void *b)
@@ -1224,7 +1230,7 @@ t_segmento* iniciar_creacion_segmento(pid_t pid, int id_segmento, uint32_t taman
                         op_code desalojo_ok;
                         recv(socket_ks, &desalojo_ok, sizeof(desalojo_ok), 0);
                         // 2. Compactar memoria despues de confirmacion de desalojo
-                        iniciar_compactacion();
+                        iniciar_compactacion(socket_ks);
                         // 3. Avisar compactacion OK
                     }
                     else
