@@ -49,6 +49,8 @@ void *handle_cpu(void *arg)
                 break;
             }
 
+            cancelar_hilo_quantum_si_existe(proceso_padre, "SYSCALL_INIT_PROC");
+
             // Liberamos la CPU para que el planificador pueda usarla
             pthread_mutex_lock(&mutex_lista_cpu_conectadas);
             cpu->estado = CPU_LIBRE;
@@ -88,6 +90,8 @@ void *handle_cpu(void *arg)
                 break;
             }
 
+            cancelar_hilo_quantum_si_existe(proceso_exit, "SYSCALL_EXIT");
+
             pthread_mutex_lock(&mutex_lista_cpu_conectadas);
             cpu->estado = CPU_LIBRE;
             cpu->pid_actual = -1;
@@ -119,6 +123,8 @@ void *handle_cpu(void *arg)
                 log_error(log_ks, "Error: No se encontró el proceso con PID %d en la cola de EXEC.", pid);
                 break;
             }
+
+            cancelar_hilo_quantum_si_existe(proceso, "SYSCALL_SLEEP");
 
             // Actualizar PCB, cambiar estado y mover a la cola de BLOCK
             // la cola de block es gestionada por el planificador de mediano plazo
@@ -162,6 +168,8 @@ void *handle_cpu(void *arg)
                 break;
             }
 
+            cancelar_hilo_quantum_si_existe(proceso, "SYSCALL_STDOUT");
+
             // proceso->pc = pc_actualizado; // No se recibe el PC actualizado en este syscall
             pthread_mutex_lock(&mutex_cola_block);
             cambiar_estado_proceso(proceso, BLOCK);
@@ -185,42 +193,42 @@ void *handle_cpu(void *arg)
 
             break;
         }
-        case INTERRUPCION_FIN_QUANTUM: {
-            // La CPU nos avisa el fin de quantum
-            t_list *paquete_quantum = recibir_paquete(cpu->socket_cpu);
+        // case INTERRUPCION_FIN_QUANTUM: {
+        //     // La CPU nos avisa el fin de quantum
+        //     t_list *paquete_quantum = recibir_paquete(cpu->socket_cpu);
 
-            pid_t pid = *(int *)list_get(paquete_quantum, 0);
-            int pc_actualizado = *(int *)list_get(paquete_quantum, 1);
+        //     pid_t pid = *(int *)list_get(paquete_quantum, 0);
+        //     int pc_actualizado = *(int *)list_get(paquete_quantum, 1);
 
-            list_destroy_and_destroy_elements(paquete_quantum, free);
+        //     list_destroy_and_destroy_elements(paquete_quantum, free);
 
-            pthread_mutex_lock(&mutex_cola_exec);
+        //     pthread_mutex_lock(&mutex_cola_exec);
 
-            t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
+        //     t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
 
-            pthread_mutex_unlock(&mutex_cola_exec);
+        //     pthread_mutex_unlock(&mutex_cola_exec);
 
-            if (proceso == NULL)
-            {
-                log_error(log_ks, "No se encontró el proceso %d en EXEC por fin de quantum", pid);
-                break;
-            }
+        //     if (proceso == NULL)
+        //     {
+        //         log_error(log_ks, "No se encontró el proceso %d en EXEC por fin de quantum", pid);
+        //         break;
+        //     }
 
-            // Usar la nueva función productora genérica para agregar procesos a ready
-            agregar_proceso_a_ready(proceso);
+        //     // Usar la nueva función productora genérica para agregar procesos a ready
+        //     agregar_proceso_a_ready(proceso);
 
-            pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+        //     pthread_mutex_lock(&mutex_lista_cpu_conectadas);
 
-            cpu->estado = CPU_LIBRE;
-            cpu->pid_actual = -1;
-            pthread_cond_signal(&cond_lista_cpu_conectadas);
+        //     cpu->estado = CPU_LIBRE;
+        //     cpu->pid_actual = -1;
+        //     pthread_cond_signal(&cond_lista_cpu_conectadas);
 
-            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+        //     pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
 
-            log_info(log_ks, "## (%d) - Desalojado por fin de quantum", pid);
+        //     log_info(log_ks, "## (%d) - Desalojado por fin de quantum", pid);
 
-            break;
-        }
+        //     break;
+        // }
         case SYSCALL_MEM_ALLOC:
         // *** IMPORTANTE: Esta syscall y las que esten relacionadas a memoria, deberian volver a ejecutar el proceso en la CPU que la solicito
             t_list* paquete_mem_alloc = recibir_paquete(cpu->socket_cpu);

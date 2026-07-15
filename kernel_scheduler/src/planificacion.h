@@ -1,14 +1,8 @@
 #ifndef PLANIFICACION_H_
 #define PLANIFICACION_H_
 #include <commons/collections/list.h>
-#include <cpu.h>
-
-typedef enum {  
-    FIFO,
-    RR,
-    CMN,
-    INVALIDO
-} t_algoritmo_planificacion;
+#include "cpu.h"
+#include "globales.h"
 
 // Funciones de inicialización y gestión del planificador
 void inicializar_planificador();
@@ -19,7 +13,8 @@ void* hilo_planificador_principal(void* arg);
 
 // Funciones auxiliares para manejo de CPUs
 t_cpu* buscar_cpu_libre();
-void iniciar_hilo_quantum(pid_t pid, int cpu_id);
+void iniciar_hilo_quantum(t_proceso_pcb* proceso, int cpu_id);
+void cancelar_hilo_quantum_si_existe(t_proceso_pcb* proceso, const char* motivo);
 
 // Funciones de utilidad
 t_algoritmo_planificacion string_to_algoritmo(const char* algoritmo);
