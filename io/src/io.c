@@ -96,7 +96,32 @@ void handle_io_sleep() {
 
 void handle_io_stdin() {
     while (true) {
-      //TODO IMPLEMENTAR 
+      op_code op = recibir_operacion(conexion_ks);
+        if (op != SOLICITUD_IO_STDIN) {
+            if (op == -1) {
+                log_error(log_io, "Se perdió la conexión con Kernel Scheduler. Terminando módulo de IO.");
+            } else {
+                log_error(log_io, "Operación no esperada de Kernel Scheduler: %d", op);
+            }
+            break;
+        }
+        t_list* paquete_stdin = recibir_paquete(conexion_ks);
+        if (paquete_stdin == NULL) {
+            log_error(log_io, "Error al recibir el paquete de STDIN. Terminando módulo de IO.");
+            break;
+        }
+        pid_t pid = *(int*)list_get(paquete_stdin, 0);
+        uint32_t tamanio = *(uint32_t*)list_get(paquete_stdin, 1);
+        uint32_t direccion_fisica = *(uint32_t*)list_get(paquete_stdin, 2);
+        list_destroy_and_destroy_elements(paquete_stdin, free);
+
+
+        log_info(log_io, "## PID: <%d> - Inicio de IO", pid);
+        log_info(log_io, "Ingrese el contenido (bytes a leer: %d)", tamanio);
+        char* contenido_stdin = leer_y_validar_contenido(tamanio);
+        log_info(log_io, "## PID: %d - Fin de IO", pid);  
+
+        enviar_fin_io_stdin(pid, direccion_fisica, contenido_stdin);
     }  
 
     return;
@@ -133,8 +158,6 @@ void handle_io_stdout() {
         
         list_destroy_and_destroy_elements(paquete_stdout, free);
         enviar_fin_io(pid);
-
-      //TODO: Falta que las chicas nos manden el contenido de lectura para poder imprimir :)
     }   
 
     return;
@@ -158,11 +181,46 @@ void enviar_fin_io(pid_t pid) {
     return;
 }
 
+void enviar_fin_io_stdin(pid_t pid, uint32_t direccion_fisica, char* contenido) {
+    t_paquete* paquete_fin_io = crear_paquete(FIN_IO_STDIN);
+    agregar_a_paquete(paquete_fin_io, &pid, sizeof(int));
+    agregar_a_paquete(paquete_fin_io, &direccion_fisica, sizeof(uint32_t));
+    agregar_a_paquete(paquete_fin_io, contenido, strlen(contenido));
+    enviar_paquete_send_all(paquete_fin_io, conexion_ks);
+    eliminar_paquete(paquete_fin_io);   
+
+    return;
+}
+
 tipo_io obtener_tipo_io(char* tipo) {
     if (strcmp(tipo, "STDIN") == 0) return STDIN;
     if (strcmp(tipo, "STDOUT") == 0) return STDOUT;
     if (strcmp(tipo, "SLEEP") == 0) return SLEEP;
     return -1; 
+}
+
+char* leer_y_validar_contenido(uint32_t tamanio) {
+    char *buffer = malloc(tamanio);
+    if (buffer == NULL) {
+        return NULL; // Error de asignación
+    }
+    memset(buffer, '\0', tamanio);
+
+    int caracter;
+    int i = 0;
+
+    // 2. Leer caracteres uno a uno hasta presionar Enter (\n) o llegar al Fin de Archivo (EOF)
+    while ((caracter = getchar()) != '\n' && caracter != EOF) {
+        
+        // 3. Controlar el límite: Si es menor al tamaño, guarda el carácter
+        if (i < tamanio) {
+            buffer[i] = (char)caracter;
+            i++;
+        }
+        // 4. Caso Mayor: Si supera los bytes solicitados, el bucle sigue corriendo para "limpiar" el teclado (Buffer de entrada), pero NO guarda nada más.
+    }
+
+    return buffer; 
 }
 
 void liberar_recursos() {

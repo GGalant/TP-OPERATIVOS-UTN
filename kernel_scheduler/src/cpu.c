@@ -173,7 +173,6 @@ void *handle_cpu(void *arg)
             // proceso->pc = pc_actualizado; // No se recibe el PC actualizado en este syscall
             pthread_mutex_lock(&mutex_cola_block);
             cambiar_estado_proceso(proceso, BLOCK);
-            //Aca deberiamos inicar el temporizador para el timeout
             pid = proceso->pid;
             list_add(cola_block, proceso);
             pthread_mutex_unlock(&mutex_cola_block);
@@ -190,6 +189,84 @@ void *handle_cpu(void *arg)
             char *contenido = solicitar_contenido_a_km(conexion_km, proceso->pid, direccion_fisica, tamanio);
 
             enviar_proceso_a_io_stdout(pid, contenido);
+
+            break;
+        }
+        case SYSCALL_STDIN: {
+            t_list *paquete_stdin = recibir_paquete(cpu->socket_cpu);
+
+            pid_t pid;
+            uint32_t tamanio = *(uint32_t *)list_get(paquete_stdin, 0);
+            uint32_t direccion_fisica = *(uint32_t *)list_get(paquete_stdin, 1);
+            list_destroy_and_destroy_elements(paquete_stdin, free);
+
+            pthread_mutex_lock(&mutex_cola_exec);
+            t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, cpu->pid_actual);
+            pthread_mutex_unlock(&mutex_cola_exec);
+
+            if (proceso == NULL)
+            {
+                log_error(log_ks, "Error: No se encontró el proceso con PID %d en la cola de EXEC.", cpu->pid_actual);
+                break;
+            }
+
+            pthread_mutex_lock(&mutex_cola_block);
+            cambiar_estado_proceso(proceso, BLOCK);
+            pid = proceso->pid;
+            list_add(cola_block, proceso);
+            pthread_mutex_unlock(&mutex_cola_block);
+
+            iniciar_temporizador_timeout(cpu->pid_actual);
+
+            pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+            cpu->estado = CPU_LIBRE;
+            cpu->pid_actual = -1;
+            pthread_cond_signal(&cond_lista_cpu_conectadas);
+            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+            log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
+
+            enviar_proceso_a_io_stdin(pid, tamanio, direccion_fisica);
+
+            break;
+        }
+        case INTERRUPCION_FIN_QUANTUM: {
+            // La CPU nos avisa el fin de quantum
+            t_list *paquete_quantum = recibir_paquete(cpu->socket_cpu);
+
+            pid_t pid = *(int *)list_get(paquete_quantum, 0);
+            int pc_actualizado = *(int *)list_get(paquete_quantum, 1);
+
+            list_destroy_and_destroy_elements(paquete_quantum, free);
+
+            pthread_mutex_lock(&mutex_cola_exec);
+
+            t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
+
+            pthread_mutex_unlock(&mutex_cola_exec);
+
+            if (proceso == NULL)
+            {
+                log_error(log_ks, "No se encontró el proceso %d en EXEC por fin de quantum", pid);
+                break;
+            }
+
+            pthread_mutex_lock(&mutex_cola_ready);
+
+            cambiar_estado_proceso(proceso, READY);
+            list_add(cola_ready, proceso);
+            pthread_cond_signal(&cond_cola_ready);
+
+            pthread_mutex_unlock(&mutex_cola_ready);
+
+            pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+
+            cpu->estado = CPU_LIBRE;
+            cpu->pid_actual = -1;
+            pthread_cond_signal(&cond_lista_cpu_conectadas);
+
+            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+
+            log_info(log_ks, "## (%d) - Desalojado por fin de quantum", pid);
 
             break;
         }
@@ -501,6 +578,19 @@ void enviar_proceso_a_io_stdout(pid_t pid, char *contenido)
     
     return;
 }
+
+void enviar_proceso_a_io_stdin(pid_t pid, uint32_t tamanio, uint32_t direccion_fisica) {
+    t_peticion_stdin *peticion = malloc(sizeof(t_peticion_stdin));
+    peticion->pid = pid;
+    peticion->tamanio = tamanio;
+    peticion->direccion_fisica = direccion_fisica; 
+
+    pthread_mutex_lock(&mutex_stdin);
+    list_add(cola_espera_stdin, peticion);
+    pthread_cond_signal(&cond_stdin);
+    pthread_mutex_unlock(&mutex_stdin);
+
+    return;
 // void enviar_peticion_io_stdin(tipo_io tipo, ...parametros restantes)
 
 // IMPORTANTE: Debe ser llamada con mutex_lista_mutex bloqueado.

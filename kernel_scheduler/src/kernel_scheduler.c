@@ -79,6 +79,9 @@ void inicializar_ks(int argc, char *argv[]) {
     cola_exit = list_create();
     cola_espera_sleep = list_create();
     cola_espera_stdout = list_create();
+    cola_espera_stdin = list_create();
+    cola_susp_block = list_create();
+    cola_susp_ready = list_create();
     cola_susp_block = list_create();
     cola_susp_ready = list_create();
     lista_io_conectadas = list_create();
@@ -95,6 +98,7 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_mutex_init(&mutex_generador_pid, NULL);
     pthread_mutex_init(&mutex_sleep, NULL);
     pthread_mutex_init(&mutex_stdout, NULL);
+    pthread_mutex_init(&mutex_stdin, NULL);
     pthread_mutex_init(&mutex_cola_susp_block, NULL);
     pthread_mutex_init(&mutex_cola_susp_ready, NULL);
     pthread_cond_init(&cond_cola_block, NULL);
@@ -102,6 +106,7 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
     pthread_cond_init(&cond_sleep, NULL);
     pthread_cond_init(&cond_stdout, NULL);
+    pthread_cond_init(&cond_stdin, NULL);
     pthread_cond_init(&cond_cola_susp_ready, NULL);
     pthread_cond_init(&cond_cola_susp_block, NULL);
     sem_init(&sem_inicializar_proceso, 0, 0);
@@ -342,7 +347,28 @@ enviar_paquete_send_all(paquete_mem_free, socket_km);
 eliminar_paquete(paquete_mem_free);
 }
 
+void solicitar_escritura_a_km(int socket_km, pid_t pid, uint32_t direccion_fisica, char* contenido)  {
+    op_code codigo_operacion = SOLICITAR_ESCRITURA_MEMORIA;   
+    int cantidad_bytes = strlen(contenido);  
 
+    t_paquete *paquete_escritura = crear_paquete(codigo_operacion);
+
+    agregar_a_paquete(paquete_escritura, &pid, sizeof(int));
+    agregar_a_paquete(paquete_escritura, &direccion_fisica, sizeof(uint32_t));
+    agregar_a_paquete(paquete_escritura, &cantidad_bytes, sizeof(int));
+    agregar_a_paquete(paquete_escritura, contenido, cantidad_bytes);
+
+    enviar_paquete_send_all(paquete_escritura, socket_km);
+    
+    eliminar_paquete(paquete_escritura);
+
+    op_code respuesta = recibir_operacion(socket_km);
+    if (respuesta != RESPUESTA_ESCRITURA_MEMORIA) {
+        log_error(log_ks, "Error al recibir respuesta de escritura en Kernel Memory");
+    }
+
+    return;
+}
 
 void liberar_recursos() {   
     log_destroy(log_ks);
@@ -358,6 +384,7 @@ void liberar_recursos() {
     pthread_mutex_destroy(&mutex_generador_pid);
     pthread_mutex_destroy(&mutex_sleep);
     pthread_mutex_destroy(&mutex_stdout);
+    pthread_mutex_destroy(&mutex_stdin);
     pthread_mutex_destroy(&mutex_cola_susp_block);
     pthread_mutex_destroy(&mutex_cola_susp_ready);
     pthread_cond_destroy(&cond_cola_block);
@@ -365,6 +392,7 @@ void liberar_recursos() {
     pthread_cond_destroy(&cond_lista_cpu_conectadas);
     pthread_cond_destroy(&cond_sleep);
     pthread_cond_destroy(&cond_stdout);
+    pthread_cond_destroy(&cond_stdin);
     pthread_cond_destroy(&cond_cola_susp_block);
     pthread_cond_destroy(&cond_cola_susp_ready);
     sem_destroy(&sem_inicializar_proceso);
@@ -387,6 +415,7 @@ void liberar_recursos() {
     list_destroy(lista_io_conectadas);
     list_destroy(cola_espera_sleep);
     list_destroy(cola_espera_stdout);
+    list_destroy(cola_espera_stdin);
     close(server_ks);
     close(conexion_km);
     

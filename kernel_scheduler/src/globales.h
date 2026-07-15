@@ -59,6 +59,13 @@ typedef struct
     char* contenido;
 } t_peticion_stdout;
 
+typedef struct 
+{
+    pid_t pid;
+    uint32_t tamanio;
+    uint32_t direccion_fisica;
+} t_peticion_stdin;
+
 // Declaraciones de variables globales - Planificación
 extern t_cola_nivel* array_colas_ready;
 extern int cantidad_niveles;
@@ -76,6 +83,7 @@ extern t_list *cola_susp_block;
 extern t_list *cola_susp_ready;
 extern t_list *cola_espera_sleep;
 extern t_list *cola_espera_stdout;
+extern t_list *cola_espera_stdin;
 extern t_list *lista_mutex;
 extern t_log *log_ks;
 extern t_log *log_debug_ks;
@@ -107,6 +115,7 @@ extern pthread_mutex_t mutex_generador_id_io;
 extern pthread_mutex_t mutex_generador_pid;
 extern pthread_mutex_t mutex_sleep;
 extern pthread_mutex_t mutex_stdout;
+extern pthread_mutex_t mutex_stdin;
 extern pthread_mutex_t mutex_cola_susp_block;
 extern pthread_mutex_t mutex_cola_susp_ready;
 extern pthread_mutex_t mutex_lista_mutex;
@@ -115,6 +124,7 @@ extern pthread_cond_t cond_cola_block;
 extern pthread_cond_t cond_lista_cpu_conectadas;
 extern pthread_cond_t cond_sleep;
 extern pthread_cond_t cond_stdout;
+extern pthread_cond_t cond_stdin;
 extern pthread_cond_t cond_cola_susp_ready;
 extern pthread_cond_t cond_cola_susp_block;
 extern sem_t sem_inicializar_proceso;

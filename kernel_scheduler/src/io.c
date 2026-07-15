@@ -28,7 +28,7 @@ void* handle_io(void* arg) {
         handle_io_sleep(io);
         break;
     case STDIN:
-        //handle_io_stdin(io);
+        handle_io_stdin(io);
         break;
     case STDOUT:
         handle_io_stdout(io);
@@ -76,6 +76,7 @@ void handle_io_sleep(t_io *io) {
 
 void handle_io_stdout(t_io *io) {   
     while(true) {   
+        log_debug(log_debug_ks, "Esperando peticion de stdout");
         pthread_mutex_lock(&mutex_stdout);
         while (list_is_empty(cola_espera_stdout)) {
             pthread_cond_wait(&cond_stdout, &mutex_stdout);
@@ -98,6 +99,38 @@ void handle_io_stdout(t_io *io) {
         pid_t pid_actual = peticion->pid; 
         free(peticion->contenido);
         free(peticion); 
+
+        if (!esperar_y_procesar_respuesta_io(io, pid_actual)) {
+            return; 
+        }
+    }
+}
+
+void handle_io_stdin(io) {
+    while (true) {
+        log_debug(log_debug_ks, "Esperando peticion de stdin");
+        pthread_mutex_lock(&mutex_stdin);
+        while (list_is_empty(cola_espera_stdin)) {
+            pthread_cond_wait(&cond_stdin, &mutex_stdin);
+        }
+
+        t_peticion_stdin *peticion = list_remove(cola_espera_stdin, 0);
+        pthread_mutex_unlock(&mutex_stdin);
+
+        pthread_mutex_lock(&mutex_lista_io_conectadas);
+        io->estado = OCUPADA;
+        io->pid_actual = peticion->pid;
+        pthread_mutex_unlock(&mutex_lista_io_conectadas);
+
+        t_paquete *paquete_stdin = crear_paquete(SOLICITUD_IO_STDIN);
+        agregar_a_paquete(paquete_stdin, &peticion->pid, sizeof(int));
+        agregar_a_paquete(paquete_stdin, &peticion->tamanio, sizeof(uint32_t));
+        agregar_a_paquete(paquete_stdin, &peticion->direccion_fisica, sizeof(uint32_t));
+        enviar_paquete_send_all(paquete_stdin, io->socket_io);
+        eliminar_paquete(paquete_stdin);
+
+        pid_t pid_actual = peticion->pid;
+        free(peticion);
 
         if (!esperar_y_procesar_respuesta_io(io, pid_actual)) {
             return; 
@@ -190,6 +223,27 @@ bool esperar_y_procesar_respuesta_io(t_io* io, pid_t pid_esperado) {
                 log_error(log_debug_ks, "IO <%d> devolvió FIN_IO para PID %d, pero se esperaba %d", io->io_id, pid_recibido, pid_esperado);
             }
             break; 
+        }
+        case FIN_IO_STDIN: {
+            t_list* paquete_fin_io_stdin = recibir_paquete(io->socket_io);
+            if (paquete_fin_io_stdin == NULL) {
+                log_error(log_ks, "IO <%d>: Error al recibir el paquete de FIN_IO_STDIN)", io->io_id);
+                return false;
+            }
+            pid_t pid_recibido = *(pid_t*)list_get(paquete_fin_io_stdin, 0);
+            uint32_t direccion_fisica = *(uint32_t*)list_get(paquete_fin_io_stdin, 1);
+            char* contenido = (char*)list_get(paquete_fin_io_stdin, 2);
+
+            list_destroy_and_destroy_elements(paquete_fin_io_stdin, free);
+
+            if (pid_recibido == pid_esperado) {
+                solicitar_escritura_a_km(conexion_km, pid_recibido, direccion_fisica, contenido);
+                finalizar_io(pid_recibido);
+            } else {
+                log_error(log_debug_ks, "IO <%d> devolvió FIN_IO_STDIN para PID %d, pero se esperaba %d", io->io_id, pid_recibido, pid_esperado);
+            }
+
+            break;
         }
         case -1:
             log_error(log_ks, "IO FD %d se desconectó.", io->socket_io);
