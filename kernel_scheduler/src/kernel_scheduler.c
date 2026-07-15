@@ -27,7 +27,7 @@ int main(int argc, char *argv[]){
     pthread_t hilo_planificacion;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
     pthread_create(&hilo_km, NULL, handle_km, conexion_km_ptr);
-    pthread_create(&hilo_planificacion, NULL, handle_planificacion, algoritmo_planificacion);
+    pthread_create(&hilo_planificacion, NULL, hilo_planificador_principal, NULL);
 
     pthread_join(hilo_escucha, NULL);
     pthread_join(hilo_km, NULL);
@@ -59,25 +59,37 @@ void inicializar_ks(int argc, char *argv[]) {
     str_log_level = config_get_string_value(config, "LOG_LEVEL");
     puerto = config_get_string_value(config, "PUERTO");
     algoritmo_planificacion = config_get_string_value(config, "PLANIFICATION_ALGORITHM");
+    
+    // Obtener el algoritmo global y el flag de preemption
+    algoritmo_global = string_to_algoritmo(algoritmo_planificacion);
+    queue_preemption = config_get_int_value(config, "QUEUE_PREEMPTION") != 0;
+    
+    // Obtener parámetros de planificación
+    rr_quantum = config_get_int_value(config, "RR_QUANTUM");
+    suspension_timeout = config_get_int_value(config, "SUSPENSION_TIMEOUT");
+    
     log_level = log_level_from_string(str_log_level);
 
     log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
-    log_debug_ks = log_create("scheduler_debug.log", "SCHEDULER_DEBUG", true, DEBUG);
+    log_debug_ks = log_create("scheduler_debug.log", "SCHEDULER_DEBUG", true, 'DEBUG');
 
-    cola_ready = list_create();
+    // Inicializar colas de estados (READY ahora es array_colas_ready)
     cola_block = list_create();
     cola_exec = list_create();
     cola_exit = list_create();
     cola_espera_sleep = list_create();
     cola_espera_stdout = list_create();
+    cola_susp_block = list_create();
+    cola_susp_ready = list_create();
     lista_io_conectadas = list_create();
+    lista_mutex = list_create();
     lista_cpu_conectadas = list_create();
 
-    pthread_mutex_init(&mutex_cola_ready, NULL);
     pthread_mutex_init(&mutex_cola_block, NULL);
     pthread_mutex_init(&mutex_cola_exec, NULL);
     pthread_mutex_init(&mutex_cola_exit, NULL);
     pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
+    pthread_mutex_init(&mutex_lista_mutex, NULL);
     pthread_mutex_init(&mutex_lista_io_conectadas, NULL);
     pthread_mutex_init(&mutex_generador_id_io, NULL);
     pthread_mutex_init(&mutex_generador_pid, NULL);
@@ -85,7 +97,6 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_mutex_init(&mutex_stdout, NULL);
     pthread_mutex_init(&mutex_cola_susp_block, NULL);
     pthread_mutex_init(&mutex_cola_susp_ready, NULL);
-    pthread_cond_init(&cond_cola_ready, NULL);
     pthread_cond_init(&cond_cola_block, NULL);
     pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
     pthread_cond_init(&cond_sleep, NULL);
@@ -93,6 +104,10 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_cond_init(&cond_cola_susp_ready, NULL);
     pthread_cond_init(&cond_cola_susp_block, NULL);
     sem_init(&sem_inicializar_proceso, 0, 0);
+
+    // Inicializar el planificador con la estructura de colas adaptativa
+    inicializar_planificador();
+    log_info(log_ks, "Estructura de planificación inicializada correctamente");
 
     // INICIAR SERVIDOR
     server_ks = iniciar_servidor(log_ks, puerto);
@@ -128,7 +143,6 @@ void* handle_connections(void* arg){
                 pthread_t hilo_io;
 				pthread_create(&hilo_io, NULL, handle_io, socket_cliente);
 				pthread_detach(hilo_io);
- 				//TODO IMPLEMENTAR
  				break;
             default:
  				log_warning(log_ks, "Handshake no reconocido: %d", handshake_modulo);
@@ -154,11 +168,25 @@ void* handle_km(void* arg) {
             case -1:
                 log_error(log_ks, "El servidor Kernel Memory se desconectó. Terminando hilo.");
                 return NULL;
+            case MEMORIA_CORRUPTA:
+                ejecutar_bsod();
+                return NULL;
             default:
-                log_warning(log_ks, "operacion desconocida: %d", codigo_operacion);
+                log_warning(log_ks, "Operacion desconocida: %d", codigo_operacion);
                 break;
         }
     }
+}
+//Terminar
+void ejecutar_bsod(void){
+    if(bsod_activo){
+        return;
+    }
+    log_error(log_ks, "## BSOD: BLUE SCREEN OF DEATH");
+
+    bsod_activo = true;
+
+
 }
 
 // Kernel memory debería recibir el proceso (Vick y Aylu)
@@ -173,11 +201,8 @@ void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {
         log_debug(log_ks, "Kernel Memory confirmo INICIALIZAR_PROCESO_OK PARA EL PROCESO INICIAL");
         t_proceso_pcb* pcb_proceso_inicial = crear_pcb(0, PRIORIDAD_MAXIMA);
 
-        pthread_mutex_lock(&mutex_cola_ready);
-        list_add(cola_ready, pcb_proceso_inicial);
-        cambiar_estado_proceso(pcb_proceso_inicial, READY);
-        pthread_mutex_unlock(&mutex_cola_ready);
-        pthread_cond_signal(&cond_cola_ready);
+        // Usar la nueva función productora genérica
+        agregar_proceso_a_ready(pcb_proceso_inicial);
     } else {
         log_error(log_ks, "Error al crear el proceso inicial en Kernel Memory. Código de op: %d", codigo_operacion);
         return; 
@@ -214,7 +239,9 @@ t_proceso_pcb* crear_pcb(pid_t pid, int prioridad) {
     pcb->nombre_mutex = NULL;
     pcb->pc = 0;
     pcb->quantum = 0; 
-
+    pcb->tiene_hilo_quantum = false;
+    pcb->id_hilo_quantum = 0;
+ 
     log_info(log_ks, "## (<%d>) Se crea el proceso - Estado: NEW", pid);
 
     return pcb;
@@ -229,7 +256,7 @@ const char* estado_to_string(t_estado_proceso estado) {
         case EXIT: return "EXIT";
         case SUSP_READY: return "SUSPENDED-READY";
         case SUSP_BLOCK: return "SUSPENDED-BLOCKED";
-        default: return "DESCONOCIDO";
+        default: return "DESCONOCIDO"; 
     }
 }
 
@@ -241,14 +268,14 @@ void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_sigu
     return;
 }
 
-char* solicitar_contenido_a_km(int socket_km, pid_t pid, int direccion_logica, int tamanio){  
+char* solicitar_contenido_a_km(int socket_km, pid_t pid, uint32_t direccion_fisica, uint32_t tamanio){  
     op_code codigo_operacion = SOLICITAR_CONTENIDO_MEMORIA;  
     
     t_paquete *paquete_contexto = crear_paquete(codigo_operacion);
 
-    agregar_a_paquete(paquete_contexto, &pid, sizeof(int));
-    agregar_a_paquete(paquete_contexto, &direccion_logica, sizeof(int));
-    agregar_a_paquete(paquete_contexto, &tamanio, sizeof(int));
+    agregar_a_paquete(paquete_contexto, &pid, sizeof(pid_t));
+    agregar_a_paquete(paquete_contexto, &direccion_fisica, sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto, &tamanio, sizeof(uint32_t));
 
     enviar_paquete_send_all(paquete_contexto, socket_km);
     
@@ -273,17 +300,37 @@ char* solicitar_contenido_a_km(int socket_km, pid_t pid, int direccion_logica, i
     return contenido;
 }
 
+void destruir_mutex(void* elemento) {
+    t_mutex* mutex = (t_mutex*)elemento;
+    free(mutex->nombre_mutex);
+    // pero no deben ser liberados aquí para evitar doble free. La lista se vacía y destruye.
+    list_destroy(mutex->cola_procesos);
+    free(mutex);
+}
+
+void solicitar_mem_free_a_km(int socket_km, pid_t pid, uint32_t id_segmento){
+op_code codigo_operacion = SOLICITAR_MEM_FREE;
+
+t_paquete *paquete_mem_free = crear_paquete(codigo_operacion);
+agregar_a_paquete(paquete_mem_free, &pid, sizeof(pid_t));
+agregar_a_paquete(paquete_mem_free, &id_segmento, sizeof(uint32_t));
+
+enviar_paquete_send_all(paquete_mem_free, socket_km);
+
+eliminar_paquete(paquete_mem_free);
+}
+
 
 
 void liberar_recursos() {   
     log_destroy(log_ks);
     log_destroy(log_debug_ks);
     config_destroy(config);
-    pthread_mutex_destroy(&mutex_cola_ready);
     pthread_mutex_destroy(&mutex_cola_block);
     pthread_mutex_destroy(&mutex_cola_exec);
     pthread_mutex_destroy(&mutex_cola_exit);
     pthread_mutex_destroy(&mutex_lista_cpu_conectadas);
+    pthread_mutex_destroy(&mutex_lista_mutex);
     pthread_mutex_destroy(&mutex_lista_io_conectadas);
     pthread_mutex_destroy(&mutex_generador_id_io);
     pthread_mutex_destroy(&mutex_generador_pid);
@@ -291,7 +338,6 @@ void liberar_recursos() {
     pthread_mutex_destroy(&mutex_stdout);
     pthread_mutex_destroy(&mutex_cola_susp_block);
     pthread_mutex_destroy(&mutex_cola_susp_ready);
-    pthread_cond_destroy(&cond_cola_ready);
     pthread_cond_destroy(&cond_cola_block);
     pthread_cond_destroy(&cond_lista_cpu_conectadas);
     pthread_cond_destroy(&cond_sleep);
@@ -307,10 +353,11 @@ void liberar_recursos() {
     free(puerto_km);
     free(ip_km);
     free(algoritmo_planificacion);
-    list_destroy(cola_ready);
+    liberar_planificador();
     list_destroy(cola_block);
     list_destroy(cola_exec);
     list_destroy(cola_exit);
+    list_destroy_and_destroy_elements(lista_mutex, destruir_mutex);
     list_destroy(lista_cpu_conectadas);
     list_destroy(lista_io_conectadas);
     list_destroy(cola_espera_sleep);
@@ -330,5 +377,48 @@ t_proceso_pcb* remover_proceso_por_pid(t_list* cola, pid_t pid) {
             return list_remove(cola, i);
         }
     }
+    return NULL;
+}
+
+void iniciar_temporizador_timeout(pid_t pid) {    
+    pthread_t hilo_timeout;
+    pid_t *pid_ptr = malloc(sizeof(pid_t));
+    *pid_ptr = pid;
+    pthread_create(&hilo_timeout, NULL, temporizador_timeout, (void*)pid_ptr); 
+    pthread_detach(hilo_timeout); 
+}
+
+void* temporizador_timeout(void* arg) {    
+    pid_t pid = *(pid_t*)arg;
+    free(arg);
+
+    usleep(suspension_timeout * 1000);
+
+    pthread_mutex_lock(&mutex_cola_block);
+    t_proceso_pcb *proceso = remover_proceso_por_pid(cola_block, pid);
+    if (proceso != NULL) {
+        // CASO A: El tiempo se agoto y la IO no termino ahora lo metemos a cola_susp_block
+        
+        pthread_mutex_lock(&mutex_cola_susp_block);
+        cambiar_estado_proceso(proceso, SUSP_BLOCK);
+        list_add(cola_susp_block, proceso);
+        pthread_mutex_unlock(&mutex_cola_susp_block);
+        
+        pthread_mutex_unlock(&mutex_cola_block); 
+
+        log_info(log_ks, "Timeout agotado. El proceso %d pasa a SUSP_BLOCK", pid);
+
+        // 3. LA ORDEN A MEMORIA (Swapping) aca tenemos que avisarle a memoria que suspenda el proceso
+        t_paquete *paquete_suspension = crear_paquete(SUSPENDER_PROCESO); 
+        agregar_a_paquete(paquete_suspension, &pid, sizeof(pid_t));
+
+        enviar_paquete_send_all(paquete_suspension, conexion_km);
+        eliminar_paquete(paquete_suspension); 
+        
+    } else {
+        // CASO B: El proceso no está en la cola block
+        pthread_mutex_unlock(&mutex_cola_block);
+    }
+
     return NULL;
 }

@@ -142,13 +142,8 @@ void finalizar_io(pid_t pid) {
 
     //SI entra en este if entonces es que no es NULL porque estaba en la cola block y entonces lo paso a ready
     if (proceso != NULL) {
-        
-        pthread_mutex_lock(&mutex_cola_ready);
-        cambiar_estado_proceso(proceso, READY);
-        list_add(cola_ready, proceso);
-        pthread_cond_signal(&cond_cola_ready);
-        pthread_mutex_unlock(&mutex_cola_ready);
-
+        // Usar la nueva función productora genérica para agregar procesos a ready
+        agregar_proceso_a_ready(proceso);
         log_info(log_ks, "## (%d) finalizó IO y pasa a READY", pid);
         return;
     }
