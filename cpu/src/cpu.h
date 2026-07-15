@@ -67,7 +67,14 @@ typedef struct {
     char* puerto_km;
     char* ip_ms;
     char* puerto_ms;
+    char* tamanio_max_segmento;
 } t_cpu_env;
+
+typedef struct {
+    int id_segmento;
+    uint32_t base;
+    uint32_t limite;
+} t_segmento;
 
 //region: VARIABLES GLOBALES (finiquitar)
 
@@ -81,6 +88,7 @@ extern int conexion_ks;
 extern int conexion_km;
 extern int conexion_ms;
 extern int id_cpu;
+extern uint32_t tam_max_segmentos; 
 
 //region: DECLARACIONES DE FUNCIONES
 

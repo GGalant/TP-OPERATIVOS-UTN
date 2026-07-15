@@ -11,6 +11,7 @@ t_cpu cpu = {0};
 t_log* log_cpu = NULL;
 t_instruccion instruccion_actual = {0};
 bool error_fatal = false;
+uint32_t tam_max_segmentos = 0; 
 
 int main(int argc, char *argv[]){
 
@@ -145,6 +146,8 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
     }
 
     map_config_variables(config, &env);
+
+    tam_max_segmentos = env.tamanio_max_segmento;
 
     //TODO2 ver si int puede ser enum de commons
     t_log_level log_level = log_level_from_string(env.str_log_level);
@@ -492,6 +495,8 @@ int map_config_variables(t_config* config, t_cpu_env* env){
 
     env->ip_ms= config_get_string_value(config, "IP_MS");
     env->puerto_ms = config_get_string_value(config, "PUERTO_MS");
+
+    env->tamanio_max_segmento = config_get_string_value(config, "TAMANIO_MAX_SEGMENTO");
 
     return 0;
 }
