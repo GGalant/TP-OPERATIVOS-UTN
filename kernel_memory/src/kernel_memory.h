@@ -105,14 +105,14 @@ char* obtener_instruccion(t_list* instrucciones, uint32_t pc_actual);
 char* armar_argumentos(char** tokens);
 
 
-void buscar_best_bloque(char* pid_string, int id_segmento, int tamanio_segmento);
-void buscar_worst_bloque(char* pid_string, int id_segmento, int tamanio_segmento);
-void crear_segmento(t_hueco_libre* hueco_hallado,char* pid, uint32_t id_segmento, uint32_t tamanio_segmento);
+t_segmento* buscar_best_bloque(char* pid_string, int id_segmento, int tamanio_segmento);
+t_segmento* buscar_worst_bloque(char* pid_string, int id_segmento, int tamanio_segmento);
+t_segmento* crear_segmento(t_hueco_libre* hueco_hallado,char* pid, uint32_t id_segmento, uint32_t tamanio_segmento);
 bool verificar_tamanio_valido(int tamanio_seg);
 uint32_t calcular_memoria_libre();
 uint32_t calcular_memoria_total();
 bool existe_hueco_contiguo(uint32_t tamanio_segmento);
-void elegir_algoritmo(char* pid_string, int id_segmento, int tamanio_segmento);
+t_segmento* elegir_algoritmo(char* pid_string, int id_segmento, int tamanio_segmento);
 
 t_list* obtener_todos_los_segmentos();
 void obtener_segmentos(char* pid_str, void* contexto_ejec);
@@ -120,6 +120,10 @@ bool comparar_segmentos_por_base(void* a, void* b);
 void reconstruir_huecos_despues_de_compactar(uint32_t proxima_base_libre);
 void *obtener_contenido_segmento(t_segmento *segmento);
 bool solicitar_lectura_a_stick(t_memory_stick *stick, uint32_t base_segmento_en_stick, uint32_t tamanio, void *destino);
-
+void escribir_segmento_en_ms(t_segmento* segmento_restaurado, void* contenido);
+char* obtener_contenido_bloque_swap(uint32_t bloque_swap);
+t_segmento* iniciar_creacion_segmento(pid_t pid, int id_segmento, uint32_t tamanio_segmento, int socket_ks);
+uint32_t enviar_segmento_a_swap(pid_t pid, t_segmento* segmento, char* contenido);
+uint32_t obtener_bloque_libre_swap();
 
 void iniciar_compactacion();

@@ -150,9 +150,6 @@ void *handle_ks(void *arg)
             log_debug(log_km, "Kernel Scheduler solicitó INICIALIZAR_PROCESO");
             char *base_path = config_km.scripts_basepath; // hardcodeado por ahora
 
-            // t_list* instrucciones = cargar_instrucciones(path_archivo_instrucciones);
-            // dictionary_put(diccionario_instrucciones,str_pid_recibido,instrucciones);
-
             t_list *proceso_inicial = recibir_paquete(socket_ks);
             pid_t pid_recibido = *(pid_t *)list_get(proceso_inicial, 0);
             char *path_instrucciones_recibido = (char *)list_get(proceso_inicial, 1);
@@ -161,7 +158,6 @@ void *handle_ks(void *arg)
             char *path_absoluto = string_from_format("%s%s", base_path, path_instrucciones_recibido);
             log_debug(log_km, "Intentando cargar las instrucciones desde %s", path_instrucciones_recibido);
 
-            // t_list* instrucciones = cargar_instrucciones(path_instrucciones_recibido); //arreglarla
             t_list *instrucciones = cargar_instrucciones(path_absoluto);
             free(path_absoluto);
             list_destroy_and_destroy_elements(proceso_inicial, free);
@@ -289,13 +285,13 @@ void *handle_ks(void *arg)
             char *contenido_a_escribir = (char *)list_get(pedido_escritura, 3);
 
                 if(!acceso_valido_en_segmentos(pid,direccion_fisica,cantidad_bytes)){
-                log_error(log_km, "No es un segmento valido/el proceso no tiene acceso a este segmento");
-                op_code respuesta_escritura = ERROR_ESCRITURA;
-                send(socket_ks, &respuesta_escritura, sizeof(respuesta_escritura), 0);
+                    log_error(log_km, "No es un segmento valido/el proceso no tiene acceso a este segmento");
+                    op_code respuesta_escritura = ERROR_ESCRITURA;
+                    send(socket_ks, &respuesta_escritura, sizeof(respuesta_escritura), 0);
 
-                list_destroy_and_destroy_elements(pedido_escritura, free);
-                //return EXIT_FAILURE;
-                break;
+                    list_destroy_and_destroy_elements(pedido_escritura, free);
+                    //return EXIT_FAILURE;
+                    break;
 
                 }
 
@@ -344,48 +340,8 @@ void *handle_ks(void *arg)
             int tamanio_segmento = *(int *)list_get(pedido_creacion_seg, 2);
             char *pid_string = string_itoa(pid);
 
-            void iniciar_creacion_segmento(pid, id_segmento, tamanio_segmento, socket_ks);
-            /*
-            if (verificar_tamanio_valido(tamanio_segmento))
-            {
-
-                if (existe_hueco_contiguo(tamanio_segmento))
-                {
-                    // TODO: meter comparacion de algoritmos en una funcion
-
-                    elegir_algoritmo(pid_string, id_segmento, tamanio_segmento);
-                }
-                else
-                {
-                    // buscamos si hay espacio libre en toda la memoria
-                    uint32_t memoria_libre_total = calcular_memoria_libre();
-                    if (memoria_libre_total >= tamanio_segmento)
-                    {
-                        log_debug(log_km, "Hay espacio en memoria pero no contiguo. Es necesario compactar");
-                        op_code desalojar = DESALOJAR_CPU; // TODO FIJARSE CON GABI Q LO MANDE ASI
-                        send(socket_ks, &desalojar, sizeof(desalojar), 0);
-                        // TODO: COMPACTAR
-                        // 1. avisar al KS de la compactacion. Solicitar desalojo de cpus
-                        op_code desalojo_ok;
-                        recv(socket_ks, &desalojo_ok, sizeof(desalojo_ok), 0);
-                        // 2. Compactar memoria despues de confirmacion de desalojo
-                        iniciar_compactacion();
-                        // 3. Avisar compactacion OK
-                    }
-                    else
-                    {
-                        log_error(log_km, "No hay espacio en memoria, no se puede crear el segmento <%d> de tamanio <%d> del PID <%d>. Memoria libre total: <%d>",
-                                  id_segmento,
-                                  tamanio_segmento,
-                                  pid,
-                                  memoria_libre_total);
-                        //return;
-                        break;
-                        // TODO: avisar ks?
-                    }
-                }
-            }
-        */
+            iniciar_creacion_segmento(pid, id_segmento, tamanio_segmento, socket_ks);
+           
             free(pid_string);
             list_destroy_and_destroy_elements(pedido_creacion_seg, free);
         }
@@ -421,11 +377,12 @@ void *handle_ks(void *arg)
                     contexto_suspendido->id_segmento, //id_segmento,
                     contexto_suspendido->limite, //tamanio,
                     socket_ks
-                ); //TODO: IMPLEMENTAR
+                );
 
-                void* contenido = leer_bloque_swap(contexto_suspendido->bloque_swap);
+                //void* contenido = leer_bloque_swap(contexto_suspendido->bloque_swap);
 
-                //TODO: PENSAR si esto se escribe siempre --> creeria q si
+                char* contenido = obtener_contenido_bloque_swap(contexto_suspendido->bloque_swap);
+
                 escribir_segmento_en_ms(segmento_restaurado, contenido);
             }
         }
@@ -468,23 +425,11 @@ void *handle_ks(void *arg)
                 uint32_t bloque_en_swap = enviar_segmento_a_swap(pid, segmento, contenido);
                 free(contenido);
 
-                if(contenido_guardado < 0){
-                    log_error(log_km,"Ocurrio un error y no se pudo guardar el segmento <%d> del PID <%d> en SWAP", segmento->id_segmento, pid);
-                    break;
-                }
-                // int id = segmento->id_segmento; 
-                // int despl = segmento->limite;
-
-                // int dl = id + despl;
-
-                // list_add(direcciones_logicas, dl); 
-
-
                 //guardo metadata del segmento --> puede ir todo en enviar_segmento_a_swap() ----???
                 t_metadata_swap* backup = malloc(sizeof(t_metadata_swap));
                 backup->id_segmento = segmento->id_segmento;
                 backup->limite = segmento->limite;
-                backup->pid = segmento->pid;
+                backup->pid = pid;
                 backup->bloque_swap = bloque_en_swap;
 
                 list_add(backup_metadata,backup);
@@ -498,7 +443,7 @@ void *handle_ks(void *arg)
 
             //ahora que se esta guardado, limpiamos la tabla de segmentos
 
-            for(int i = 0, list_size(segmentos), i++){
+            for(int i = 0; list_size(segmentos); i++){
                 t_segmento* segmento_aux = list_get(segmentos,i);
 
                 // TODO: PENSAR --> funcion para liberar segmentos? liberar manualmente con free?
@@ -507,16 +452,6 @@ void *handle_ks(void *arg)
             list_clean_and_destroy_elements(segmentos, free);
 
             log_debug(log_km, "Proceso suspendido correctamente. PID <%d>: ",pid);
-
-
-            //chau juira traduccion mala
-            //t_paquete traducir = crear_paquete(SOLICITAR_TRADUCCION);
-
-            // agregar_a_paquete(traducir, direcciones_logicas, sizeof(direcciones_logicas));
-
-            // enviar_paquete_send_all(traducir, socket_cpu);
-
-            // eliminar_paquete(traducir);
 
         }
             break;
@@ -805,7 +740,7 @@ char *armar_argumentos(char **tokens)
 
 ///////////////////////////////////////////
 
-void buscar_best_bloque(char *pid_string, int id_segmento, int tamanio_segmento)
+t_segmento* buscar_best_bloque(char *pid_string, int id_segmento, int tamanio_segmento)
 {
     // 2. Buscar el mejor hueco: el más chico donde entre el segmento
     t_hueco_libre *mejor_hueco = NULL;
@@ -836,14 +771,16 @@ void buscar_best_bloque(char *pid_string, int id_segmento, int tamanio_segmento)
         // evaluar si hay memoria total suficiente pero no contigua.
         // Si hay memoria total suficiente -> pedir compactación.
         // Si no hay memoria total suficiente -> responder error al Kernel Scheduler.
-        return;
+        return NULL;
     }
 
     // 4. Si encontró hueco, crea el segmento usando ese hueco
-    crear_segmento(mejor_hueco, pid_string, id_segmento, tamanio_segmento);
+    t_segmento* nuevo_segmento = crear_segmento(mejor_hueco, pid_string, id_segmento, tamanio_segmento);
+
+    return nuevo_segmento;
 }
 
-void buscar_worst_bloque(char *pid_string, int id_segmento, int tamanio_segmento)
+t_segmento* buscar_worst_bloque(char *pid_string, int id_segmento, int tamanio_segmento)
 {
 
     // 2. Encontrar bloque
@@ -875,14 +812,16 @@ void buscar_worst_bloque(char *pid_string, int id_segmento, int tamanio_segmento
         // evaluar si hay memoria total suficiente pero no contigua.
         // Si hay memoria total suficiente -> pedir compactacion.
         // Si no hay memoria total suficiente -> responder error al Kernel Scheduler.
-        return;
+        return NULL;
     }
 
     // 4. Si encontró hueco, crea el segmento usando ese hueco
-    crear_segmento(peor_hueco, pid_string, id_segmento, tamanio_segmento);
+    t_segmento* nuevo_segmento = crear_segmento(peor_hueco, pid_string, id_segmento, tamanio_segmento);
+
+    return nuevo_segmento;
 }
 
-void crear_segmento(t_hueco_libre *hueco_hallado, char *pid, uint32_t id_segmento, uint32_t tamanio_segmento)
+t_segmento* crear_segmento(t_hueco_libre *hueco_hallado, char *pid, uint32_t id_segmento, uint32_t tamanio_segmento)
 {
     // 1. Crear segmento
     // 2. Agregar a la lista de segmentos
@@ -895,7 +834,7 @@ void crear_segmento(t_hueco_libre *hueco_hallado, char *pid, uint32_t id_segment
 
     if (contexto_ejecucion == NULL){
     log_error(log_km, "No existe contexto para el PID <%s>", pid);
-    return;
+    return NULL;
 }
 
     list_add(contexto_ejecucion->tabla_segmentos, nuevo_segmento);
@@ -920,6 +859,8 @@ void crear_segmento(t_hueco_libre *hueco_hallado, char *pid, uint32_t id_segment
         hueco_hallado->tamanio = nuevoTamanioHuecoLibre;
         // no lo agrego, ya esta en la lista
     }
+
+    return nuevo_segmento;
 }
 
 bool verificar_tamanio_valido(int tamanio_segmento)
@@ -967,21 +908,23 @@ bool existe_hueco_contiguo(uint32_t tamanio_segmento)
     return false;
 }
 
-void elegir_algoritmo(char *pid_string, int id_segmento, int tamanio_segmento)
+t_segmento* elegir_algoritmo(char *pid_string, int id_segmento, int tamanio_segmento)
 {
+    t_segmento* nuevo_segmento;
     if (strcmp(config_km.alloc_strategy, "BEST") == 0)
     {
-        buscar_best_bloque(pid_string, id_segmento, tamanio_segmento);
+        nuevo_segmento = buscar_best_bloque(pid_string, id_segmento, tamanio_segmento);
     }
     else if (strcmp(config_km.alloc_strategy, "WORST") == 0)
     {
-        buscar_worst_bloque(pid_string, id_segmento, tamanio_segmento);
+        nuevo_segmento = buscar_worst_bloque(pid_string, id_segmento, tamanio_segmento);
     }
     else
     {
         perror("El algoritmo de asignacion no es valido");
-        return; // TODO: AVISAR AL KS
+        return NULL; // TODO: AVISAR AL KS
     }
+    return nuevo_segmento;
 }
 
 void iniciar_compactacion()
@@ -1222,21 +1165,20 @@ bool solicitar_lectura_a_stick(t_memory_stick *stick, uint32_t base_segmento_en_
     return true;
 }
 
-uint32_t enviar_segmento_a_swap(pid_t pid, t_segmento* segmento, void* contenido){
-    uint32_t bloque_libre = obtener_bloque_libre_swap();
-    //el backup se hace en el case SUSPENDER_PROCESO
-    // t_metadata_swap* backup = malloc(sizeof(t_metadata_swap));
-    //     backup->id_segmento = segmento->id_segmento;
-    //     backup->limite = segmento->limite;
-    //     backup->pid = segmento->pid;
-    //     backup->bloque_swap = bloque_libre;
+uint32_t enviar_segmento_a_swap(pid_t pid, t_segmento* segmento, char* contenido){
     
+    uint32_t bloque_libre = obtener_bloque_libre_swap();
+    
+    int id_segmento = segmento->id_segmento;
+    uint32_t base = segmento->base;
+    uint32_t limite = segmento->limite;
+
     t_paquete* segmento_a_guardar = crear_paquete(GUARDAR_SEGMENTO);
-    agregar_a_paquete(segmento_a_guardar, segmento->id_segmento, sizeof(int));
-    agregar_a_paquete(segmento_a_guardar, segmento->base, sizeof(uint32_t));
-    agregar_a_paquete(segmento_a_guardar, segmento->limite, sizeof(segmento));
-    agregar_a_paquete(segmento_a_guardar,contenido,sizeof(contenido));
-    agregar_a_paquete(segmento_a_guardar, bloque_libre, sizeof(uint32_t));
+    agregar_a_paquete(segmento_a_guardar, &id_segmento, sizeof(int));
+    agregar_a_paquete(segmento_a_guardar, &base, sizeof(uint32_t));
+    agregar_a_paquete(segmento_a_guardar, &limite, sizeof(uint32_t));
+    agregar_a_paquete(segmento_a_guardar, contenido,sizeof(contenido));
+    agregar_a_paquete(segmento_a_guardar, &bloque_libre, sizeof(uint32_t));
     //por las dudas re pensar si hace falta mandar el pid o no
 
     return bloque_libre;
@@ -1249,7 +1191,7 @@ uint32_t obtener_bloque_libre_swap(){
     send(socket_swap,&solicitud_bloque_libre, sizeof(solicitud_bloque_libre),0);
     //verificacion de enviado????
     uint32_t bloque;
-    recv(socket_swap, bloque, sizeof(int), MSG_WAITALL);
+    recv(socket_swap, &bloque, sizeof(int), MSG_WAITALL);
     return bloque;
 }
 
@@ -1257,6 +1199,7 @@ uint32_t obtener_bloque_libre_swap(){
 t_segmento* iniciar_creacion_segmento(pid_t pid, int id_segmento, uint32_t tamanio_segmento, int socket_ks){
 
     char* pid_string = string_itoa(pid);
+    t_segmento* segmento_creado;
 
       if (verificar_tamanio_valido(tamanio_segmento))
             {
@@ -1265,7 +1208,7 @@ t_segmento* iniciar_creacion_segmento(pid_t pid, int id_segmento, uint32_t taman
                 {
                     // TODO: meter comparacion de algoritmos en una funcion
 
-                    elegir_algoritmo(pid_string, id_segmento, tamanio_segmento);
+                    segmento_creado = elegir_algoritmo(pid_string, id_segmento, tamanio_segmento);
                 }
                 else
                 {
@@ -1291,16 +1234,49 @@ t_segmento* iniciar_creacion_segmento(pid_t pid, int id_segmento, uint32_t taman
                                   tamanio_segmento,
                                   pid,
                                   memoria_libre_total);
-                        //return;
-                        break;
+                        return NULL;
+
                         // TODO: avisar ks?
                     }
                 }
             }
+        return segmento_creado;
 
 }
 
- escribir_segmento_en_ms(t_segmento* segmento_restaurado, void* contenido){
-    t_stick* stick = encontrar_stick_por_base_del_segmento(segmento_restaurado->base);
+void escribir_segmento_en_ms(t_segmento* segmento_restaurado, void* contenido){
+    
+    t_memory_stick* stick = encontrar_stick_por_base_del_segmento(segmento_restaurado->base);
 
- }
+    uint32_t base_segmento_en_stick = segmento_restaurado->base - stick->inicio;
+    uint32_t direccion_fisica = base_segmento_en_stick;
+    
+    t_paquete* paquete_solicitud_escritura = crear_paquete(SOLICITUD_ESCRITURA);
+
+    uint32_t cantidad_bytes = sizeof(contenido);
+
+    agregar_a_paquete(paquete_solicitud_escritura, &direccion_fisica,sizeof(direccion_fisica));
+    agregar_a_paquete(paquete_solicitud_escritura, &cantidad_bytes,sizeof(uint32_t));
+    agregar_a_paquete(paquete_solicitud_escritura, contenido, cantidad_bytes);
+    
+    enviar_paquete_send_all(paquete_solicitud_escritura,socket_memory_stick);
+
+    eliminar_paquete(paquete_solicitud_escritura);
+
+}
+
+char* obtener_contenido_bloque_swap(uint32_t bloque_swap){
+    
+    op_code obtener_contenido_bloque = OBTENER_CONTENIDO_BLOQUE;
+
+    send(socket_swap, &obtener_contenido_bloque, sizeof(obtener_contenido_bloque),0);
+        
+    t_list* paquete_bloque_swap = recibir_paquete(socket_swap);
+    char* contenido = (char*)list_get(paquete_bloque_swap,0);
+
+    list_destroy(paquete_bloque_swap);
+
+    return contenido;
+
+}
+
