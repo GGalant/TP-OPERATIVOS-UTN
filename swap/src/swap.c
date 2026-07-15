@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
     puerto_kernel_memory = config_get_string_value(config, "PUERTO_KERNEL_MEMORY");
     
     file_path = config_get_string_value(config, "SWAP_FILE_PATH");
-    file_size = config_get_sint_value(config, "SWAP_FILE_SIZE");
+    file_size = config_get_int_value(config, "SWAP_FILE_SIZE");
     str_log_level = config_get_string_value(config, "LOG_LEVEL");
     log_level = log_level_from_string(str_log_level); // TODO: REVISAR
     block_size = config_get_int_value(config, "BLOCK_SIZE");
