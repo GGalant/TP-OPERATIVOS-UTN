@@ -106,7 +106,7 @@ void handle_io_stdout(t_io *io) {
     }
 }
 
-void handle_io_stdin(io) {
+void handle_io_stdin(t_io *io) {
     while (true) {
         log_debug(log_debug_ks, "Esperando peticion de stdin");
         pthread_mutex_lock(&mutex_stdin);
