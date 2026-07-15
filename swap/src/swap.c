@@ -12,8 +12,10 @@ int main(int argc, char* argv[]) {
     char* str_log_level;
     char* ip_kernel_memory;
     char* puerto_kernel_memory;
+
     char* file_path;
-    char* file_size;
+    int file_size;
+    int block_size;
     int log_level;
 
     if (config == NULL) {   
@@ -22,10 +24,12 @@ int main(int argc, char* argv[]) {
 
     ip_kernel_memory = config_get_string_value(config, "IP_KERNEL_MEMORY");
     puerto_kernel_memory = config_get_string_value(config, "PUERTO_KERNEL_MEMORY");
+    
     file_path = config_get_string_value(config, "SWAP_FILE_PATH");
-    file_size = config_get_string_value(config, "SWAP_FILE_SIZE");
+    file_size = config_get_sint_value(config, "SWAP_FILE_SIZE");
     str_log_level = config_get_string_value(config, "LOG_LEVEL");
-    log_level = log_level_from_string(str_log_level);
+    log_level = log_level_from_string(str_log_level); // TODO: REVISAR
+    block_size = config_get_int_value(config, "BLOCK_SIZE");
     
     log_swap = log_create("swap.log", "SWAP", true, log_level);
 
@@ -47,6 +51,14 @@ int main(int argc, char* argv[]) {
         op_code codigo_operacion = recibir_operacion(conexion_kernel_memory);
         
         switch(codigo_operacion) {
+
+            case ESCRITURA_DE_BLOQUE:
+                t_list* paquete = recibir_paquete(conexion_kernel_memory);
+                return;
+            
+            case LECTURA_DE_BLOQUE:
+                return;
+            
             case -1:
                 log_error(log_swap, "El servidor Kernel Memory se desconectó. Finalizando Swap");
                 return EXIT_FAILURE;

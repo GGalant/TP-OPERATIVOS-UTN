@@ -24,6 +24,7 @@ void* handle_io(void* arg) {
 
     switch (io->tipo) {
     case SLEEP:
+        log_debug(log_debug_ks, "IO de tipo SLEEP creada");
         handle_io_sleep(io);
         break;
     case STDIN:
@@ -41,11 +42,13 @@ void* handle_io(void* arg) {
 
 void handle_io_sleep(t_io *io) {    
     while(true) {   
+        log_debug(log_debug_ks, "Esperando peticion de sleep");
         pthread_mutex_lock(&mutex_sleep);
         while (list_is_empty(cola_espera_sleep)) {
             pthread_cond_wait(&cond_sleep, &mutex_sleep);
         }
         
+        log_debug(log_debug_ks, "LLega una peticion de sleep");
         t_peticion_sleep* peticion = list_remove(cola_espera_sleep, 0); 
         
         pthread_mutex_unlock(&mutex_sleep);
@@ -60,7 +63,7 @@ void handle_io_sleep(t_io *io) {
         agregar_a_paquete(paquete_sleep, &peticion->tiempo_sleep, sizeof(int));
         enviar_paquete_send_all(paquete_sleep, io->socket_io);
         eliminar_paquete(paquete_sleep);
-
+        log_debug(log_debug_ks, "Se envia una peticion de sleep");
         
         pid_t pid_actual = peticion->pid; // Guardamos el PID para la validación
         free(peticion); 
@@ -177,14 +180,14 @@ bool esperar_y_procesar_respuesta_io(t_io* io, pid_t pid_esperado) {
         
     switch(codigo_operacion) {
         case FIN_IO: {
-            pid_t pid_recibido;
-            int bytes_recibidos = recv(io->socket_io, &pid_recibido, sizeof(int), MSG_WAITALL);
-            
-            if (bytes_recibidos <= 0) {
-                log_error(log_ks, "IO <%d>: No se pudo recibir el PID de fin de IO", io->io_id);
-                // Acá podrías decidir si abortar el pid_esperado
-                break; 
+            t_list* paquete_fin_io = recibir_paquete(io->socket_io);
+            if (paquete_fin_io == NULL) {
+                log_error(log_ks, "IO <%d>: Error al recibir el paquete de FIN_IO.", io->io_id);
+                // Si el paquete es NULL, es probable que la conexión se haya cerrado.
+                return false;
             }
+            pid_t pid_recibido = *(pid_t*)list_get(paquete_fin_io, 0);
+            list_destroy_and_destroy_elements(paquete_fin_io, free);
 
             if (pid_recibido == pid_esperado) {
                 finalizar_io(pid_recibido);
