@@ -96,6 +96,7 @@ extern char *puerto_km;
 extern char *ip_km;
 extern char *algoritmo_planificacion;
 extern char* buffer_global_contenido_km;
+extern char* buffer_respuesta_creacion_segmento;
 extern uint32_t buffer_global_tamanio_contenido_km;
 extern int *conexion_km_ptr;
 extern int server_ks;
@@ -129,6 +130,7 @@ extern pthread_cond_t cond_cola_susp_ready;
 extern pthread_cond_t cond_cola_susp_block;
 extern sem_t sem_inicializar_proceso;
 extern sem_t sem_respuesta_contenido_km;
+extern sem_t sem_creacion_segmento;
 extern bool bsod_activo;
 
 void wait_mutex(t_mutex *mutex, pid_t pid_proceso);

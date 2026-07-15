@@ -30,6 +30,7 @@ char *puerto_km;
 char *ip_km;
 char *algoritmo_planificacion;
 char* buffer_global_contenido_km = NULL;
+char* buffer_respuesta_creacion_segmento = NULL;
 uint32_t buffer_global_tamanio_contenido_km = 0;
 const int PRIORIDAD_MAXIMA = 0;
 int *conexion_km_ptr;
@@ -65,6 +66,7 @@ pthread_cond_t cond_cola_susp_ready;
 pthread_cond_t cond_cola_susp_block;
 sem_t sem_inicializar_proceso;
 sem_t sem_respuesta_contenido_km;
+sem_t sem_creacion_segmento;
 
 void wait_mutex(t_mutex *mutex, pid_t pid_proceso)
 {

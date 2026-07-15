@@ -111,6 +111,7 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_cond_init(&cond_cola_susp_block, NULL);
     sem_init(&sem_inicializar_proceso, 0, 0);
     sem_init(&sem_respuesta_contenido_km, 0, 0);
+    sem_init(&sem_creacion_segmento, 0, 0);
 
     // Inicializar el planificador con la estructura de colas adaptativa
     inicializar_planificador();
@@ -178,10 +179,10 @@ void* handle_km(void* arg) {
             case MEMORIA_CORRUPTA:
                 ejecutar_bsod();
                 return NULL;
-            case RESPUESTA_CONTENIDO_MEMORIA: {
+            case LECTURA_OK: {
                 t_list* paquete_respuesta = recibir_paquete(socket_km);
                 if (paquete_respuesta == NULL) {
-                    log_error(log_ks, "Error al recibir paquete de RESPUESTA_CONTENIDO_MEMORIA");
+                    log_error(log_ks, "Error al recibir paquete de LECTURA_OK");
                     buffer_global_contenido_km = NULL;
                     sem_post(&sem_respuesta_contenido_km);
                     break;
@@ -200,6 +201,26 @@ void* handle_km(void* arg) {
 
                 list_destroy_and_destroy_elements(paquete_respuesta, free);
                 sem_post(&sem_respuesta_contenido_km);
+                break;
+            }
+            case CREACION_DE_SEGMENTO_OK: {
+                void* res = "CREACION_DE_SEGMENTO_OK";
+                buffer_respuesta_creacion_segmento = malloc(strlen(res) + 1);
+                memcpy(buffer_respuesta_creacion_segmento, res, strlen(res));
+                buffer_respuesta_creacion_segmento[strlen(res)] = '\0';
+                log_debug(log_ks, "La Creacion de Segmento fue exitosa, devolviendo el proceso a la CPU");
+                sem_post(&sem_creacion_segmento);
+                
+                break;
+            }
+            case DESALOJO_CPU: {
+                void* res = "DESALOJAR_CPU";
+                buffer_respuesta_creacion_segmento = malloc(strlen(res) + 1);
+                memcpy(buffer_respuesta_creacion_segmento, res, strlen(res));
+                buffer_respuesta_creacion_segmento[strlen(res)] = '\0';
+                log_debug(log_ks, "No se pudo crear el segmento, se dispara compactacion");
+                sem_post(&sem_creacion_segmento);
+
                 break;
             }
             default:
@@ -397,6 +418,7 @@ void liberar_recursos() {
     pthread_cond_destroy(&cond_cola_susp_ready);
     sem_destroy(&sem_inicializar_proceso);
     sem_destroy(&sem_respuesta_contenido_km);
+    sem_destroy(&sem_creacion_segmento);
     free(conexion_km_ptr);
     free(config_path);
     free(path_proceso_inicial);
@@ -407,6 +429,7 @@ void liberar_recursos() {
     free(algoritmo_planificacion);
     liberar_planificador();
     free(buffer_global_contenido_km);
+    free(buffer_respuesta_creacion_segmento);
     list_destroy(cola_block);
     list_destroy(cola_exec);
     list_destroy(cola_exit);

@@ -254,8 +254,12 @@ void *handle_cpu(void *arg)
                 break;
             }
 
-            if (respuesta_km == DISPARO_COMPACTACION) {
+            sem_wait(&sem_creacion_segmento);
 
+            if (buffer_respuesta_creacion_segmento = "CREACION_DE_SEGMENTO_OK") {
+                enviar_proceso_a_cpu(cpu->socket_cpu, pid);
+            } 
+            if (buffer_respuesta_creacion_segmento = "DESALOJAR_CPU") {
                 pthread_mutex_lock(&mutex_lista_cpu_conectadas);
                 
                 //TODO 1. MOVER PROCESOS DE COLA READY A UNA COLA AUXILIAR 
@@ -279,7 +283,7 @@ void *handle_cpu(void *arg)
 
                 //TODO 3. MOVER PROCESOS DE COLA AUXILIAR A COLA READY
 
-                send(conexion_km, &(op_code){CPUS_DESALOJADAS}, sizeof(op_code), 0);
+                send(conexion_km, &(op_code){DESALOJAR_CPU_OK}, sizeof(op_code), 0);
                 respuesta_km = recibir_operacion(conexion_km);
                 
                 if (respuesta_km != COMPACTACION_OK) {
