@@ -461,13 +461,16 @@ void* temporizador_timeout(void* arg) {
         pthread_mutex_unlock(&mutex_cola_block); 
 
         log_info(log_ks, "Timeout agotado. El proceso %d pasa a SUSP_BLOCK", pid);
+        printf("ESTE ES EÑ PID DEL SUSPENDER PROCESO DESDE KS %d", pid);
 
         // 3. LA ORDEN A MEMORIA (Swapping) aca tenemos que avisarle a memoria que suspenda el proceso
-        t_paquete *paquete_suspension = crear_paquete(SUSPENDER_PROCESO); 
-        agregar_a_paquete(paquete_suspension, &pid, sizeof(pid_t));
-
-        enviar_paquete_send_all(paquete_suspension, conexion_km);
-        eliminar_paquete(paquete_suspension); 
+        //t_paquete *paquete_suspension = crear_paquete(SUSPENDER_PROCESO); 
+        //agregar_a_paquete(paquete_suspension, &pid, sizeof(pid_t));
+        op_code codigo = SUSPENDER_PROCESO;
+        send(conexion_km, &codigo, sizeof(codigo),0);
+        send(conexion_km,&pid,sizeof(pid_t),0);
+        // enviar_paquete_send_all(paquete_suspension, conexion_km);
+        // eliminar_paquete(paquete_suspension); 
         
     } else {
         // CASO B: El proceso no está en la cola block
