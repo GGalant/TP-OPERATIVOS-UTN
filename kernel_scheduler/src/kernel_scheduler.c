@@ -98,12 +98,14 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_mutex_init(&mutex_cola_susp_block, NULL);
     pthread_mutex_init(&mutex_cola_susp_ready, NULL);
     pthread_cond_init(&cond_cola_block, NULL);
+    pthread_mutex_init(&mutex_solicitud_km, NULL);
     pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
     pthread_cond_init(&cond_sleep, NULL);
     pthread_cond_init(&cond_stdout, NULL);
     pthread_cond_init(&cond_cola_susp_ready, NULL);
     pthread_cond_init(&cond_cola_susp_block, NULL);
     sem_init(&sem_inicializar_proceso, 0, 0);
+    sem_init(&sem_respuesta_contenido_km, 0, 0);
 
     // Inicializar el planificador con la estructura de colas adaptativa
     inicializar_planificador();
@@ -171,6 +173,30 @@ void* handle_km(void* arg) {
             case MEMORIA_CORRUPTA:
                 ejecutar_bsod();
                 return NULL;
+            case RESPUESTA_CONTENIDO_MEMORIA: {
+                t_list* paquete_respuesta = recibir_paquete(socket_km);
+                if (paquete_respuesta == NULL) {
+                    log_error(log_ks, "Error al recibir paquete de RESPUESTA_CONTENIDO_MEMORIA");
+                    buffer_global_contenido_km = NULL;
+                    sem_post(&sem_respuesta_contenido_km);
+                    break;
+                }
+
+                void* contenido_recibido = list_get(paquete_respuesta, 0);
+                uint32_t tamanio = buffer_global_tamanio_contenido_km;
+
+                buffer_global_contenido_km = malloc(tamanio + 1);
+                if (buffer_global_contenido_km != NULL) {
+                    memcpy(buffer_global_contenido_km, contenido_recibido, tamanio);
+                    buffer_global_contenido_km[tamanio] = '\0';
+                } else {
+                    log_error(log_ks, "Error de malloc al recibir contenido de KM");
+                }
+
+                list_destroy_and_destroy_elements(paquete_respuesta, free);
+                sem_post(&sem_respuesta_contenido_km);
+                break;
+            }
             default:
                 log_warning(log_ks, "Operacion desconocida: %d", codigo_operacion);
                 break;
@@ -269,33 +295,29 @@ void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_sigu
 }
 
 char* solicitar_contenido_a_km(int socket_km, pid_t pid, uint32_t direccion_fisica, uint32_t tamanio){  
-    op_code codigo_operacion = SOLICITAR_CONTENIDO_MEMORIA;  
-    
-    t_paquete *paquete_contexto = crear_paquete(codigo_operacion);
+    // Se bloquea para asegurar que solo una solicitud a KM que requiera respuesta esté en curso.
+    pthread_mutex_lock(&mutex_solicitud_km);
 
+    // Guardamos el tamaño esperado de la respuesta para que el hilo handle_km lo sepa.
+    buffer_global_tamanio_contenido_km = tamanio;
+
+    // Enviamos la solicitud a Kernel Memory
+    op_code codigo_operacion = SOLICITAR_CONTENIDO_MEMORIA;
+    t_paquete *paquete_contexto = crear_paquete(codigo_operacion);
     agregar_a_paquete(paquete_contexto, &pid, sizeof(pid_t));
     agregar_a_paquete(paquete_contexto, &direccion_fisica, sizeof(uint32_t));
     agregar_a_paquete(paquete_contexto, &tamanio, sizeof(uint32_t));
-
     enviar_paquete_send_all(paquete_contexto, socket_km);
-    
     eliminar_paquete(paquete_contexto);
 
-    op_code respuesta = recibir_operacion(socket_km);
-    if (respuesta != RESPUESTA_CONTENIDO_MEMORIA) {
-        log_error(log_ks, "Error al recibir contenido de Kernel Memory");
-        return NULL;
-    }
+    // Esperamos a que el hilo handle_km reciba la respuesta y nos la deje en buffer_global_contenido_km
+    sem_wait(&sem_respuesta_contenido_km);
 
-    t_list* paquete_respuesta = recibir_paquete(socket_km);
+    // Tomamos posesión del puntero al contenido y lo reseteamos para la próxima solicitud.
+    char* contenido = buffer_global_contenido_km;
+    buffer_global_contenido_km = NULL;
 
-    void* contenido_recibido = list_get(paquete_respuesta, 0);
-
-    char* contenido = malloc(tamanio + 1);
-    memcpy(contenido, contenido_recibido, tamanio);
-    contenido[tamanio] = '\0';
-
-    list_destroy_and_destroy_elements(paquete_respuesta, free);
+    pthread_mutex_unlock(&mutex_solicitud_km);
 
     return contenido;
 }
@@ -339,12 +361,14 @@ void liberar_recursos() {
     pthread_mutex_destroy(&mutex_cola_susp_block);
     pthread_mutex_destroy(&mutex_cola_susp_ready);
     pthread_cond_destroy(&cond_cola_block);
+    pthread_mutex_destroy(&mutex_solicitud_km);
     pthread_cond_destroy(&cond_lista_cpu_conectadas);
     pthread_cond_destroy(&cond_sleep);
     pthread_cond_destroy(&cond_stdout);
     pthread_cond_destroy(&cond_cola_susp_block);
     pthread_cond_destroy(&cond_cola_susp_ready);
     sem_destroy(&sem_inicializar_proceso);
+    sem_destroy(&sem_respuesta_contenido_km);
     free(conexion_km_ptr);
     free(config_path);
     free(path_proceso_inicial);
@@ -354,6 +378,7 @@ void liberar_recursos() {
     free(ip_km);
     free(algoritmo_planificacion);
     liberar_planificador();
+    free(buffer_global_contenido_km);
     list_destroy(cola_block);
     list_destroy(cola_exec);
     list_destroy(cola_exit);

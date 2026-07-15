@@ -28,6 +28,8 @@ char *str_log_level;
 char *puerto_km;
 char *ip_km;
 char *algoritmo_planificacion;
+char* buffer_global_contenido_km = NULL;
+uint32_t buffer_global_tamanio_contenido_km = 0;
 const int PRIORIDAD_MAXIMA = 0;
 int *conexion_km_ptr;
 int id_io_global = -1;
@@ -51,6 +53,7 @@ pthread_mutex_t mutex_stdout;
 pthread_mutex_t mutex_cola_susp_block;
 pthread_mutex_t mutex_cola_susp_ready;
 pthread_mutex_t mutex_lista_mutex;
+pthread_mutex_t mutex_solicitud_km;
 pthread_cond_t cond_cola_block;
 pthread_cond_t cond_lista_cpu_conectadas;
 pthread_cond_t cond_sleep;
@@ -58,6 +61,7 @@ pthread_cond_t cond_stdout;
 pthread_cond_t cond_cola_susp_ready;
 pthread_cond_t cond_cola_susp_block;
 sem_t sem_inicializar_proceso;
+sem_t sem_respuesta_contenido_km;
 
 void wait_mutex(t_mutex *mutex, pid_t pid_proceso)
 {
