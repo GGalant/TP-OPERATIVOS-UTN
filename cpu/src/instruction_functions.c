@@ -172,18 +172,33 @@ void ejecutar_copy_mem(char* registro_tamanio) {
         return;
     }
 
-    //size_t reg_size = get_registro_size(registro_tamanio);
+    size_t reg_size = get_registro_size(registro_tamanio);
     
-    //uint32_t bytes_a_copiar = get_registro_value(reg_size, cpu_reg_tamanio);
+    uint32_t bytes_a_copiar = get_registro_value(reg_size, cpu_reg_tamanio);
 
-    //uint32_t dir_logica_origen = cpu.si;
-    //uint32_t dir_logica_destino = cpu.di;
+    if (bytes_a_copiar == 0) {
+        log_warning(log_cpu, "COPY_MEM: Intento de copiar 0 bytes. Operación omitida.");
+        return;
+    }
+
+    uint32_t dir_logica_origen = cpu.si;
+    uint32_t dir_logica_destino = cpu.di;
 
     // TODO: Implementar MMU y acceso a memoria
-    
-    //uint32_t dir_fisica_origen = 0;
-    //uint32_t dir_fisica_destino = 0;
-    //uint32_t valor = 0; 
+
+    uint32_t dir_fisica_origen = mmu_traducir_direccion(dir_logica_origen, bytes_a_copiar);
+    uint32_t dir_fisica_destino = mmu_traducir_direccion(dir_logica_origen, bytes_a_copiar);;
+
+    if (dir_fisica_origen == ERROR) {
+        log_error(log_cpu, "COPY_MEM - SEG_FAULT: Dirección lógica de origen invalida (%u)", dir_logica_origen);
+        //TODO QUE HACEMOS?
+        return;
+    }
+
+    void* buffer_intermedio = dma_leer_memoria(dir_fisica_origen, bytes_a_copiar);
+
+    bool escritura_ok = dma_escribir_memoria(dir_fisica_destino, bytes_a_copiar, buffer_intermedio);
+
 
     log_debug(log_cpu, "COPY_MEM: Ejecutado");
 }

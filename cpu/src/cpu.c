@@ -1,7 +1,5 @@
 #include "cpu.h"
 
-//TODO me gustaria no tener tantas variables globales :)
-
 static char instruccion_buffer[128];
 //Variables extern definidas en el header:
 int conexion_ms = -1;
