@@ -1,4 +1,7 @@
 #include "memory_stick.h"
+int memory_delay;
+void* espacio_memoria;
+int tamanio_int;
 
 int main(int argc, char *argv[]){
 
@@ -17,6 +20,8 @@ int main(int argc, char *argv[]){
     char* puerto;
     int log_level;
     int err;
+
+    tamanio_int = atoi(tamanio);
    
     if (config == NULL){
         return EXIT_FAILURE;
@@ -31,8 +36,19 @@ int main(int argc, char *argv[]){
 
     puerto = config_get_string_value(config, "PUERTO");
 
+    memory_delay = config_get_int_value(config, "MEMORY_DELAY");
+
     //iniciar servidor
     server_ms = iniciar_servidor(log_ms, puerto);
+
+    //malloc del tamaño del ms
+    //void* inicio_memoria = malloc(tamanio);
+    espacio_memoria = malloc(tamanio_int);
+    
+    if(espacio_memoria == NULL){
+        log_error(log_ms, "No se pudo reservar la memoria indicada");
+        return EXIT_FAILURE;
+    }
 
     //conexiones con Kernel Memory
     int conexion_km = crear_conexion(ip_km, puerto_km);
@@ -60,7 +76,7 @@ int main(int argc, char *argv[]){
     pthread_t hilo_escucha;
     pthread_t hilo_km;
     pthread_create(&hilo_escucha, NULL, handle_connections, NULL);
-    pthread_create(&hilo_km, NULL, handle_km, (void*)(int)conexion_km);
+    pthread_create(&hilo_km, NULL, handle_km, (void*)&conexion_km);
 
     pthread_join(hilo_escucha, NULL);
     pthread_join(hilo_km, NULL);
@@ -82,7 +98,7 @@ void* handle_connections(void *arg){
         switch(handshake_modulo){
             case HANDSHAKE_CPU:
                 pthread_t hilo_cpu;
-				pthread_create(&hilo_cpu, NULL, handle_cpu, (void*)(int)*socket_cliente);
+				pthread_create(&hilo_cpu, NULL, handle_cpu, (void*)&socket_cliente);
 				pthread_detach(hilo_cpu);
                 break;
             default:
@@ -93,21 +109,100 @@ void* handle_connections(void *arg){
 }
 
 void* handle_km(void* arg) {    
-    int socket_km = (int)(void*)arg;
+    int socket_km = *(int*)arg;
     
     log_info(log_ms, "## Conectado a Kernel Memory");
-    
-    op_code handshake_ks = HANDSHAKE_KS;
-    send(socket_km, &handshake_ks, sizeof(op_code), 0);
+
+
+    //como deliramos aca ee --------------------------------------------
+    // op_code handshake_ks = HANDSHAKE_KS; 
+    // send(socket_km, &handshake_ks, sizeof(op_code), 0);
+
+    op_code handshake_ms = HANDSHAKE_MEMORYSTICK;
+    send(socket_km, &handshake_ms, sizeof(op_code), 0);
 
     while(true) {   
         // aca iria la logica de operaciones con Kernel Memory
         int codigo_operacion = recibir_operacion(socket_km);
 
         switch(codigo_operacion) {
+            case SOLICITUD_ESCRITURA:
+            {
+
+                t_list* solicitud_escritura = recibir_paquete(socket_km);
+                uint32_t direccion_fisica = *(uint32_t*)list_get(solicitud_escritura,0);
+                uint32_t cantidad_bytes = *(uint32_t*)list_get(solicitud_escritura,1);
+                char* contenido_a_escribir = (char*)list_get(solicitud_escritura,2);
+
+                //verficiar que entre en el ms
+                bool escritura_valida = cantidad_bytes > 0 && direccion_fisica < tamanio_int && (uint32_t) cantidad_bytes <= tamanio_int - direccion_fisica;
+
+                if (!escritura_valida) {
+                    log_error(log_ms, "Escritura fuera de rango");
+                    op_code error_escritura = ERROR_ESCRITURA;
+                    send(socket_km, &error_escritura, sizeof(error_escritura),0);
+
+                    list_destroy_and_destroy_elements(solicitud_escritura, free);
+                    //return EXIT_FAILURE;
+                    break;
+                    
+                }
+
+                //aplicar memory delay
+                usleep(memory_delay * 1000);
+                //escribir los bytes
+                memcpy((char*)espacio_memoria + direccion_fisica, contenido_a_escribir,cantidad_bytes);
+
+
+
+                //confirmacion
+                op_code escritura_ok = ESCRITURA_OK;
+                send(socket_km, &escritura_ok,sizeof(escritura_ok),0);
+
+                log_info(log_ms, "## Escritura de <%d> bytes",cantidad_bytes);
+            }
+                break;
+
+            case SOLICITUD_LECTURA:
+            {
+                t_list* solicitud_lectura = recibir_paquete(socket_km);
+                uint32_t direccion_fisica = *(uint32_t*)list_get(solicitud_lectura,0);
+                int cantidad_bytes = *(int*)list_get(solicitud_lectura,1);
+
+                bool lectura_valida = cantidad_bytes > 0 && direccion_fisica < tamanio_int && (uint32_t) cantidad_bytes <= tamanio_int - direccion_fisica;
+                
+                if (!lectura_valida) {
+                    log_error(log_ms, "Lectura fuera de rango");
+                    op_code error_lectura = ERROR_ESCRITURA;
+                    send(socket_km, &error_lectura, sizeof(error_lectura), 0);
+
+                    list_destroy_and_destroy_elements(solicitud_lectura, free);
+                    //return EXIT_FAILURE;
+                    break;
+                    
+                }
+                //aplicar memory_delay
+
+                usleep(memory_delay * 1000);
+                //leer bloques
+                void* buffer_temp = malloc(cantidad_bytes);
+
+                memcpy(buffer_temp, espacio_memoria + direccion_fisica,cantidad_bytes);
+
+                //confirmacion
+                op_code lectura_ok = LECTURA_OK;
+                send(socket_km, &lectura_ok,sizeof(lectura_ok),0);
+                send(socket_km, buffer_temp, cantidad_bytes,0);
+
+                log_info(log_ms, "## Lectura de <%d> bytes", cantidad_bytes);
+            }
+                break;
+            
             case -1:
                 log_error(log_ms, "El servidor Kernel Memory se desconectó. Terminando hilo.");
                 return NULL;
+            
+            
             default:
                 log_warning(log_ms, "operacion desconocida: %d", codigo_operacion);
                 break;
@@ -116,7 +211,7 @@ void* handle_km(void* arg) {
 }
 
 void* handle_cpu(void* arg) {    
-    int socket_cpu = (int)(void*)arg;
+    int socket_cpu = *(int*)arg;
     
     log_info(log_ms, "CPU <CPU_ID> Conectada");
 
