@@ -166,13 +166,26 @@ void* handle_km(void* arg) {
             case -1:
                 log_error(log_ks, "El servidor Kernel Memory se desconectó. Terminando hilo.");
                 return NULL;
+            case MEMORIA_CORRUPTA:
+                ejecutar_bsod();
+                return NULL;
             default:
                 log_warning(log_ks, "Operacion desconocida: %d", codigo_operacion);
                 break;
         }
     }
 }
+//Terminar
+void ejecutar_bsod(void){
+    if(bsod_activo){
+        return;
+    }
+    log_error(log_ks, "## BSOD: BLUE SCREEN OF DEATH");
 
+    bsod_activo = true;
+
+
+}
 
 // Kernel memory debería recibir el proceso (Vick y Aylu)
 void crear_proceso_inicial(int socket_km, char* path_proceso_inicial) {    

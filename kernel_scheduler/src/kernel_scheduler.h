@@ -28,6 +28,9 @@ t_proceso_pcb* crear_pcb(pid_t pid, int prioridad);
 t_proceso_pcb* remover_proceso_por_pid(t_list* cola, pid_t pid);
 void* temporizador_timeout(void* arg);
 void iniciar_temporizador_timeout(pid_t pid);
+void ejecutar_bsod(void);
+void finalizar_procesos_por_bsod(void);
+void mover_cola_a_exit_por_bsod(t_list *cola, pthread_mutex_t *mutex_cola);
 
 
 void solicitar_mem_free_a_km(int socket_km, pid_t pid, uint32_t id_segmento);

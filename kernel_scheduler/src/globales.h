@@ -105,6 +105,7 @@ extern pthread_cond_t cond_stdout;
 extern pthread_cond_t cond_cola_susp_ready;
 extern pthread_cond_t cond_cola_susp_block;
 extern sem_t sem_inicializar_proceso;
+extern bool bsod_activo;
 
 void wait_mutex(t_mutex *mutex, pid_t pid_proceso);
 void signal_mutex(t_mutex *mutex);

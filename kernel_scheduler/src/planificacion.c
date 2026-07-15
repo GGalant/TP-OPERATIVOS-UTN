@@ -121,6 +121,11 @@ void* hilo_planificador_principal(void* arg)
         // PASO 1: Esperar a que haya un proceso en ready
         sem_wait(&sem_procesos_ready);
 
+        if (bsod_activo) {
+            log_debug(log_debug_ks, "BSOD activo. Finalizando hilo planificador principal.");
+            break;
+        }
+
         log_debug(log_debug_ks, "Semáforo decrementado, buscando proceso en colas ready...");
 
         // PASO 2: Buscar proceso respetando prioridad (FIFO sobre CMN)
@@ -156,11 +161,25 @@ void* hilo_planificador_principal(void* arg)
 
         // PASO 3: Buscar CPU libre (IMPORTANTE: No mantener mutex de ready)
         pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-        
+        //Terminar BSOD
         t_cpu* cpu = NULL;
-        while ((cpu = buscar_cpu_libre()) == NULL) {
+        while (!bsod_activo && (cpu = buscar_cpu_libre()) == NULL) {
             log_debug(log_debug_ks, "Esperando por CPU libre para PID<%d>...", proceso->pid);
             pthread_cond_wait(&cond_lista_cpu_conectadas, &mutex_lista_cpu_conectadas);
+        }
+
+        if (bsod_activo) {
+            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+
+            pthread_mutex_lock(&mutex_cola_exit);
+            cambiar_estado_proceso(proceso, EXIT);
+            list_add(cola_exit, proceso);
+            pthread_mutex_unlock(&mutex_cola_exit);
+
+            log_debug(log_debug_ks,
+                      "BSOD activo. PID<%d> movido a EXIT y planificador finalizado.",
+                      proceso->pid);
+            break;
         }
 
         cpu->estado = CPU_OCUPADA;

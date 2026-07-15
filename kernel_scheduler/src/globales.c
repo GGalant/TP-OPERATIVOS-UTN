@@ -36,6 +36,8 @@ int conexion_km;
 int log_level;
 int suspension_timeout;
 int rr_quantum;
+bool bsod_activo = false; //avisa a los hilos que tienen q terminar
+
 pthread_mutex_t mutex_cola_block;
 pthread_mutex_t mutex_cola_exec;
 pthread_mutex_t mutex_cola_exit;
