@@ -152,7 +152,7 @@ void *handle_cpu(void *arg)
 
             t_list *paquete_stdout = recibir_paquete(socket_cpu);
             pid_t pid;
-            uint32_t direccion_fisica = *(uint32_t *)list_get(paquete_stdout, 0);
+            uint32_t direccion_logica = *(uint32_t *)list_get(paquete_stdout, 0);
             uint32_t tamanio = *(uint32_t *)list_get(paquete_stdout, 1);
             list_destroy_and_destroy_elements(paquete_stdout, free);
 
@@ -181,7 +181,7 @@ void *handle_cpu(void *arg)
             pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
             log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
 
-            char *contenido = solicitar_contenido_a_km(conexion_km, proceso->pid, direccion_fisica, tamanio);
+            char *contenido = solicitar_contenido_a_km(conexion_km, proceso->pid, direccion_logica, tamanio);
 
             enviar_proceso_a_io_stdout(pid, contenido);
 
@@ -236,52 +236,6 @@ void *handle_cpu(void *arg)
             break;
         case SYSCALL_MUTEX_UNLOCK:
             break;
-        case SYSCALL_MEM_FREE: {
-            t_list *paquete_mem_free = recibir_paquete(socket_cpu);
-
-            pid_t pid = cpu->pid_actual; // guardo pid
-
-            uint32_t id_segmento = *(uint32_t *)list_get(paquete_mem_free, 0);
-
-            list_destroy_and_destroy_elements(paquete_mem_free, free);
-
-            // Entiendo que el proceso debe bloquearse para hacer el mem_Free, tengo dudas.
-
-            pthread_mutex_lock(&mutex_cola_exec);
-
-            t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
-
-            pthread_mutex_unlock(&mutex_cola_exec);
-
-            if (proceso == NULL)
-            {
-                log_error(log_ks, "Error: No se encontró el proceso con PID %d en la cola de EXEC.", pid);
-                break;
-            }
-
-            cambiar_estado_proceso(proceso, BLOCK);
-
-            pthread_mutex_lock(&mutex_cola_block);
-            list_add(cola_block, proceso);
-            pthread_mutex_unlock(&mutex_cola_block);
-
-            pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-
-            cpu->estado = CPU_LIBRE;
-            cpu->pid_actual = -1;
-
-            pthread_cond_signal(&cond_lista_cpu_conectadas);
-
-            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-        
-            log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
-
-            //Envio soli a km
-
-            solicitar_mem_free_a_km(conexion_km ,pid , id_segmento);
-            
-            break;
-        }
         case ERROR:
             log_error(log_ks, "CPU FD %d se desconectó. Terminando handle", socket_cpu);
             return NULL;
@@ -356,8 +310,6 @@ const char *operacion_to_string(op_code operacion)
         return "SYSCALL_MUTEX_UNLOCK";
     case SYSCALL_INIT_PROC:
         return "SYSCALL_INIT_PROC";
-    case SYSCALL_MEM_FREE:
-        return "MEM_FREE";
     default:
         return "DESCONOCIDO";
     }

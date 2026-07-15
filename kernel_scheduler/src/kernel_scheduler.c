@@ -149,32 +149,8 @@ void* handle_km(void* arg) {
             case -1:
                 log_error(log_ks, "El servidor Kernel Memory se desconectó. Terminando hilo.");
                 return NULL;
-            case RESPUESTA_MEM_FREE: {
-                t_list *paquete_respuesta = recibir_paquete(socket_km);
-
-                pid_t pid = *(pid_t *)list_get(paquete_respuesta, 0);
-
-                list_destroy_and_destroy_elements(paquete_respuesta, free);
-
-                pthread_mutex_lock(&mutex_cola_block);
-                t_proceso_pcb *proceso = remover_proceso_por_pid(cola_block, pid);
-                pthread_mutex_unlock(&mutex_cola_block);
-
-                if (proceso == NULL) {
-                    log_error(log_ks,"MEM_FREE: PID %d no encontrado en BLOCK.",pid);
-                    break;
-                }
-
-                pthread_mutex_lock(&mutex_cola_ready);
-
-                cambiar_estado_proceso(proceso, READY);
-                list_add(cola_ready, proceso);
-                pthread_cond_signal(&cond_cola_ready);
-
-                pthread_mutex_unlock(&mutex_cola_ready);
-                break;
-            } default:
-                log_warning(log_ks, "Operacion desconocida: %d", codigo_operacion);
+            default:
+                log_warning(log_ks, "operacion desconocida: %d", codigo_operacion);
                 break;
         }
     }
@@ -260,14 +236,14 @@ void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_sigu
     return;
 }
 
-char* solicitar_contenido_a_km(int socket_km, pid_t pid, uint32_t direccion_fisica, uint32_t tamanio){  
+char* solicitar_contenido_a_km(int socket_km, pid_t pid, int direccion_logica, int tamanio){  
     op_code codigo_operacion = SOLICITAR_CONTENIDO_MEMORIA;  
     
     t_paquete *paquete_contexto = crear_paquete(codigo_operacion);
 
-    agregar_a_paquete(paquete_contexto, &pid, sizeof(pid_t));
-    agregar_a_paquete(paquete_contexto, &direccion_fisica, sizeof(uint32_t));
-    agregar_a_paquete(paquete_contexto, &tamanio, sizeof(uint32_t));
+    agregar_a_paquete(paquete_contexto, &pid, sizeof(int));
+    agregar_a_paquete(paquete_contexto, &direccion_logica, sizeof(int));
+    agregar_a_paquete(paquete_contexto, &tamanio, sizeof(int));
 
     enviar_paquete_send_all(paquete_contexto, socket_km);
     
@@ -290,18 +266,6 @@ char* solicitar_contenido_a_km(int socket_km, pid_t pid, uint32_t direccion_fisi
     list_destroy_and_destroy_elements(paquete_respuesta, free);
 
     return contenido;
-}
-
-void solicitar_mem_free_a_km(int socket_km, pid_t pid, uint32_t id_segmento){
-op_code codigo_operacion = SOLICITAR_MEM_FREE;
-
-t_paquete *paquete_mem_free = crear_paquete(codigo_operacion);
-agregar_a_paquete(paquete_mem_free, &pid, sizeof(pid_t));
-agregar_a_paquete(paquete_mem_free, &id_segmento, sizeof(uint32_t));
-
-enviar_paquete_send_all(paquete_mem_free, socket_km);
-
-eliminar_paquete(paquete_mem_free);
 }
 
 
