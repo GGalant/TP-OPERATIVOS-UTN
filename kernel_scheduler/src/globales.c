@@ -121,8 +121,8 @@ void agregar_proceso_a_ready(t_proceso_pcb* proceso)
         indice_cola = proceso->prioridad;
         // Validar que el índice esté dentro de rango
         if (indice_cola < 0 || indice_cola >= cantidad_niveles) {
-            log_error(log_ks, "agregar_proceso_a_ready: prioridad %d fuera de rango [0, %d)", 
-                      indice_cola, cantidad_niveles);
+            log_error(log_ks, "agregar_proceso_a_ready: prioridad %d fuera de rango [0, %d]", 
+                      indice_cola, cantidad_niveles-1);
             indice_cola = 0; // fallback a la primera cola
         }
     } else {

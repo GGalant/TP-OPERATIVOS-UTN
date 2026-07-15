@@ -4,7 +4,13 @@
 #include <pthread.h>
 #include <commons/collections/list.h>
 #include <stdbool.h>
-#include <planificacion.h>
+
+typedef enum {
+    FIFO,
+    RR,
+    CMN,
+    INVALIDO
+} t_algoritmo_planificacion;
 
 typedef enum {  
     NEW,
@@ -23,6 +29,8 @@ typedef struct t_proceso_pcb {
     int quantum;
     t_estado_proceso estado;
     char* nombre_mutex;
+    pthread_t id_hilo_quantum;
+    bool tiene_hilo_quantum;
 } t_proceso_pcb;
 typedef struct
 {

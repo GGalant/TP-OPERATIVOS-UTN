@@ -8,6 +8,15 @@ typedef struct {
     pid_t pid;
 } t_args_quantum;
 
+void cancelar_hilo_quantum_si_existe(t_proceso_pcb* proceso, const char* motivo) {
+    if (proceso != NULL && proceso->tiene_hilo_quantum) {
+        // No es necesario hacer join, el hilo se cancelará en el usleep
+        pthread_cancel(proceso->id_hilo_quantum);
+        proceso->tiene_hilo_quantum = false;
+        log_debug(log_debug_ks, "Hebra quantum para PID<%d> cancelada. Motivo: %s.", proceso->pid, motivo);
+    }
+}
+
 /**
  * inicializar_planificador: Inicializa la estructura de colas ready según el algoritmo.
  * - FIFO/RR: 1 cola
@@ -202,7 +211,7 @@ void* hilo_planificador_principal(void* arg)
 
         // PASO 5: Si es RR, iniciar el quantum
         if (algoritmo_cola == RR) {
-            iniciar_hilo_quantum(proceso->pid, cpu->cpu_id);
+            iniciar_hilo_quantum(proceso, cpu->cpu_id);
             log_debug(log_debug_ks, "Quantum iniciado para PID<%d> en CPU<%d>", 
                      proceso->pid, cpu->cpu_id);
         }
@@ -234,20 +243,21 @@ t_cpu* buscar_cpu_libre()
 /**
  * iniciar_hilo_quantum: Inicia un hilo que controla el quantum (RR).
  */
-void iniciar_hilo_quantum(pid_t pid, int cpu_id)
+void iniciar_hilo_quantum(t_proceso_pcb* proceso, int cpu_id)
 {
     t_args_quantum* args = malloc(sizeof(t_args_quantum));
     if (args == NULL) {
-        log_error(log_ks, "No se pudo reservar memoria para quantum del PID<%d>", pid);
+        log_error(log_ks, "No se pudo reservar memoria para quantum del PID<%d>", proceso->pid);
         return;
     }
 
     args->cpu_id = cpu_id;
-    args->pid = pid;
+    args->pid = proceso->pid;
 
-    pthread_t hilo_quantum;
-    pthread_create(&hilo_quantum, NULL, controlar_quantum, args);
-    pthread_detach(hilo_quantum);
+    // Guardamos el ID del hilo en el PCB para poder cancelarlo si es necesario
+    pthread_create(&proceso->id_hilo_quantum, NULL, controlar_quantum, args);
+    proceso->tiene_hilo_quantum = true;
+    pthread_detach(proceso->id_hilo_quantum);
 }
 
 /**
@@ -317,6 +327,29 @@ void* controlar_quantum(void* arg)
     if (cpu != NULL && cpu->estado == CPU_OCUPADA && cpu->pid_actual == pid) {
         op_code codigo = INTERRUPCION_FIN_QUANTUM;
         send(cpu->socket_cpu, &codigo, sizeof(op_code), 0);
+        
+        pthread_mutex_lock(&mutex_cola_exec);
+
+        t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
+
+        pthread_mutex_unlock(&mutex_cola_exec);
+
+        if (proceso == NULL)
+        {
+            log_error(log_ks, "No se encontró el proceso %d en EXEC por fin de quantum", pid);
+            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+            return NULL;
+        }
+
+        // El hilo cumplió su propósito, reseteamos el flag
+        proceso->tiene_hilo_quantum = false;
+        agregar_proceso_a_ready(proceso);
+
+        cpu->estado = CPU_LIBRE;
+        cpu->pid_actual = -1;
+        pthread_cond_signal(&cond_lista_cpu_conectadas);
+
+        log_info(log_ks, "## (%d) - Desalojado por fin de quantum", pid);
 
         log_debug(log_debug_ks, 
                  "Interrupción de fin de quantum enviada a CPU ID<%d> para PID<%d>",

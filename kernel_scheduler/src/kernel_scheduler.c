@@ -237,7 +237,9 @@ t_proceso_pcb* crear_pcb(pid_t pid, int prioridad) {
     pcb->nombre_mutex = NULL;
     pcb->pc = 0;
     pcb->quantum = 0; 
-
+    pcb->tiene_hilo_quantum = false;
+    pcb->id_hilo_quantum = 0;
+ 
     log_info(log_ks, "## (<%d>) Se crea el proceso - Estado: NEW", pid);
 
     return pcb;
@@ -378,7 +380,7 @@ void* temporizador_timeout(void* arg) {
     pid_t pid = *(pid_t*)arg;
     free(arg);
 
-    sleep(suspension_timeout);
+    usleep(suspension_timeout * 1000);
 
     pthread_mutex_lock(&mutex_cola_block);
     t_proceso_pcb *proceso = remover_proceso_por_pid(cola_block, pid);
