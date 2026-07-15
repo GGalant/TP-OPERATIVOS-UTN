@@ -257,7 +257,7 @@ void *handle_ks(void *arg)
                     break;
                 }
                 t_paquete* enviar_respuesta_lectura = crear_paquete(respuesta_lectura);
-                agregar_a_paquete(enviar_respuesta_lectura,contenido_leido);
+                agregar_a_paquete(enviar_respuesta_lectura,contenido_leido,sizeof(contenido_leido));
                 // send(socket_ks, &respuesta_lectura, sizeof(respuesta_lectura), 0);
                 // send(socket_ks, contenido_leido, cantidad_bytes, 0);
                 log_info(log_km, "## PID: %d - Lectura - Dir. Física: %u - Tamaño: %d", pid, direccion_fisica, cantidad_bytes);
