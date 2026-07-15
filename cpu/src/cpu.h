@@ -51,7 +51,16 @@ uint32_t si;
 uint32_t di;
 //Tabla de segmentos
 t_list* tabla_segmentos;
+//Tabla de Sticks conectados
+t_list* sticks_conectados;
 } t_cpu;
+
+typedef struct {
+    int id;
+    uint32_t inicio;  
+    uint32_t tamanio;
+    int socket;
+} t_memory_stick;
 
 typedef struct {
     InstrucionCode icode;
@@ -67,7 +76,14 @@ typedef struct {
     char* puerto_km;
     char* ip_ms;
     char* puerto_ms;
+    char* tamanio_max_segmento;
 } t_cpu_env;
+
+typedef struct {
+    int id_segmento;
+    uint32_t base;
+    uint32_t limite;
+} t_segmento;
 
 //region: VARIABLES GLOBALES (finiquitar)
 
@@ -81,6 +97,7 @@ extern int conexion_ks;
 extern int conexion_km;
 extern int conexion_ms;
 extern int id_cpu;
+extern uint32_t tam_max_segmentos; 
 
 //region: DECLARACIONES DE FUNCIONES
 
@@ -197,3 +214,16 @@ void ejecutar_stdout(char* reg_direccion, char* reg_tamanio);
 void ejecutar_stdin(char* reg_direccion_logica, char* reg_tamanio);
 void ejecutar_init_proc(char* path_instrucciones, char* prioridad);
 void ejecutar_exit();
+
+
+// DMA:
+int dma_leer_memoria(uint32_t dir_fisica, uint32_t bytes_a_leer, uint8_t* buffer);
+int dma_escribir_memoria(uint32_t dir_fisica, uint32_t bytes_a_escribir, uint8_t* buffer);
+int dma_copiar_memoria(uint32_t dir_fisica_origen, uint32_t dir_fisica_destino, uint32_t bytes_a_copiar);
+bool solicitar_lectura_a_stick(t_memory_stick *stick, uint32_t base_en_stick, uint32_t tamanio, void *destino);
+bool solicitar_escritura_a_stick(t_memory_stick *stick, uint32_t base_en_stick, uint32_t tamanio, void *buffer_origen);
+t_memory_stick* encontrar_stick_segun_direccion(uint32_t direccion_fisica);
+
+//MMU:
+uint32_t mmu_traducir_direccion(uint32_t direccion_logica_base, size_t bytes_a_copiar);
+t_segmento* get_segmento_por_id(uint32_t id_segmento);
