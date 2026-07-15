@@ -193,42 +193,6 @@ void *handle_cpu(void *arg)
 
             break;
         }
-        // case INTERRUPCION_FIN_QUANTUM: {
-        //     // La CPU nos avisa el fin de quantum
-        //     t_list *paquete_quantum = recibir_paquete(cpu->socket_cpu);
-
-        //     pid_t pid = *(int *)list_get(paquete_quantum, 0);
-        //     int pc_actualizado = *(int *)list_get(paquete_quantum, 1);
-
-        //     list_destroy_and_destroy_elements(paquete_quantum, free);
-
-        //     pthread_mutex_lock(&mutex_cola_exec);
-
-        //     t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
-
-        //     pthread_mutex_unlock(&mutex_cola_exec);
-
-        //     if (proceso == NULL)
-        //     {
-        //         log_error(log_ks, "No se encontró el proceso %d en EXEC por fin de quantum", pid);
-        //         break;
-        //     }
-
-        //     // Usar la nueva función productora genérica para agregar procesos a ready
-        //     agregar_proceso_a_ready(proceso);
-
-        //     pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-
-        //     cpu->estado = CPU_LIBRE;
-        //     cpu->pid_actual = -1;
-        //     pthread_cond_signal(&cond_lista_cpu_conectadas);
-
-        //     pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-
-        //     log_info(log_ks, "## (%d) - Desalojado por fin de quantum", pid);
-
-        //     break;
-        // }
         case SYSCALL_MEM_ALLOC:
         // *** IMPORTANTE: Esta syscall y las que esten relacionadas a memoria, deberian volver a ejecutar el proceso en la CPU que la solicito
             t_list* paquete_mem_alloc = recibir_paquete(cpu->socket_cpu);
