@@ -1,36 +1,21 @@
 #include "cpu.h"
 
-typedef struct {
-    int id;
-    uint32_t tamanio;
-    uint32_t inicio;   // dentro del espacio total
-    int socket;
-} t_memory_stick;
-
 //#define MAX_BUFFER 128
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 //void * buffer[128];
 
-int dma_leer_memoria(uint32_t dir_fisica, uint32_t bytes_a_leer, uint8_t* buffer);
-int dma_escribir_memoria(uint32_t dir_fisica, uint32_t bytes_a_escribir, uint8_t* buffer);
-int dma_copiar_memoria(uint32_t dir_fisica_origen, uint32_t dir_fisica_destino, uint32_t bytes_a_copiar);
-bool solicitar_lectura_a_stick(t_memory_stick *stick, uint32_t base_en_stick, uint32_t tamanio, void *destino);
-bool solicitar_escritura_a_stick(t_memory_stick *stick, uint32_t base_en_stick, uint32_t tamanio, void *buffer_origen);
-t_memory_stick* encontrar_stick_segun_direccion(uint32_t direccion_fisica);
-
-
 int dma_copiar_memoria(uint32_t dir_fisica_origen, uint32_t dir_fisica_destino, uint32_t bytes_a_copiar){
 
-    if(bytes_a_copiar = 0){
-        return 0
+    if(bytes_a_copiar == 0){
+        return 0;
     }
 
     uint8_t* buffer = malloc(bytes_a_copiar); //! malloc
 
     if (buffer == NULL) {
-        log_error(log_dma, "DMA: Fallo al asignar buffer intermedio (Out of memory)");
+        log_error(log_cpu, "DMA: Fallo al asignar buffer intermedio (Out of memory)");
         return ERROR; 
     }
 
@@ -66,7 +51,7 @@ int dma_leer_memoria(uint32_t dir_fisica, uint32_t bytes_a_leer, uint8_t* buffer
         t_memory_stick* stick = encontrar_stick_segun_direccion(puntero_direccion);
 
         if (stick == NULL) {
-            log_error(log_dma, "DMA: No se encontro un Memory Stick para la direccion %u", puntero_direccion);
+            log_error(log_cpu, "DMA: No se encontro un Memory Stick para la direccion %u", puntero_direccion);
             return ERROR;
         }
 
@@ -77,7 +62,7 @@ int dma_leer_memoria(uint32_t dir_fisica, uint32_t bytes_a_leer, uint8_t* buffer
         bool exito = solicitar_lectura_a_stick(stick, base_en_stick, bytes_a_leer_de_stick, buffer_de_tamanio_exacto + offset_bytes_leidos);
         
         if(!exito){
-            log_error(log_dma, "DMA: NO SE PUDO LEER DEL MEMORY STICK. stick: %u, nbytes: %u", puntero_direccion, bytes_a_leer_de_stick);
+            log_error(log_cpu, "DMA: NO SE PUDO LEER DEL MEMORY STICK. stick: %u, nbytes: %u", puntero_direccion, bytes_a_leer_de_stick);
             return ERROR;
         }
 
@@ -101,7 +86,7 @@ int dma_escribir_memoria(uint32_t dir_fisica, uint32_t bytes_a_escribir, uint8_t
         t_memory_stick* stick = encontrar_stick_segun_direccion(puntero_direccion);
 
         if (stick == NULL) {
-            log_error(log_dma, "DMA: No se encontro un Memory Stick para la direccion %u", puntero_direccion);
+            log_error(log_cpu, "DMA: No se encontro un Memory Stick para la direccion %u", puntero_direccion);
             return ERROR;
         }
 
@@ -112,7 +97,7 @@ int dma_escribir_memoria(uint32_t dir_fisica, uint32_t bytes_a_escribir, uint8_t
         bool exito = solicitar_escritura_a_stick(stick, base_en_stick, bytes_a_escribir_en_stick, buffer + offset_bytes_escritos);
         
         if(!exito){
-            log_error(log_dma, "DMA: NO SE PUDO ESCRIBIR EN EL MEMORY STICK. stick: %u, nbytes: %u", puntero_direccion, bytes_a_escribir_en_stick);
+            log_error(log_cpu, "DMA: NO SE PUDO ESCRIBIR EN EL MEMORY STICK. stick: %u, nbytes: %u", puntero_direccion, bytes_a_escribir_en_stick);
             return ERROR;
         }
 
@@ -127,9 +112,9 @@ int dma_escribir_memoria(uint32_t dir_fisica, uint32_t bytes_a_escribir, uint8_t
 
 t_memory_stick* encontrar_stick_segun_direccion(uint32_t direccion_fisica){
    
-    for (int i = 0; i < list_size(sticks_conectados); i++){
+    for (int i = 0; i < list_size(cpu.sticks_conectados); i++){
 
-        t_memory_stick *stick = list_get(sticks_conectados, i);
+        t_memory_stick *stick = list_get(cpu.sticks_conectados, i);
 
         uint32_t fin_stick = stick->inicio + stick->tamanio;
 
@@ -160,12 +145,12 @@ bool solicitar_escritura_a_stick(t_memory_stick *stick, uint32_t base_en_stick, 
     int recibidos = recv(stick->socket, &respuesta, sizeof(respuesta), MSG_WAITALL);
 
     if (recibidos != sizeof(respuesta)){
-        log_error(log_km, "DMA: No se recibió respuesta del MS <%d>", stick->id);
+        log_error(log_cpu, "DMA: No se recibió respuesta del MS <%d>", stick->id);
         return false;
     }
 
     if (respuesta != ESCRITURA_OK){
-        log_error(log_km, "DMA: El MS <%d> rechazó la escritura", stick->id);
+        log_error(log_cpu, "DMA: El MS <%d> rechazó la escritura", stick->id);
         return false;
     }
 
@@ -183,19 +168,19 @@ bool solicitar_lectura_a_stick(t_memory_stick *stick, uint32_t base_en_stick, ui
     int recibidos = recv(stick->socket, &respuesta, sizeof(respuesta), MSG_WAITALL);
 
     if (recibidos != sizeof(respuesta)){
-        log_error(log_km, "DMA: No se recibió respuesta del MS <%d>", stick->id);
+        log_error(log_cpu, "DMA: No se recibió respuesta del MS <%d>", stick->id);
         return false;
     }
 
     if (respuesta != LECTURA_OK){
-        log_error(log_km, "DMA: El MS <%d> rechazó la lectura", stick->id);
+        log_error(log_cpu, "DMA: El MS <%d> rechazó la lectura", stick->id);
         return false;
     }
 
     recibidos = recv(stick->socket, destino, tamanio, MSG_WAITALL);
 
     if (recibidos != tamanio){
-        log_error(log_km, "DMA: MS <%d>: se esperaban <%u> bytes y se recibieron <%d>", stick->id, tamanio, recibidos);
+        log_error(log_cpu, "DMA: MS <%d>: se esperaban <%u> bytes y se recibieron <%d>", stick->id, tamanio, recibidos);
         return false;
     }
 
