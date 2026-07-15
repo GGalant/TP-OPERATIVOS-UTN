@@ -343,6 +343,8 @@ void *handle_ks(void *arg)
 
             iniciar_creacion_segmento(pid, id_segmento, tamanio_segmento, socket_ks);
 
+            op_code creacion_ok = CREACION_DE_SEGMENTO_OK;
+            send(socket_ks,&creacion_ok, sizeof(creacion_ok),0);
             log_info(log_km, "## PID: %s - Segmento Creado %d - Tamaño: %d", pid, id_segmento, tamanio_segmento);
 
            
