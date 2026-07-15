@@ -309,9 +309,85 @@ void *handle_cpu(void *arg)
             
             break;
         case SYSCALL_MUTEX_LOCK:
+        {
+            t_list* paquete_mutex_lock = recibir_paquete(cpu->socket_cpu);
+            char* nombre_mutex = (char*)list_get(paquete_mutex_lock, 0);
+            
+            pid_t pid = cpu->pid_actual;
+
+            pthread_mutex_lock(&mutex_lista_mutex);
+            t_mutex* mutex = buscar_mutex(nombre_mutex);
+
+            if (mutex->estado == 0) { // Mutex libre
+                mutex->estado = 1; // Se lo adueña
+                mutex->pid_proceso = pid;
+                pthread_mutex_unlock(&mutex_lista_mutex);
+
+                log_info(log_ks, "## (%d) - Adquiere Mutex: '%s'. Continúa ejecución.", pid, nombre_mutex);
+
+                // Devuelve el proceso a la CPU para que continúe
+                enviar_proceso_a_cpu(cpu->socket_cpu, pid);
+
+            } else { // Mutex ocupado, bloquear proceso
+                pthread_mutex_lock(&mutex_cola_exec);
+                t_proceso_pcb *proceso = remover_proceso_por_pid(cola_exec, pid);
+                pthread_mutex_unlock(&mutex_cola_exec);
+
+                if (proceso == NULL) {
+                    log_error(log_ks, "Error: No se encontró el PID %d en EXEC para bloquear por mutex.", pid);
+                    pthread_mutex_unlock(&mutex_lista_mutex);
+                    break;
+                }
+
+                cancelar_hilo_quantum_si_existe(proceso, "SYSCALL_MUTEX_LOCK");
+                
+                cambiar_estado_proceso(proceso, BLOCK);
+                list_add(mutex->cola_procesos, proceso);
+                pthread_mutex_unlock(&mutex_lista_mutex);
+
+                iniciar_temporizador_timeout(cpu->pid_actual);
+
+                log_info(log_ks, "## (%d) - Intenta tomar Mutex '%s' y se bloquea.", pid, nombre_mutex);
+
+                // Liberar la CPU
+                pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+                cpu->estado = CPU_LIBRE;
+                cpu->pid_actual = -1;
+                pthread_cond_signal(&cond_lista_cpu_conectadas);
+                pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+            }
+
+            list_destroy_and_destroy_elements(paquete_mutex_lock, free);
             break;
-        case SYSCALL_MUTEX_UNLOCK:
+        }
+        case SYSCALL_MUTEX_UNLOCK: {
+            t_list* paquete_mutex_unlock = recibir_paquete(cpu->socket_cpu);
+            char* nombre_mutex = (char*)list_get(paquete_mutex_unlock, 0);
+
+            pid_t pid = cpu->pid_actual;
+
+            pthread_mutex_lock(&mutex_lista_mutex);
+            t_mutex* mutex = buscar_mutex(nombre_mutex); 
+
+            if (mutex->pid_proceso != pid) {
+                pthread_mutex_unlock(&mutex_lista_mutex);
+                log_error(log_ks, "## (%d) - Intenta liberar Mutex '%s' que no le pertenece. Se ignora.", pid, nombre_mutex);
+            } else {
+                if (!list_is_empty(mutex->cola_procesos)) {
+                    t_proceso_pcb* desbloqueado = list_remove(mutex->cola_procesos, 0);
+                    mutex->pid_proceso = desbloqueado->pid;
+                    agregar_proceso_a_ready(desbloqueado);
+                } else {
+                    mutex->estado = 0;
+                    mutex->pid_proceso = -1;
+                }
+                pthread_mutex_unlock(&mutex_lista_mutex);
+            }
+            // El proceso que libera el mutex siempre continúa su ejecución
+            enviar_proceso_a_cpu(cpu->socket_cpu, pid);
+            list_destroy_and_destroy_elements(paquete_mutex_unlock, free);
             break;
+        }
         case SYSCALL_MEM_FREE: {
             t_list *paquete_mem_free = recibir_paquete(socket_cpu);
 
@@ -462,3 +538,29 @@ void enviar_proceso_a_io_stdout(pid_t pid, char *contenido)
     return;
 }
 // void enviar_peticion_io_stdin(tipo_io tipo, ...parametros restantes)
+
+// IMPORTANTE: Debe ser llamada con mutex_lista_mutex bloqueado.
+t_mutex* buscar_mutex(const char* nombre_mutex) {
+    for (int i = 0; i < list_size(lista_mutex); i++) {
+        t_mutex* m = list_get(lista_mutex, i);
+        if (strcmp(m->nombre_mutex, nombre_mutex) == 0) {
+            return m;
+        }
+    }
+
+    // No encontrado, se crea
+    t_mutex* nuevo_mutex = crear_mutex(nombre_mutex);
+
+    log_debug(log_ks, "Mutex '%s' creado.", nombre_mutex);
+    return nuevo_mutex;
+}
+
+t_mutex* crear_mutex(char* nombre_mutex) {
+    t_mutex* nuevo_mutex = malloc(sizeof(t_mutex));
+    nuevo_mutex->nombre_mutex = strdup(nombre_mutex);
+    nuevo_mutex->estado = 0; 
+    nuevo_mutex->pid_proceso = -1;
+    nuevo_mutex->cola_procesos = list_create();
+    list_add(lista_mutex, nuevo_mutex);
+    return nuevo_mutex;
+}

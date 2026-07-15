@@ -21,6 +21,8 @@ const char* operacion_to_string(op_code operacion);
 int recibir_cpu_id(int socket);
 int generar_pid();
 t_cpu *crear_cpu(int socket_cpu, int cpu_id);
+t_mutex* buscar_mutex(const char* nombre_mutex);
+t_mutex* crear_mutex(char* nombre_mutex);
 
 
 #endif /* CPU_H_ */

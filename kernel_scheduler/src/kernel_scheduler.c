@@ -71,7 +71,7 @@ void inicializar_ks(int argc, char *argv[]) {
     log_level = log_level_from_string(str_log_level);
 
     log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
-    log_debug_ks = log_create("scheduler_debug.log", "SCHEDULER_DEBUG", true, DEBUG);
+    log_debug_ks = log_create("scheduler_debug.log", "SCHEDULER_DEBUG", true, 'DEBUG');
 
     // Inicializar colas de estados (READY ahora es array_colas_ready)
     cola_block = list_create();
@@ -82,12 +82,14 @@ void inicializar_ks(int argc, char *argv[]) {
     cola_susp_block = list_create();
     cola_susp_ready = list_create();
     lista_io_conectadas = list_create();
+    lista_mutex = list_create();
     lista_cpu_conectadas = list_create();
 
     pthread_mutex_init(&mutex_cola_block, NULL);
     pthread_mutex_init(&mutex_cola_exec, NULL);
     pthread_mutex_init(&mutex_cola_exit, NULL);
     pthread_mutex_init(&mutex_lista_cpu_conectadas, NULL);
+    pthread_mutex_init(&mutex_lista_mutex, NULL);
     pthread_mutex_init(&mutex_lista_io_conectadas, NULL);
     pthread_mutex_init(&mutex_generador_id_io, NULL);
     pthread_mutex_init(&mutex_generador_pid, NULL);
@@ -298,6 +300,14 @@ char* solicitar_contenido_a_km(int socket_km, pid_t pid, uint32_t direccion_fisi
     return contenido;
 }
 
+void destruir_mutex(void* elemento) {
+    t_mutex* mutex = (t_mutex*)elemento;
+    free(mutex->nombre_mutex);
+    // pero no deben ser liberados aquí para evitar doble free. La lista se vacía y destruye.
+    list_destroy(mutex->cola_procesos);
+    free(mutex);
+}
+
 void solicitar_mem_free_a_km(int socket_km, pid_t pid, uint32_t id_segmento){
 op_code codigo_operacion = SOLICITAR_MEM_FREE;
 
@@ -320,6 +330,7 @@ void liberar_recursos() {
     pthread_mutex_destroy(&mutex_cola_exec);
     pthread_mutex_destroy(&mutex_cola_exit);
     pthread_mutex_destroy(&mutex_lista_cpu_conectadas);
+    pthread_mutex_destroy(&mutex_lista_mutex);
     pthread_mutex_destroy(&mutex_lista_io_conectadas);
     pthread_mutex_destroy(&mutex_generador_id_io);
     pthread_mutex_destroy(&mutex_generador_pid);
@@ -346,6 +357,7 @@ void liberar_recursos() {
     list_destroy(cola_block);
     list_destroy(cola_exec);
     list_destroy(cola_exit);
+    list_destroy_and_destroy_elements(lista_mutex, destruir_mutex);
     list_destroy(lista_cpu_conectadas);
     list_destroy(lista_io_conectadas);
     list_destroy(cola_espera_sleep);
@@ -405,7 +417,6 @@ void* temporizador_timeout(void* arg) {
         
     } else {
         // CASO B: El proceso no está en la cola block
-        // Esto significa que finalizar_io() corrio antes que nosotros y ya lo movió a READY
         pthread_mutex_unlock(&mutex_cola_block);
     }
 
