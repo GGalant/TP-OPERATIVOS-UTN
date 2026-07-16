@@ -320,28 +320,6 @@ void finalizar_procesos_por_bsod()
 
     mover_cola_a_exit_por_bsod(cola_susp_block, &mutex_cola_susp_block);
 
-    // Procesos bloqueados esperando un mutex
-    pthread_mutex_lock(&mutex_lista_mutex);
-    //Los procesos que no se les permitio acceder a alguna región debido a los mutex ya que hay otro proceso y quedaron esperando.
-    for (int i = 0; i < list_size(lista_mutex); i++) {
-        t_mutex* mutex =
-            list_get(lista_mutex, i);
-
-        while (!list_is_empty(mutex->cola_procesos)) {
-            t_proceso_pcb* proceso =
-                list_remove(mutex->cola_procesos, 0);
-
-            cambiar_estado_proceso(proceso, EXIT);
-
-            pthread_mutex_lock(&mutex_cola_exit);
-            list_add(cola_exit, proceso);
-            pthread_mutex_unlock(&mutex_cola_exit);
-
-            log_info(log_ks, "## (<%d>) finalizó su ejecución con motivo de BSOD", proceso->pid);
-        }
-    }
-
-    pthread_mutex_unlock(&mutex_lista_mutex);
 }
 
 // Kernel memory debería recibir el proceso (Vick y Aylu)
