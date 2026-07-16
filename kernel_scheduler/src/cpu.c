@@ -230,87 +230,118 @@ void *handle_cpu(void *arg)
             break;
         }
         case SYSCALL_MEM_ALLOC:
-        // *** IMPORTANTE: Esta syscall y las que esten relacionadas a memoria, deberian volver a ejecutar el proceso en la CPU que la solicito
+        { 
             t_list* paquete_mem_alloc = recibir_paquete(cpu->socket_cpu);
             
             pid_t pid = cpu->pid_actual;
             int id_segmento = *(int*)list_get(paquete_mem_alloc, 0);
             int tamanio_segmento = *(int*)list_get(paquete_mem_alloc, 1);
+            list_destroy_and_destroy_elements(paquete_mem_alloc, free); // Liberar memoria del paquete
+
+            pthread_mutex_lock(&mutex_mem_alloc);
 
             t_paquete *paquete_segmento = crear_paquete(CREACION_DE_SEGMENTO);
             agregar_a_paquete(paquete_segmento, &pid, sizeof(int));
             agregar_a_paquete(paquete_segmento, &id_segmento, sizeof(int));
             agregar_a_paquete(paquete_segmento, &tamanio_segmento, sizeof(int));
 
-            // Aca deberia ir un mutex para que la creacion del segmento lo haga un proceso a la vez.
             enviar_paquete_send_all(paquete_segmento, conexion_km);
             eliminar_paquete(paquete_segmento);
 
-            op_code respuesta_km = recibir_operacion(conexion_km);
+            sem_wait(&sem_creacion_segmento);
 
-            if (respuesta_km == CREACION_DE_SEGMENTO_OK) {
-                log_debug(log_ks, "La Creacion de Segmento fue exitosa, devolviendo el proceso a la CPU");
+            if (strcmp(buffer_respuesta_creacion_segmento, "CREACION_DE_SEGMENTO_OK") == 0) {
                 enviar_proceso_a_cpu(cpu->socket_cpu, pid);
-                break;
-            }
-
-            if (respuesta_km == DISPARO_COMPACTACION) {
-
+                pthread_mutex_unlock(&mutex_mem_alloc); 
+                break; 
+            } 
+            else if (strcmp(buffer_respuesta_creacion_segmento, "DESALOJAR_CPU") == 0) {
                 pthread_mutex_lock(&mutex_lista_cpu_conectadas);
                 
-                //TODO 1. MOVER PROCESOS DE COLA READY A UNA COLA AUXILIAR 
+                t_list* cola_auxiliar_ready = list_create();
+                int procesos_movidos = 0;
+
+                // 1. MOVER PROCESOS DE COLA READY A UNA COLA AUXILIAR 
+                for (int i = 0; i < cantidad_niveles; i++) {
+                    pthread_mutex_lock(&array_colas_ready[i].mutex);
+                    while (!list_is_empty(array_colas_ready[i].cola)) {
+                        sem_wait(&sem_procesos_ready); 
+                        t_proceso_pcb* proceso = list_remove(array_colas_ready[i].cola, 0);
+                        list_add(cola_auxiliar_ready, proceso);
+                        procesos_movidos++;
+                    }
+                    pthread_mutex_unlock(&array_colas_ready[i].mutex);
+                }
+                log_debug(log_ks, "Compactación: Movidos %d procesos de READY a cola auxiliar.", procesos_movidos);
                 
                 for (int i = 0; i < list_size(lista_cpu_conectadas); i++) {
                     t_cpu* cpu_a_desalojar = list_get(lista_cpu_conectadas, i);
+                    pid_t pid_a_desalojar = cpu_a_desalojar->pid_actual; 
+
                     cpu_a_desalojar->estado = CPU_LIBRE;
                     cpu_a_desalojar->pid_actual = -1;
                     
-                    pthread_mutex_lock(&mutex_cola_exec);
-                    t_proceso_pcb* proceso_a_desalojar = remover_proceso_por_pid(cola_exec, cpu_a_desalojar->pid_actual);
-                    pthread_mutex_unlock(&mutex_cola_exec);
+                    if (pid_a_desalojar != -1) {
+                        pthread_mutex_lock(&mutex_cola_exec);
+                        t_proceso_pcb* proceso_desalojado = remover_proceso_por_pid(cola_exec, pid_a_desalojar);
+                        pthread_mutex_unlock(&mutex_cola_exec);
 
-                    if (proceso_a_desalojar != NULL) {
-                        // Usar la nueva función productora genérica para agregar procesos a ready
-                        agregar_proceso_a_ready(proceso_a_desalojar);
+                        if (proceso_desalojado != NULL) {
+                            agregar_proceso_a_ready(proceso_desalojado);
+                        }
+                        send(cpu_a_desalojar->socket_cpu, &(op_code){INTERRUPCION_DESALOJO}, sizeof(op_code), 0);
                     }
-
-                    send(cpu_a_desalojar->socket_cpu, &(op_code){INTERRUPCION_DESALOJO}, sizeof(op_code), 0);
                 }
 
-                //TODO 3. MOVER PROCESOS DE COLA AUXILIAR A COLA READY
-
-                send(conexion_km, &(op_code){CPUS_DESALOJADAS}, sizeof(op_code), 0);
-                respuesta_km = recibir_operacion(conexion_km);
+                // 3. MOVER PROCESOS DE COLA AUXILIAR A COLA READY
+                log_debug(log_ks, "Compactación: Restaurando %d procesos a las colas de READY.", list_size(cola_auxiliar_ready));
+                while(!list_is_empty(cola_auxiliar_ready)) {
+                    t_proceso_pcb* proceso_a_restaurar = list_remove(cola_auxiliar_ready, 0);
+                    agregar_proceso_a_ready(proceso_a_restaurar);
+                }
+                list_destroy(cola_auxiliar_ready);
                 
-                if (respuesta_km != COMPACTACION_OK) {
+                send(conexion_km, &(op_code){DESALOJAR_CPU_OK}, sizeof(op_code), 0);
+                sem_wait(&sem_compactacion_ok);
+                
+                if (!compactacion_exitosa) {
                     log_error(log_ks, "LA COMPACTACION FALLO");
+                     pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+                     pthread_mutex_unlock(&mutex_mem_alloc);
                     break;
-                }                
+                }
                  
                 // Restaurar el proceso original a ready
                 cpu->estado = CPU_OCUPADA;
                 cpu->pid_actual = pid;
-                enviar_proceso_a_cpu(cpu->socket_cpu, pid);
                 
                 pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
                 pthread_cond_signal(&cond_lista_cpu_conectadas);
+
+                enviar_proceso_a_cpu(cpu->socket_cpu, pid);
                 
-                break;
+            } else {
+                // Caso de fallo en la creación del segmento (proceso asesinado)
+                log_error(log_ks, "LA CREACION DE SEGMENTO FALLO (EL PROCESO FUE ASESINADO)");
+                
+                pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+                cpu->estado = CPU_LIBRE;
+                cpu->pid_actual = -1;
+                pthread_cond_signal(&cond_lista_cpu_conectadas);
+                pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+                log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
+
+                // Aquí se debería finalizar el proceso, similar a SYSCALL_EXIT
             }
 
-            log_error(log_ks, "LA CREACION DE SEGMENTO FALLO (EL PROCESO FUE ASESINADO)");
-            
-            pthread_mutex_lock(&mutex_lista_cpu_conectadas);
-            cpu->estado = CPU_LIBRE;
-            cpu->pid_actual = -1;
-            pthread_cond_signal(&cond_lista_cpu_conectadas);
-            pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-            log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
-            
+            pthread_mutex_unlock(&mutex_mem_alloc);
             break;
+        }
         case SYSCALL_MUTEX_LOCK:
         {
             t_list* paquete_mutex_lock = recibir_paquete(cpu->socket_cpu);
+
+
             char* nombre_mutex = (char*)list_get(paquete_mutex_lock, 0);
             
             pid_t pid = cpu->pid_actual;
@@ -400,9 +431,10 @@ void *handle_cpu(void *arg)
             // Envio soli a km
             solicitar_mem_free_a_km(conexion_km, pid, id_segmento);
 
-            op_code respuesta_km = recibir_operacion(conexion_km);
+            sem_wait(&sem_solicitud_mem_free);
 
-            if (respuesta_km == RESPUESTA_MEM_FREE)
+            
+            if (mem_free_exitoso)
             {
                 log_debug(log_ks, "MEM_FREE exitoso, devolviendo el PID <%d> a la CPU <%d>", pid, cpu->cpu_id);
 
@@ -551,7 +583,6 @@ void enviar_proceso_a_io_stdin(pid_t pid, uint32_t tamanio, uint32_t direccion_f
 
     return;
 }
-// void enviar_peticion_io_stdin(tipo_io tipo, ...parametros restantes)
 
 // IMPORTANTE: Debe ser llamada con mutex_lista_mutex bloqueado.
 t_mutex* buscar_mutex(const char* nombre_mutex) {
