@@ -302,6 +302,7 @@ t_proceso_pcb* crear_pcb(pid_t pid, int prioridad) {
 
     pcb->pid = pid;
     pcb->prioridad = prioridad;
+    pcb->prioridad_original = prioridad;
     pcb->estado = NEW;
     pcb->nombre_mutex = NULL;
     pcb->pc = 0;

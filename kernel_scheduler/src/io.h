@@ -31,6 +31,7 @@ void* handle_io(void* arg);
 void finalizar_io(pid_t pid);
 void handle_io_sleep(t_io *io);
 void handle_io_stdout(t_io *io);
+void handle_io_stdin(t_io *io);
 t_io* crear_io(int socket_io);
 bool esperar_y_procesar_respuesta_io(t_io* io, pid_t pid_esperado);
 
