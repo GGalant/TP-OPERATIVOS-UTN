@@ -185,9 +185,8 @@ void* hilo_planificador_principal(void* arg)
             list_add(cola_exit, proceso);
             pthread_mutex_unlock(&mutex_cola_exit);
 
-            log_debug(log_debug_ks,
-                      "BSOD activo. PID<%d> movido a EXIT y planificador finalizado.",
-                      proceso->pid);
+            log_info(log_ks, "## (<%d>) finalizó su ejecución con motivo de BSOD", proceso->pid);
+            
             break;
         }
 

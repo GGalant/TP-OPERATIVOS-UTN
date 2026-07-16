@@ -33,6 +33,15 @@ int main(int argc, char *argv[]){
     pthread_join(hilo_km, NULL);
     pthread_join(hilo_planificacion, NULL);
 
+
+    if (bsod_activo) {
+    finalizar_procesos_por_bsod();
+
+    log_error(log_ks, "## BSOD: Todos los procesos fueron finalizados. Cerrando Kernel Scheduler");
+    
+     return 0;
+    }
+
     liberar_recursos();
 
     return 0;
@@ -140,6 +149,15 @@ void* handle_connections(void* arg){
     while(1) {  
         int client_fd = esperar_cliente(server_ks, log_ks);
 
+        if(bsod_activo) {
+            if(client_fd != -1){
+                close(client_fd);
+            }
+            break;
+        }
+
+        if(client_fd != -1){
+            
         int *socket_cliente = malloc(sizeof(int));
         *socket_cliente = client_fd;
 
@@ -164,6 +182,8 @@ void* handle_connections(void* arg){
  				break;
  		}
     }
+ }
+ return NULL;
 }
 
 void* handle_km(void* arg) {    
@@ -244,8 +264,8 @@ void* handle_km(void* arg) {
         }
     }
 }
-//Terminar
-void ejecutar_bsod(void){
+
+void ejecutar_bsod(){
     if(bsod_activo){
         return;
     }
@@ -253,7 +273,75 @@ void ejecutar_bsod(void){
 
     bsod_activo = true;
 
+    sem_post(&sem_procesos_ready);
 
+    pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+    pthread_cond_signal(&cond_lista_cpu_conectadas);
+    pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+
+    shutdown(server_ks, SHUT_RDWR); //Hace que el hilo se despierte si queda esperando nuevas conexiones
+}
+
+void mover_cola_a_exit_por_bsod(t_list* cola, pthread_mutex_t* mutex_cola)
+{
+    pthread_mutex_lock(mutex_cola);
+
+    //Recorre hasta que la cola se vacie
+    while (!list_is_empty(cola)) {
+        t_proceso_pcb* proceso = list_remove(cola, 0);
+
+        cambiar_estado_proceso(proceso, EXIT);
+
+        pthread_mutex_lock(&mutex_cola_exit);
+        list_add(cola_exit, proceso);
+        pthread_mutex_unlock(&mutex_cola_exit);
+
+        log_info(log_ks, "## (<%d>) finalizó su ejecución con motivo de BSOD", proceso->pid);
+    }
+
+    pthread_mutex_unlock(mutex_cola);
+}
+
+void finalizar_procesos_por_bsod()
+{
+    // Procesos en las colas READY, vaciar todas las colas ready (CMN)
+    for (int i = 0; i < cantidad_niveles; i++) {
+        mover_cola_a_exit_por_bsod(array_colas_ready[i].cola, &array_colas_ready[i].mutex);
+    }
+
+    // Procesos en ejecución
+    mover_cola_a_exit_por_bsod(cola_exec, &mutex_cola_exec);
+
+    // Procesos bloqueados
+    mover_cola_a_exit_por_bsod(cola_block, &mutex_cola_block);
+
+    // Procesos suspendidos ya sea susp ready y susp block
+    mover_cola_a_exit_por_bsod(cola_susp_ready, &mutex_cola_susp_ready);
+
+    mover_cola_a_exit_por_bsod(cola_susp_block, &mutex_cola_susp_block);
+
+    // Procesos bloqueados esperando un mutex
+    pthread_mutex_lock(&mutex_lista_mutex);
+    //Los procesos que no se les permitio acceder a alguna región debido a los mutex ya que hay otro proceso y quedaron esperando.
+    for (int i = 0; i < list_size(lista_mutex); i++) {
+        t_mutex* mutex =
+            list_get(lista_mutex, i);
+
+        while (!list_is_empty(mutex->cola_procesos)) {
+            t_proceso_pcb* proceso =
+                list_remove(mutex->cola_procesos, 0);
+
+            cambiar_estado_proceso(proceso, EXIT);
+
+            pthread_mutex_lock(&mutex_cola_exit);
+            list_add(cola_exit, proceso);
+            pthread_mutex_unlock(&mutex_cola_exit);
+
+            log_info(log_ks, "## (<%d>) finalizó su ejecución con motivo de BSOD", proceso->pid);
+        }
+    }
+
+    pthread_mutex_unlock(&mutex_lista_mutex);
 }
 
 // Kernel memory debería recibir el proceso (Vick y Aylu)
