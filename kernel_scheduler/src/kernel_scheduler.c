@@ -215,7 +215,7 @@ void* handle_km(void* arg) {
                 sem_post(&sem_creacion_segmento);
                 break;
             }
-            case DESALOJO_CPU: { 
+            case DESALOJAR_CPU: { 
                 strcpy(buffer_respuesta_creacion_segmento, "DESALOJAR_CPU");
                 log_debug(log_ks, "No se pudo crear el segmento, se dispara compactacion");
                 sem_post(&sem_creacion_segmento);
