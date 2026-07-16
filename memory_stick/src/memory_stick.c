@@ -118,8 +118,8 @@ void* handle_km(void* arg) {
     // op_code handshake_ks = HANDSHAKE_KS; 
     // send(socket_km, &handshake_ks, sizeof(op_code), 0);
 
-    op_code handshake_ms = HANDSHAKE_MEMORYSTICK;
-    send(socket_km, &handshake_ms, sizeof(op_code), 0);
+    // op_code handshake_ms = HANDSHAKE_MEMORYSTICK;
+    // send(socket_km, &handshake_ms, sizeof(op_code), 0);
 
     while(true) {   
         // aca iria la logica de operaciones con Kernel Memory
