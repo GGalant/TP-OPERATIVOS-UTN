@@ -2,6 +2,10 @@
 #include <commons/config.h>
 #include "utils/serializacion.h"
 #include <pthread.h>
+#include <commons/bitarray.h>
+
+
+
 
 // GLOBALES
 
@@ -12,6 +16,7 @@ int server_km;
 int socket_memory_stick;
 int socket_swap;
 int socket_cpu;
+t_bitarray* bitmap_bloques;
 
 ///////////////////////
 
