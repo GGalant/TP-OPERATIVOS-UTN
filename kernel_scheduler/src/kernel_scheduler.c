@@ -101,8 +101,9 @@ void inicializar_ks(int argc, char *argv[]) {
     pthread_mutex_init(&mutex_stdin, NULL);
     pthread_mutex_init(&mutex_cola_susp_block, NULL);
     pthread_mutex_init(&mutex_cola_susp_ready, NULL);
-    pthread_cond_init(&cond_cola_block, NULL);
     pthread_mutex_init(&mutex_solicitud_km, NULL);
+    pthread_mutex_init(&mutex_mem_alloc, NULL);
+    pthread_cond_init(&cond_cola_block, NULL);
     pthread_cond_init(&cond_lista_cpu_conectadas, NULL);
     pthread_cond_init(&cond_sleep, NULL);
     pthread_cond_init(&cond_stdout, NULL);
@@ -112,6 +113,11 @@ void inicializar_ks(int argc, char *argv[]) {
     sem_init(&sem_inicializar_proceso, 0, 0);
     sem_init(&sem_respuesta_contenido_km, 0, 0);
     sem_init(&sem_creacion_segmento, 0, 0);
+    sem_init(&sem_confirmacion_escritura, 0, 0);
+    sem_init(&sem_compactacion_ok, 0, 0);
+    sem_init(&sem_solicitud_mem_free, 0, 0);
+    // Se aloca una única vez el buffer para las respuestas de creación de segmento
+    buffer_respuesta_creacion_segmento = malloc(64);
 
     // Inicializar el planificador con la estructura de colas adaptativa
     inicializar_planificador();
@@ -203,24 +209,33 @@ void* handle_km(void* arg) {
                 sem_post(&sem_respuesta_contenido_km);
                 break;
             }
-            case CREACION_DE_SEGMENTO_OK: {
-                void* res = "CREACION_DE_SEGMENTO_OK";
-                buffer_respuesta_creacion_segmento = malloc(strlen(res) + 1);
-                memcpy(buffer_respuesta_creacion_segmento, res, strlen(res));
-                buffer_respuesta_creacion_segmento[strlen(res)] = '\0';
+            case CREACION_DE_SEGMENTO_OK: { 
+                strcpy(buffer_respuesta_creacion_segmento, "CREACION_DE_SEGMENTO_OK");
                 log_debug(log_ks, "La Creacion de Segmento fue exitosa, devolviendo el proceso a la CPU");
                 sem_post(&sem_creacion_segmento);
-                
                 break;
             }
-            case DESALOJO_CPU: {
-                void* res = "DESALOJAR_CPU";
-                buffer_respuesta_creacion_segmento = malloc(strlen(res) + 1);
-                memcpy(buffer_respuesta_creacion_segmento, res, strlen(res));
-                buffer_respuesta_creacion_segmento[strlen(res)] = '\0';
+            case DESALOJO_CPU: { 
+                strcpy(buffer_respuesta_creacion_segmento, "DESALOJAR_CPU");
                 log_debug(log_ks, "No se pudo crear el segmento, se dispara compactacion");
                 sem_post(&sem_creacion_segmento);
-
+                break;
+            }
+            case RESPUESTA_ESCRITURA_MEMORIA: {
+                log_debug(log_ks, "KM confirmo RESPUESTA_ESCRITURA_MEMORIA");
+                sem_post(&sem_confirmacion_escritura);
+                break;
+            }
+            case COMPACTACION_OK: {
+                log_debug(log_ks, "KM confirmo COMPACTACION_OK");
+                compactacion_exitosa = true;
+                sem_post(&sem_compactacion_ok);
+                break;
+            }
+            case RESPUESTA_MEM_FREE: {
+                log_debug(log_ks, "KM confirmo RESPUESTA_MEM_FREE");
+                mem_free_exitoso = true;
+                sem_post(&sem_solicitud_mem_free);
                 break;
             }
             default:
@@ -383,10 +398,7 @@ void solicitar_escritura_a_km(int socket_km, pid_t pid, uint32_t direccion_fisic
     
     eliminar_paquete(paquete_escritura);
 
-    op_code respuesta = recibir_operacion(socket_km);
-    if (respuesta != RESPUESTA_ESCRITURA_MEMORIA) {
-        log_error(log_ks, "Error al recibir respuesta de escritura en Kernel Memory");
-    }
+    sem_wait(&sem_confirmacion_escritura);
 
     return;
 }
@@ -410,6 +422,7 @@ void liberar_recursos() {
     pthread_mutex_destroy(&mutex_cola_susp_ready);
     pthread_cond_destroy(&cond_cola_block);
     pthread_mutex_destroy(&mutex_solicitud_km);
+    pthread_mutex_destroy(&mutex_mem_alloc);
     pthread_cond_destroy(&cond_lista_cpu_conectadas);
     pthread_cond_destroy(&cond_sleep);
     pthread_cond_destroy(&cond_stdout);
@@ -419,6 +432,9 @@ void liberar_recursos() {
     sem_destroy(&sem_inicializar_proceso);
     sem_destroy(&sem_respuesta_contenido_km);
     sem_destroy(&sem_creacion_segmento);
+    sem_destroy(&sem_confirmacion_escritura);
+    sem_destroy(&sem_compactacion_ok);
+    sem_destroy(&sem_solicitud_mem_free);
     free(conexion_km_ptr);
     free(config_path);
     free(path_proceso_inicial);

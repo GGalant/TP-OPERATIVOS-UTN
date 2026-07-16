@@ -57,6 +57,7 @@ pthread_mutex_t mutex_cola_susp_block;
 pthread_mutex_t mutex_cola_susp_ready;
 pthread_mutex_t mutex_lista_mutex;
 pthread_mutex_t mutex_solicitud_km;
+pthread_mutex_t mutex_mem_alloc;
 pthread_cond_t cond_cola_block;
 pthread_cond_t cond_lista_cpu_conectadas;
 pthread_cond_t cond_sleep;
@@ -67,6 +68,11 @@ pthread_cond_t cond_cola_susp_block;
 sem_t sem_inicializar_proceso;
 sem_t sem_respuesta_contenido_km;
 sem_t sem_creacion_segmento;
+sem_t sem_confirmacion_escritura;
+sem_t sem_compactacion_ok;
+sem_t sem_solicitud_mem_free;
+bool compactacion_exitosa;
+bool mem_free_exitoso;
 
 void wait_mutex(t_mutex *mutex, pid_t pid_proceso)
 {
@@ -161,7 +167,6 @@ void agregar_proceso_a_ready(t_proceso_pcb* proceso)
 
 /**
  * chequear_desalojo: Placeholder para lógica de preemption en CMN.
- * TODO: Implementar lógica para interrumpir procesos de menor prioridad si es necesario.
  */
 void chequear_desalojo(t_proceso_pcb* proceso_nuevo)
 {
