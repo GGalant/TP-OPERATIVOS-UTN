@@ -3,6 +3,8 @@
 #include "planificacion.h"
 #include "io.h"
 
+void agregar_proceso_a_ready_al_inicio(t_proceso_pcb* pcb);
+
 void *handle_cpu(void *arg)
 {
     int socket_cpu = *(int *)arg;
@@ -259,6 +261,7 @@ void *handle_cpu(void *arg)
                 pthread_mutex_lock(&mutex_lista_cpu_conectadas);
                 
                 t_list* cola_auxiliar_ready = list_create();
+                t_list* procesos_exec_desalojados = list_create();
                 int procesos_movidos = 0;
 
                 // 1. MOVER PROCESOS DE COLA READY A UNA COLA AUXILIAR 
@@ -274,6 +277,7 @@ void *handle_cpu(void *arg)
                 }
                 log_debug(log_ks, "Compactación: Movidos %d procesos de READY a cola auxiliar.", procesos_movidos);
                 
+                // 2. DESALOJAR PROCESOS EN EJECUCIÓN Y GUARDARLOS EN OTRA LISTA AUXILIAR
                 for (int i = 0; i < list_size(lista_cpu_conectadas); i++) {
                     t_cpu* cpu_a_desalojar = list_get(lista_cpu_conectadas, i);
                     pid_t pid_a_desalojar = cpu_a_desalojar->pid_actual; 
@@ -287,17 +291,26 @@ void *handle_cpu(void *arg)
                         pthread_mutex_unlock(&mutex_cola_exec);
 
                         if (proceso_desalojado != NULL) {
-                            agregar_proceso_a_ready(proceso_desalojado);
+                            list_add(procesos_exec_desalojados, proceso_desalojado);
                         }
                         send(cpu_a_desalojar->socket_cpu, &(op_code){INTERRUPCION_DESALOJO}, sizeof(op_code), 0);
                     }
                 }
 
-                // 3. MOVER PROCESOS DE COLA AUXILIAR A COLA READY
-                log_debug(log_ks, "Compactación: Restaurando %d procesos a las colas de READY.", list_size(cola_auxiliar_ready));
+                // 3. MOVER PROCESOS DE LAS COLAS AUXILIARES A LAS COLAS DE READY (AL INICIO)
+                // Primero los que estaban en EXEC
+                log_debug(log_ks, "Compactación: Restaurando %d procesos de EXEC a las colas de READY.", list_size(procesos_exec_desalojados));
+                while(!list_is_empty(procesos_exec_desalojados)) {
+                    t_proceso_pcb* proceso_a_restaurar = list_remove(procesos_exec_desalojados, 0);
+                    agregar_proceso_a_ready_al_inicio(proceso_a_restaurar);
+                }
+                list_destroy(procesos_exec_desalojados);
+
+                // Luego los que ya estaban en READY
+                log_debug(log_ks, "Compactación: Restaurando %d procesos de READY a sus colas.", list_size(cola_auxiliar_ready));
                 while(!list_is_empty(cola_auxiliar_ready)) {
                     t_proceso_pcb* proceso_a_restaurar = list_remove(cola_auxiliar_ready, 0);
-                    agregar_proceso_a_ready(proceso_a_restaurar);
+                    agregar_proceso_a_ready_al_inicio(proceso_a_restaurar);
                 }
                 list_destroy(cola_auxiliar_ready);
                 
