@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
                 op_code confirmacion = ESCRITURA_OK;
                 send(conexion_kernel_memory, &confirmacion, sizeof(op_code), 0);
 
-                list_destroy_and_destroy_elements(segmento_recibido);
+                list_destroy_and_destroy_elements(segmento_recibido,free);
 
                 free(contenido);
                 break;

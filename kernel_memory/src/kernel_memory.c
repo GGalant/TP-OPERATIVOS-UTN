@@ -365,7 +365,7 @@ void *handle_ks(void *arg)
 
             op_code creacion_ok = CREACION_DE_SEGMENTO_OK;
             send(socket_ks,&creacion_ok, sizeof(creacion_ok),0);
-            log_info(log_km, "## PID: %s - Segmento Creado %d - Tamaño: %d", pid, id_segmento, tamanio_segmento);
+            log_info(log_km, "## PID: %d - Segmento Creado %d - Tamaño: %d", pid, id_segmento, tamanio_segmento);
 
            
             free(pid_string);
@@ -1336,7 +1336,7 @@ void liberar_espacio_en_memoria(t_segmento* segmento){
 
     for(int i = 0; i < list_size(huecos) - 1; i++){
         t_hueco_libre* actual = list_get(huecos, i);
-        t_hueco_libre* siguiente = list_get(huecos + 1);
+        t_hueco_libre* siguiente = list_get(huecos, i + 1);
 
         if(actual->base + actual->tamanio == siguiente->base){
             actual->tamanio += siguiente->tamanio;

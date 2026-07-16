@@ -132,3 +132,4 @@ uint32_t enviar_segmento_a_swap(pid_t pid, t_segmento* segmento, char* contenido
 uint32_t obtener_bloque_libre_swap();
 
 void iniciar_compactacion(int socket_ks);
+void liberar_espacio_en_memoria(t_segmento* segmento);
