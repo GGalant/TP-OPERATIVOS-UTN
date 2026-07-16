@@ -350,6 +350,19 @@ void *handle_cpu(void *arg)
             pthread_mutex_unlock(&mutex_mem_alloc);
             break;
         }
+        case SYSCALL_MUTEX_CREATE: {
+            t_list* paquete_mutex_create = recibir_paquete(cpu->socket_cpu);
+            char* nombre_mutex = (char*)list_get(paquete_mutex_create, 0); // Obtenemos el nombre
+            
+            crear_mutex(nombre_mutex); // Creamos el mutex (hace strdup internamente)
+
+            // Ahora que ya no lo necesitamos, liberamos el paquete
+            list_destroy_and_destroy_elements(paquete_mutex_create, free);
+
+            // Devolvemos el proceso a la CPU para que continúe su ejecución
+            enviar_proceso_a_cpu(cpu->socket_cpu, cpu->pid_actual);
+            break;
+        }
         case SYSCALL_MUTEX_LOCK:
         {
             t_list* paquete_mutex_lock = recibir_paquete(cpu->socket_cpu);
@@ -541,6 +554,8 @@ const char *operacion_to_string(op_code operacion)
         return "INTERRUPCION_FIN_QUANTUM";
     case INTERRUPCION_DESALOJO:
         return "INTERRUPCION_DESALOJO";
+    case SYSCALL_MUTEX_CREATE:
+        return "SYSCALL_MUTEX_CREATE";
     case SYSCALL_MUTEX_LOCK:
         return "SYSCALL_MUTEX_LOCK";
     case SYSCALL_MUTEX_UNLOCK:
@@ -620,22 +635,18 @@ t_mutex* buscar_mutex(const char* nombre_mutex) {
             return m;
         }
     }
-
-    // No encontrado, se crea
-    t_mutex* nuevo_mutex = crear_mutex(nombre_mutex);
-
-    log_debug(log_ks, "Mutex '%s' creado.", nombre_mutex);
-    return nuevo_mutex;
+    return NULL;
 }
 
-t_mutex* crear_mutex(char* nombre_mutex) {
+void crear_mutex(char* nombre_mutex) {
     t_mutex* nuevo_mutex = malloc(sizeof(t_mutex));
     nuevo_mutex->nombre_mutex = strdup(nombre_mutex);
     nuevo_mutex->estado = 0; 
     nuevo_mutex->pid_proceso = -1;
     nuevo_mutex->cola_procesos = list_create();
     list_add(lista_mutex, nuevo_mutex);
-    return nuevo_mutex;
+    log_debug(log_ks, "Mutex '%s' creado.", nombre_mutex);
+    return;
 }
 
 /**

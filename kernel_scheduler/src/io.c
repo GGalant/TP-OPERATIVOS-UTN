@@ -24,7 +24,6 @@ void* handle_io(void* arg) {
 
     switch (io->tipo) {
     case SLEEP:
-        log_debug(log_debug_ks, "IO de tipo SLEEP creada");
         handle_io_sleep(io);
         break;
     case STDIN:
@@ -145,6 +144,15 @@ int generar_id_io() {
     return id;
 }
 
+const char* io_tipo_to_string(tipo_io tipo) {
+    switch (tipo) {
+        case STDIN: return "STDIN";
+        case STDOUT: return "STDOUT";
+        case SLEEP: return "SLEEP";
+        default: return "DESCONOCIDO";
+    }
+}
+
 t_io *crear_io(int socket_io) {  
     t_io *io = malloc(sizeof(t_io));
     if (io == NULL) return NULL; 
@@ -161,7 +169,7 @@ t_io *crear_io(int socket_io) {
     list_add(lista_io_conectadas, io);
     pthread_mutex_unlock(&mutex_lista_io_conectadas);
 
-    log_debug(log_debug_ks, "IO de tipo <%d> y id <%d> creada", io->tipo, io->io_id);
+    log_info(log_ks, "## IO ID<%d> de tipo <%s> Conectada", io->io_id, io_tipo_to_string(io->tipo));
 
     return io;
 }
