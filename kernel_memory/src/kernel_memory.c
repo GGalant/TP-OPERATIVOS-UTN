@@ -120,8 +120,27 @@ void *handle_connections(void *arg)
             log_info(log_km, "Swap Conectado. Guardando socket.");
             // Guardamos el socket de SWAP de forma global y NO CREAMOS HILO, ya que no es necesariamente asincrono.
             socket_swap = *socket_cliente;
+            int block_size;
+            int file_size;
+            recv(socket_swap,&file_size,sizeof(int),MSG_WAITALL);
+            recv(socket_swap,&block_size,sizeof(int),MSG_WAITALL);
+
+            int cant_bloques_totales = file_size/block_size;
+
+            int bytes_necesarios = (cant_bloques_totales+7)/8;
+            void* puntero_memoria = malloc(bytes_necesarios);
+
+            //0 representa un bloque libre
+            memset(puntero_memoria, 0, bytes_necesarios);
+
+
+            bitmap_bloques = bitarray_create_with_mode(bitmap_bloques,bytes_necesarios, LSB_FIRST);
+
+            log_debug(log_km,"Bitmap de SWAP inicializado con %d bloques",cant_bloques_totales);
+
             free(socket_cliente);
             break;
+
         default:
             log_warning(log_km, "Handshake no reconocido: %d", handshake_modulo);
             // close(socket);
@@ -258,6 +277,7 @@ void *handle_ks(void *arg)
                 }
                 t_paquete* enviar_respuesta_lectura = crear_paquete(respuesta_lectura);
                 agregar_a_paquete(enviar_respuesta_lectura,contenido_leido,sizeof(contenido_leido));
+                enviar_paquete_send_all(enviar_respuesta_lectura,socket_ks);
                 // send(socket_ks, &respuesta_lectura, sizeof(respuesta_lectura), 0);
                 // send(socket_ks, contenido_leido, cantidad_bytes, 0);
                 log_info(log_km, "## PID: %d - Lectura - Dir. Física: %u - Tamaño: %d", pid, direccion_fisica, cantidad_bytes);
@@ -361,11 +381,11 @@ void *handle_ks(void *arg)
             char* pid_str = string_itoa(pid);
             t_list* segmentos_del_proceso_suspendido = dictionary_get(diccionario_procesos_suspendidos, pid_str);
             
-            free(pid_str);
 
             
             if (segmentos_del_proceso_suspendido == NULL) {
                 log_error(log_km, "Error al desuspender PID %d", pid);
+                free(pid_str);
                 break;
             }
 
@@ -377,20 +397,22 @@ void *handle_ks(void *arg)
                 //traemos la metadata
                 t_metadata_swap* contexto_suspendido = list_get(segmentos_del_proceso_suspendido, i);
                 
-                //
                 t_segmento* segmento_restaurado = iniciar_creacion_segmento(
-                    contexto_suspendido->pid,
-                    contexto_suspendido->id_segmento, //id_segmento,
-                    contexto_suspendido->limite, //tamanio,
-                    socket_ks
-                );
-
-                //void* contenido = leer_bloque_swap(contexto_suspendido->bloque_swap);
+                                                        contexto_suspendido->pid,
+                                                        contexto_suspendido->id_segmento, //id_segmento,
+                                                        contexto_suspendido->limite, //tamanio,
+                                                        socket_ks
+                                                    );
 
                 char* contenido = obtener_contenido_bloque_swap(contexto_suspendido->bloque_swap);
-
                 escribir_segmento_en_ms(segmento_restaurado, contenido);
+
+                bitarray_clean_bit(bitmap_bloques,contexto_suspendido->bloque_swap);
+                free(contenido);
             }
+
+            dictionary_remove_and_destroy(diccionario_procesos_suspendidos,pid_str,(void*)list_destroy_and_destroy_elements);
+            free(pid_str);
         }
             break;
 
@@ -403,62 +425,54 @@ void *handle_ks(void *arg)
             //1. BUscar en diccionario el pid
             char* pid_str = string_itoa(pid);
             t_contextoEjec* contexto = dictionary_get(diccionario_contextos_ejecucion,pid_str);
-            free(pid_str);
 
             if (contexto == NULL) {
                 log_error(log_km, "No se encontró el contexto para suspender al PID %d", pid);
+                free(pid_str);
                 break;
             }
 
             t_list* segmentos = contexto->tabla_segmentos;
-            //t_list* direcciones_logicas = list_create();
             t_segmento* segmento;
-            void* contenido;
+            char* contenido;
             t_list* backup_metadata = list_create();
             
             for (int i = 0; i < list_size(segmentos); i++){
-                
+
                 segmento = list_get(segmentos, i);
-                
-                //void* buffer_contenido = malloc(segmento->limite); //limite = tamanio del segmento !!!!!!!!!!!
                 contenido = obtener_contenido_segmento(segmento);
+
                 if(contenido == NULL){
                     log_error(log_km, "NO se pudo obtener el segmento <%d> del PID <%d>",segmento->id_segmento, pid);
                     break;
                 }
-                //encontrar_stick_por_base_del_segmento(segmento->base); --> ahora lo hace obtener_contenido_segmento()
-               //obtener_contenido_segmento(segmento);
+
                 uint32_t bloque_en_swap = enviar_segmento_a_swap(pid, segmento, contenido);
                 free(contenido);
 
-                //guardo metadata del segmento --> puede ir todo en enviar_segmento_a_swap() ----???
+                //guardo metadata del segmento
                 t_metadata_swap* backup = malloc(sizeof(t_metadata_swap));
                 backup->id_segmento = segmento->id_segmento;
                 backup->limite = segmento->limite;
                 backup->pid = pid;
                 backup->bloque_swap = bloque_en_swap;
 
-                list_add(backup_metadata,backup);
+                list_add(backup_metadata, backup);
             }
 
             dictionary_put(diccionario_procesos_suspendidos, pid_str,backup_metadata);
 
-           
-
-            //como le seteo el bloque?
-
             //ahora que se esta guardado, limpiamos la tabla de segmentos
 
-            for(int i = 0; list_size(segmentos); i++){
+            for(int i = 0; i < list_size(segmentos); i++){
                 t_segmento* segmento_aux = list_get(segmentos,i);
-
-                // TODO: PENSAR --> funcion para liberar segmentos? liberar manualmente con free?
+                liberar_espacio_en_memoria(segmento_aux);
             } 
 
             list_clean_and_destroy_elements(segmentos, free);
+            free(pid_str);
 
             log_debug(log_km, "Proceso suspendido correctamente. PID <%d>: ",pid);
-
         }
             break;
         default:
@@ -1176,18 +1190,32 @@ bool solicitar_lectura_a_stick(t_memory_stick *stick, uint32_t base_segmento_en_
 uint32_t enviar_segmento_a_swap(pid_t pid, t_segmento* segmento, char* contenido){
     
     uint32_t bloque_libre = obtener_bloque_libre_swap();
+
+    if(bloque_libre == -1){
+        log_error(log_km,"NO hay bloques libres en SWAP para el PID %d", pid);
+        return -1;
+    }
     
     int id_segmento = segmento->id_segmento;
     uint32_t base = segmento->base;
     uint32_t limite = segmento->limite;
 
     t_paquete* segmento_a_guardar = crear_paquete(GUARDAR_SEGMENTO);
-    agregar_a_paquete(segmento_a_guardar, &id_segmento, sizeof(int));
-    agregar_a_paquete(segmento_a_guardar, &base, sizeof(uint32_t));
-    agregar_a_paquete(segmento_a_guardar, &limite, sizeof(uint32_t));
-    agregar_a_paquete(segmento_a_guardar, contenido,sizeof(contenido));
     agregar_a_paquete(segmento_a_guardar, &bloque_libre, sizeof(uint32_t));
-    //por las dudas re pensar si hace falta mandar el pid o no
+    //agregar_a_paquete(segmento_a_guardar, contenido,sizeof(contenido));
+    agregar_a_paquete(segmento_a_guardar, contenido,segmento->limite); //TODO: PENSAR porque contenido pasa mal el tamaño -->?
+
+    enviar_paquete_send_all(segmento_a_guardar,socket_swap);
+    eliminar_paquete(segmento_a_guardar);
+
+    op_code confirmacion;
+    int bytes_recibidos = recv(socket_swap, &confirmacion, sizeof(op_code), MSG_WAITALL);
+
+    if(bytes_recibidos <= 0 || confirmacion != ESCRITURA_OK){
+        log_error(log_km, "Error al escribir el bloque %d en SWAP", bloque_libre);
+        bitarray_clean_bit(bitmap_bloques, bloque_libre);
+        return -1;
+    }
 
     return bloque_libre;
 }
@@ -1195,12 +1223,15 @@ uint32_t enviar_segmento_a_swap(pid_t pid, t_segmento* segmento, char* contenido
 
 //TODO: IMPLEMENTAR RTA EN SWAP !!!!!!!!!!!!!!!!!!!!!!
 uint32_t obtener_bloque_libre_swap(){
-    op_code solicitud_bloque_libre = SOLICITUD_BLOQUE_LIBRE;
-    send(socket_swap,&solicitud_bloque_libre, sizeof(solicitud_bloque_libre),0);
-    //verificacion de enviado????
-    uint32_t bloque;
-    recv(socket_swap, &bloque, sizeof(int), MSG_WAITALL);
-    return bloque;
+    for(int i = 0; i < bitarray_get_max_bit(bitmap_bloques); i++){
+        ///verifico si el bloque esta vacio
+        if(bitarray_test_bit(bitmap_bloques, i) == false){
+            bitarray_set_bit(bitmap_bloques, i);
+            return i;
+        }
+    }
+    log_error(log_km, "No hay bloques libres en SWAP.");
+    return -1;
 }
 
 
@@ -1288,3 +1319,30 @@ char* obtener_contenido_bloque_swap(uint32_t bloque_swap){
 
 }
 
+bool comparar_huecos_por_base(void* a, void* b){
+    t_hueco_libre* hueco_a = (t_hueco_libre*)a;
+    t_hueco_libre* hueco_b = (t_hueco_libre*)b;
+
+    return hueco_a->base < hueco_b->base;
+}
+
+void liberar_espacio_en_memoria(t_segmento* segmento){
+    t_hueco_libre* nuevo_hueco = malloc(sizeof(t_hueco_libre));
+    nuevo_hueco->base = segmento->base;
+    nuevo_hueco->tamanio = segmento->limite;
+
+    list_add(huecos, nuevo_hueco);
+    list_sort(huecos, comparar_huecos_por_base);
+
+    for(int i = 0; i < list_size(huecos) - 1; i++){
+        t_hueco_libre* actual = list_get(huecos, i);
+        t_hueco_libre* siguiente = list_get(huecos + 1);
+
+        if(actual->base + actual->tamanio == siguiente->base){
+            actual->tamanio += siguiente->tamanio;
+            list_remove_element(huecos,siguiente);
+            free(siguiente);
+            i--; //para reanalizar cuando borro un elemento de la lista
+        }
+    }
+}

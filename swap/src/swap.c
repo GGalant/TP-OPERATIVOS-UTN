@@ -33,6 +33,8 @@ int main(int argc, char* argv[]) {
     
     log_swap = log_create("swap.log", "SWAP", true, log_level);
 
+    inicializar_swap(file_path, file_size);
+
     conexion_kernel_memory = crear_conexion(ip_kernel_memory, puerto_kernel_memory);
 
     if (conexion_kernel_memory == -1) { 
@@ -44,23 +46,70 @@ int main(int argc, char* argv[]) {
 
     op_code handshake_swap = HANDSHAKE_SWAP;
     send(conexion_kernel_memory, &handshake_swap, sizeof(op_code), 0);
+    //swap avisa su block size y file size
+    //km tiene que administrarlo
+    send(conexion_kernel_memory, &file_size, sizeof(file_size),0);
+    send(conexion_kernel_memory, &block_size,sizeof(block_size), 0);
     
+
     log_info(log_swap, "## Conectado a Kernel Memory");
+
     
     while (1) { 
         op_code codigo_operacion = recibir_operacion(conexion_kernel_memory);
         
         switch(codigo_operacion) {
 
-            case ESCRITURA_DE_BLOQUE:
-                t_list* paquete = recibir_paquete(conexion_kernel_memory);
-                return;
-            
-            case LECTURA_DE_BLOQUE:
-                return;
+            case OBTENER_CONTENIDO_BLOQUE:
+            {
+                uint32_t numero_bloque;
+                recv(conexion_kernel_memory, &numero_bloque, sizeof(uint32_t), MSG_WAITALL);
+
+                char* contenido_leido = malloc(block_size);
+                leer_archivo_swap(numero_bloque, contenido_leido,block_size);
+
+                log_info(log_swap, "## Lectura del bloque: %u", numero_bloque);
+
+                //op_code confirmacion = LECTURA_OK;
+                t_paquete* contenido_bloque = crear_paquete(LECTURA_OK);
+                agregar_a_paquete(contenido_bloque,contenido_leido,block_size);
+                //send(conexion_kernel_memory, &confirmacion, sizeof(op_code), 0);
+                //send(conexion_kernel_memory, contenido_leido, block_size, 0);
+                enviar_paquete_send_all(contenido_bloque,conexion_kernel_memory);
+
+
+                eliminar_paquete(contenido_bloque);
+                free(contenido_leido);
+                break;
+
+            }
+                
+            case GUARDAR_SEGMENTO:
+            {
+                t_list* segmento_recibido = recibir_paquete(conexion_kernel_memory);
+                uint32_t numero_bloque = *(uint32_t*)list_get(segmento_recibido,0);
+                //recv(conexion_kernel_memory, &numero_bloque, sizeof(uint32_t), MSG_WAITALL);
+
+                //char* contenido = malloc(block_size);
+                //recv(conexion_kernel_memory, contenido, block_size, MSG_WAITALL);
+                char* contenido = (char*)list_get(segmento_recibido,1);
+
+                escribir_en_archivo_swap(numero_bloque, contenido, block_size);
+
+                log_info(log_swap, "## Escritura del bloque: %u", numero_bloque);
+
+                op_code confirmacion = ESCRITURA_OK;
+                send(conexion_kernel_memory, &confirmacion, sizeof(op_code), 0);
+
+                list_destroy_and_destroy_elements(segmento_recibido);
+
+                free(contenido);
+                break;
+            }
             
             case -1:
                 log_error(log_swap, "El servidor Kernel Memory se desconectó. Finalizando Swap");
+                munmap(espacio_swap_mmap, file_size);
                 return EXIT_FAILURE;
             default:
                 log_warning(log_swap, "operacion desconocida: %d", codigo_operacion);
@@ -68,4 +117,25 @@ int main(int argc, char* argv[]) {
         }
         
     }
+}
+
+void escribir_en_archivo_swap(uint32_t numero_bloque, char* contenido, int block_size){
+    int desplazamiento = numero_bloque * block_size;
+    memcpy(espacio_swap_mmap + desplazamiento, contenido, block_size);
+    msync(espacio_swap_mmap + desplazamiento, block_size, MS_SYNC);
+
+}
+
+void leer_archivo_swap(uint32_t numero_bloque, char* contenido_leido, int block_size){
+    int desplazamiento = numero_bloque * block_size;
+
+    memcpy(contenido_leido, espacio_swap_mmap + desplazamiento, block_size);
+}
+
+inicializar_swap(char* file_path, int file_size){
+    FILE *archivo = fopen(file_path, "a+");
+    int fildes = fileno(archivo);
+    ftruncate(fildes,file_size);
+
+    espacio_swap_mmap = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fildes, 0);
 }
