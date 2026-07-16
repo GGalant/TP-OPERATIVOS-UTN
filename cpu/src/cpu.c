@@ -1,7 +1,5 @@
 #include "cpu.h"
 
-//TODO me gustaria no tener tantas variables globales :)
-
 static char instruccion_buffer[128];
 //Variables extern definidas en el header:
 int conexion_ms = -1;
@@ -13,8 +11,11 @@ t_cpu cpu = {0};
 t_log* log_cpu = NULL;
 t_instruccion instruccion_actual = {0};
 bool error_fatal = false;
+uint32_t tam_max_segmentos = 0; 
 
 int main(int argc, char *argv[]){
+    cpu.sticks_conectados = list_create();
+    cpu.tabla_segmentos = list_create();
 
     //El log se asigna, debe ser destruido con log_destroy
     int status = inicializacion_y_pasos_iniciales(argc, argv);
@@ -61,6 +62,8 @@ int main(int argc, char *argv[]){
             case ERROR:
                 log_error(log_cpu, "El servidor Kernel Scheduler se desconectó.");
                 log_destroy(log_cpu);
+                list_destroy_and_destroy_elements(cpu.tabla_segmentos, free);
+                list_destroy_and_destroy_elements(cpu.sticks_conectados, free);
                 return EXIT_FAILURE;  
 
             case INTERRUPCION_FIN_QUANTUM:
@@ -77,12 +80,16 @@ int main(int argc, char *argv[]){
 
         if(error_fatal){
             log_destroy(log_cpu);
+            list_destroy_and_destroy_elements(cpu.tabla_segmentos, free);
+            list_destroy_and_destroy_elements(cpu.sticks_conectados, free);
             return EXIT_FAILURE;
         }
 
     }
     
     log_destroy(log_cpu);
+    list_destroy_and_destroy_elements(cpu.tabla_segmentos, free);
+    list_destroy_and_destroy_elements(cpu.sticks_conectados, free);
     
     return 0;
 }
@@ -148,6 +155,8 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
 
     map_config_variables(config, &env);
 
+    tam_max_segmentos = (uint32_t)atoi(env.tamanio_max_segmento);
+
     //TODO2 ver si int puede ser enum de commons
     t_log_level log_level = log_level_from_string(env.str_log_level);
     
@@ -161,13 +170,14 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
     conexion_ms = conectar_modulo(env.ip_ms, env.puerto_ms, "Memory Stick");
 
     if(conexion_ks == -1 || conexion_km == -1 || conexion_ms == -1 ){
+        log_error(log_cpu, "NO FUE POSIBLE CONECTARSE CON TODOS LOS MODULOS");
         config_destroy(config);
         log_destroy(log_cpu);
         return -1;
     }
 
     config_destroy(config);
-    
+
     //Envio de handshakes
     op_code handshake_cpu = HANDSHAKE_CPU;
     
@@ -178,7 +188,18 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
     send(conexion_km, &id_cpu,        sizeof(int), 0);
     
     send(conexion_ms, &handshake_cpu, sizeof(op_code), 0);
-
+    //hardcodeo MS
+        log_debug(log_cpu, "Esto es un debug");
+    //Estos datos nos los deberia enviar Kernel Memory tal vez.
+    t_memory_stick* stick_hardcodeado = malloc(sizeof(t_memory_stick));
+    stick_hardcodeado->id = 0;
+    stick_hardcodeado->inicio = 0;
+    stick_hardcodeado->tamanio = 1024;
+    stick_hardcodeado->socket = conexion_ms;
+        log_debug(log_cpu, "Esto es un debug");
+    list_add(cpu.sticks_conectados, stick_hardcodeado);
+    //TODO BORRAR AQUI ARRIBA LUEGO NO OLVIDARSE
+    log_debug(log_cpu, "INICIALIZACIÓN FINALIZADA EXITOSAMENTE");
     return 0;
 }
 
@@ -494,6 +515,8 @@ int map_config_variables(t_config* config, t_cpu_env* env){
 
     env->ip_ms= config_get_string_value(config, "IP_MS");
     env->puerto_ms = config_get_string_value(config, "PUERTO_MS");
+
+    env->tamanio_max_segmento = config_get_string_value(config, "TAMANIO_MAX_SEGMENTO");
 
     return 0;
 }

@@ -25,6 +25,7 @@ typedef enum {
 typedef struct t_proceso_pcb {
     pid_t pid;
     int prioridad;
+    int prioridad_original;
     int pc;
     int quantum;
     t_estado_proceso estado;

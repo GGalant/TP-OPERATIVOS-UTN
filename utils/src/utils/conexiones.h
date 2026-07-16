@@ -39,6 +39,7 @@ typedef enum {
     RECIBIR_CONTEXTO,
     PEDIDO_INSTRUCCION,
     RTA_PEDIDO_INSTRUCCION,
+    SOLICITAR_TRADUCCION,
 
     //*FIN: KERNEL MEMORY - CPU
     // ======================================
@@ -47,8 +48,25 @@ typedef enum {
     //* INICIO: KERNEL MEMORY - MEMORY STICK
 
     CONECTAR_MS,
+    DESCONECTAR_MS,
+    ESCRITURA_OK,
+    LECTURA_OK,
+    SOLICITUD_LECTURA,
+    SOLICITUD_ESCRITURA,
+    ERROR_ESCRITURA,
 
     //* FIN: KERNEL MEMORY - MEMORY STICK
+    // ======================================
+
+    // ======================================
+    //* INICIO: KERNEL MEMORY - SWAP
+
+    ESCRITURA_DE_BLOQUE,
+    LECTURA_DE_BLOQUE,
+    SOLICITUD_BLOQUE_LIBRE,
+    GUARDAR_SEGMENTO,
+    OBTENER_CONTENIDO_BLOQUE,
+    //* FIN: KERNEL MEMORY - SWAP
     // ======================================
 
     // ======================================
@@ -96,6 +114,9 @@ typedef enum {
     STDIN_ESCRITURA,
     CREACION_DE_PROCESO,
     CREACION_DE_SEGMENTO,
+    DESALOJAR_CPU,
+    DESALOJAR_CPU_OK,
+    DESUSPENDER_PROCESO,
     SUSPENDER_PROCESO,
     DISPARO_COMPACTACION,
     COMPACTACION_OK,
@@ -104,10 +125,12 @@ typedef enum {
     SOLICITAR_MEM_FREE,
     RESPUESTA_MEM_FREE,
     MEMORIA_CORRUPTA,
-
+    // LECTURA_OK,
+    // ESCRITURA_OK,
 
     //* FIN: KERNEL SCHEDULER - KERNEL MEMORY
     // ======================================
+    
 
 }op_code;
 

@@ -3,6 +3,8 @@
 #include "planificacion.h"
 #include "io.h"
 
+void agregar_proceso_a_ready_al_inicio(t_proceso_pcb* pcb);
+
 void *handle_cpu(void *arg)
 {
     int socket_cpu = *(int *)arg;
@@ -259,6 +261,7 @@ void *handle_cpu(void *arg)
                 pthread_mutex_lock(&mutex_lista_cpu_conectadas);
                 
                 t_list* cola_auxiliar_ready = list_create();
+                t_list* procesos_exec_desalojados = list_create();
                 int procesos_movidos = 0;
 
                 // 1. MOVER PROCESOS DE COLA READY A UNA COLA AUXILIAR 
@@ -274,6 +277,7 @@ void *handle_cpu(void *arg)
                 }
                 log_debug(log_ks, "Compactación: Movidos %d procesos de READY a cola auxiliar.", procesos_movidos);
                 
+                // 2. DESALOJAR PROCESOS EN EJECUCIÓN Y GUARDARLOS EN OTRA LISTA AUXILIAR
                 for (int i = 0; i < list_size(lista_cpu_conectadas); i++) {
                     t_cpu* cpu_a_desalojar = list_get(lista_cpu_conectadas, i);
                     pid_t pid_a_desalojar = cpu_a_desalojar->pid_actual; 
@@ -287,17 +291,26 @@ void *handle_cpu(void *arg)
                         pthread_mutex_unlock(&mutex_cola_exec);
 
                         if (proceso_desalojado != NULL) {
-                            agregar_proceso_a_ready(proceso_desalojado);
+                            list_add(procesos_exec_desalojados, proceso_desalojado);
                         }
                         send(cpu_a_desalojar->socket_cpu, &(op_code){INTERRUPCION_DESALOJO}, sizeof(op_code), 0);
                     }
                 }
 
-                // 3. MOVER PROCESOS DE COLA AUXILIAR A COLA READY
-                log_debug(log_ks, "Compactación: Restaurando %d procesos a las colas de READY.", list_size(cola_auxiliar_ready));
+                // 3. MOVER PROCESOS DE LAS COLAS AUXILIARES A LAS COLAS DE READY (AL INICIO)
+                // Primero los que estaban en EXEC
+                log_debug(log_ks, "Compactación: Restaurando %d procesos de EXEC a las colas de READY.", list_size(procesos_exec_desalojados));
+                while(!list_is_empty(procesos_exec_desalojados)) {
+                    t_proceso_pcb* proceso_a_restaurar = list_remove(procesos_exec_desalojados, 0);
+                    agregar_proceso_a_ready_al_inicio(proceso_a_restaurar);
+                }
+                list_destroy(procesos_exec_desalojados);
+
+                // Luego los que ya estaban en READY
+                log_debug(log_ks, "Compactación: Restaurando %d procesos de READY a sus colas.", list_size(cola_auxiliar_ready));
                 while(!list_is_empty(cola_auxiliar_ready)) {
                     t_proceso_pcb* proceso_a_restaurar = list_remove(cola_auxiliar_ready, 0);
-                    agregar_proceso_a_ready(proceso_a_restaurar);
+                    agregar_proceso_a_ready_al_inicio(proceso_a_restaurar);
                 }
                 list_destroy(cola_auxiliar_ready);
                 
@@ -337,6 +350,19 @@ void *handle_cpu(void *arg)
             pthread_mutex_unlock(&mutex_mem_alloc);
             break;
         }
+        case SYSCALL_MUTEX_CREATE: {
+            t_list* paquete_mutex_create = recibir_paquete(cpu->socket_cpu);
+            char* nombre_mutex = (char*)list_get(paquete_mutex_create, 0); // Obtenemos el nombre
+            
+            crear_mutex(nombre_mutex); // Creamos el mutex (hace strdup internamente)
+
+            // Ahora que ya no lo necesitamos, liberamos el paquete
+            list_destroy_and_destroy_elements(paquete_mutex_create, free);
+
+            // Devolvemos el proceso a la CPU para que continúe su ejecución
+            enviar_proceso_a_cpu(cpu->socket_cpu, cpu->pid_actual);
+            break;
+        }
         case SYSCALL_MUTEX_LOCK:
         {
             t_list* paquete_mutex_lock = recibir_paquete(cpu->socket_cpu);
@@ -374,6 +400,9 @@ void *handle_cpu(void *arg)
                 
                 cambiar_estado_proceso(proceso, BLOCK);
                 list_add(mutex->cola_procesos, proceso);
+
+                // Herencia de Prioridades: el proceso que tiene el mutex hereda la prioridad del que se bloquea
+                actualizar_prioridad_proceso(mutex->pid_proceso, proceso->prioridad);
                 pthread_mutex_unlock(&mutex_lista_mutex);
 
                 iniciar_temporizador_timeout(cpu->pid_actual);
@@ -404,13 +433,25 @@ void *handle_cpu(void *arg)
                 pthread_mutex_unlock(&mutex_lista_mutex);
                 log_error(log_ks, "## (%d) - Intenta liberar Mutex '%s' que no le pertenece. Se ignora.", pid, nombre_mutex);
             } else {
+                // Restaurar prioridad original si fue heredada
+                pthread_mutex_lock(&mutex_cola_exec);
+                t_proceso_pcb* proceso_liberador = buscar_proceso_por_id(pid, cola_exec);
+                if (proceso_liberador != NULL && proceso_liberador->prioridad != proceso_liberador->prioridad_original) {
+                    log_info(log_ks, "## Herencia de Prioridad: PID <%d> restaura su prioridad original a %d.", 
+                             proceso_liberador->pid, proceso_liberador->prioridad_original);
+                    proceso_liberador->prioridad = proceso_liberador->prioridad_original;
+                }
+                pthread_mutex_unlock(&mutex_cola_exec);
+
                 if (!list_is_empty(mutex->cola_procesos)) {
                     t_proceso_pcb* desbloqueado = list_remove(mutex->cola_procesos, 0);
                     mutex->pid_proceso = desbloqueado->pid;
+                    log_info(log_ks, "## (%d) - Libera Mutex '%s'. Se lo cede a PID <%d>.", pid, nombre_mutex, desbloqueado->pid);
                     agregar_proceso_a_ready(desbloqueado);
                 } else {
                     mutex->estado = 0;
                     mutex->pid_proceso = -1;
+                    log_info(log_ks, "## (%d) - Libera Mutex '%s'. Queda libre.", pid, nombre_mutex);
                 }
                 pthread_mutex_unlock(&mutex_lista_mutex);
             }
@@ -513,6 +554,8 @@ const char *operacion_to_string(op_code operacion)
         return "INTERRUPCION_FIN_QUANTUM";
     case INTERRUPCION_DESALOJO:
         return "INTERRUPCION_DESALOJO";
+    case SYSCALL_MUTEX_CREATE:
+        return "SYSCALL_MUTEX_CREATE";
     case SYSCALL_MUTEX_LOCK:
         return "SYSCALL_MUTEX_LOCK";
     case SYSCALL_MUTEX_UNLOCK:
@@ -592,20 +635,84 @@ t_mutex* buscar_mutex(const char* nombre_mutex) {
             return m;
         }
     }
-
-    // No encontrado, se crea
-    t_mutex* nuevo_mutex = crear_mutex(nombre_mutex);
-
-    log_debug(log_ks, "Mutex '%s' creado.", nombre_mutex);
-    return nuevo_mutex;
+    return NULL;
 }
 
-t_mutex* crear_mutex(char* nombre_mutex) {
+void crear_mutex(char* nombre_mutex) {
     t_mutex* nuevo_mutex = malloc(sizeof(t_mutex));
     nuevo_mutex->nombre_mutex = strdup(nombre_mutex);
     nuevo_mutex->estado = 0; 
     nuevo_mutex->pid_proceso = -1;
     nuevo_mutex->cola_procesos = list_create();
     list_add(lista_mutex, nuevo_mutex);
-    return nuevo_mutex;
+    log_debug(log_ks, "Mutex '%s' creado.", nombre_mutex);
+    return;
+}
+
+/**
+ * actualizar_prioridad_proceso: Implementa la herencia de prioridad.
+ * Si un proceso (`pid_duenio`) tiene menor prioridad que `prioridad_heredada`,
+ * se le asigna temporalmente esta nueva prioridad. Si el proceso dueño estaba en
+ * una cola de READY, se lo mueve a la cola de mayor prioridad que le corresponda.
+ */
+void actualizar_prioridad_proceso(pid_t pid_duenio, int prioridad_heredada) {
+    t_proceso_pcb* proceso_duenio = NULL;
+    int indice_cola_original = -1;
+    bool encontrado_en_ready = false;
+
+    // 1. Buscar en colas READY
+    for (int i = 0; i < cantidad_niveles; i++) {
+        pthread_mutex_lock(&array_colas_ready[i].mutex);
+        proceso_duenio = buscar_proceso_por_id(pid_duenio, array_colas_ready[i].cola);
+        if (proceso_duenio != NULL) {
+            indice_cola_original = i;
+            encontrado_en_ready = true;
+            break; // Encontrado, mantener el lock para posible remoción
+        }
+        pthread_mutex_unlock(&array_colas_ready[i].mutex);
+    }
+
+    // 2. Si no está en READY, buscar en EXEC
+    if (!encontrado_en_ready) {
+        pthread_mutex_lock(&mutex_cola_exec);
+        proceso_duenio = buscar_proceso_por_id(pid_duenio, cola_exec);
+        pthread_mutex_unlock(&mutex_cola_exec);
+    }
+
+    // 3. Si no se encontró o la prioridad a heredar no es mayor (menor valor), no hacer nada.
+    if (proceso_duenio == NULL || prioridad_heredada >= proceso_duenio->prioridad) {
+        if (encontrado_en_ready) {
+            pthread_mutex_unlock(&array_colas_ready[indice_cola_original].mutex); // Liberar el lock que mantuvimos
+        }
+        return;
+    }
+
+    // 4. Actualizar prioridad
+    int prioridad_anterior = proceso_duenio->prioridad;
+    proceso_duenio->prioridad = prioridad_heredada;
+    log_info(log_ks, "## Herencia de Prioridad: PID <%d> hereda prioridad %d (antes %d).", 
+             proceso_duenio->pid, proceso_duenio->prioridad, prioridad_anterior);
+
+    // 5. Si estaba en READY, moverlo de cola (sin afectar el semáforo del planificador)
+    if (encontrado_en_ready) {
+        t_proceso_pcb* pcb_removido = remover_proceso_por_pid(array_colas_ready[indice_cola_original].cola, pid_duenio);
+        pthread_mutex_unlock(&array_colas_ready[indice_cola_original].mutex);
+
+        if (pcb_removido) {
+            // Agregar a la nueva cola correspondiente
+            int indice_cola_nueva = (algoritmo_global == CMN) ? pcb_removido->prioridad : 0;
+            if (indice_cola_nueva < 0 || indice_cola_nueva >= cantidad_niveles) {
+                indice_cola_nueva = 0; // Fallback
+            }
+
+            pthread_mutex_lock(&array_colas_ready[indice_cola_nueva].mutex);
+            list_add(array_colas_ready[indice_cola_nueva].cola, pcb_removido);
+            pthread_mutex_unlock(&array_colas_ready[indice_cola_nueva].mutex);
+
+            log_debug(log_debug_ks, "Proceso PID<%d> movido de cola READY %d a %d por herencia de prioridad.",
+                      pcb_removido->pid, indice_cola_original, indice_cola_nueva);
+        }
+    }
+    // Si estaba en EXEC, solo se actualizó la prioridad. Cuando vuelva a READY,
+    // la función agregar_proceso_a_ready() lo ubicará en la cola correcta.
 }

@@ -166,6 +166,44 @@ void agregar_proceso_a_ready(t_proceso_pcb* proceso)
 }
 
 /**
+ * agregar_proceso_a_ready_al_inicio: Función productora para agregar procesos al inicio de la cola de ready.
+ * Se utiliza para los procesos desalojados por compactación, para que tengan prioridad.
+ */
+void agregar_proceso_a_ready_al_inicio(t_proceso_pcb* proceso)
+{
+    if (proceso == NULL || array_colas_ready == NULL) {
+        log_error(log_ks, "agregar_proceso_a_ready_al_inicio: proceso o array_colas_ready es NULL");
+        return;
+    }
+
+    // Determina el índice según el algoritmo global
+    int indice_cola;
+    if (algoritmo_global == CMN) {
+        indice_cola = proceso->prioridad;
+        // Validar que el índice esté dentro de rango
+        if (indice_cola < 0 || indice_cola >= cantidad_niveles) {
+            log_error(log_ks, "agregar_proceso_a_ready_al_inicio: prioridad %d fuera de rango [0, %d]", 
+                      indice_cola, cantidad_niveles-1);
+            indice_cola = 0; // fallback a la primera cola
+        }
+    } else {
+        // FIFO o RR: siempre índice 0
+        indice_cola = 0;
+    }
+
+    // Lock del mutex de la cola específica
+    pthread_mutex_lock(&array_colas_ready[indice_cola].mutex);
+    list_add_in_index(array_colas_ready[indice_cola].cola, 0, proceso);
+    cambiar_estado_proceso(proceso, READY);
+    pthread_mutex_unlock(&array_colas_ready[indice_cola].mutex);
+
+    log_debug(log_debug_ks, "Proceso PID<%d> agregado al INICIO de READY en cola nivel %d", proceso->pid, indice_cola);
+
+    // Signal al semáforo contador
+    sem_post(&sem_procesos_ready);
+}
+
+/**
  * chequear_desalojo: Placeholder para lógica de preemption en CMN.
  */
 void chequear_desalojo(t_proceso_pcb* proceso_nuevo)

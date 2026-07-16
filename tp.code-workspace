@@ -36,5 +36,10 @@
     },
     "C_Cpp.autoAddFileAssociations": false,
     "C_Cpp.errorSquiggles": "disabled"
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-vsliveshare.vsliveshare"
+    ]
   }
 }

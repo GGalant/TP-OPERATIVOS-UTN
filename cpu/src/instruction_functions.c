@@ -9,6 +9,8 @@ void ejecutar_noop(){
 Asigna al registro el valor pasado como parámetro.
 */
 void ejecutar_set(char* registro, char* valor_set) {
+    
+    log_debug(log_cpu, "SET: Iniciando Ejecucion");
 
     void* cpu_reg = string_to_registro(registro);
     size_t reg_size = get_registro_size(registro);
@@ -31,6 +33,8 @@ void ejecutar_set(char* registro, char* valor_set) {
 Suma al Registro Destino el Registro Origen y deja el resultado en el Registro Destino.
 */
 void ejecutar_sum(char* registro_destino, char* registro_origen){
+
+    log_debug(log_cpu, "SUM: Iniciando Ejecucion");
 
     void * cpu_reg_destino = string_to_registro(registro_destino);
     void * cpu_reg_origen = string_to_registro(registro_origen);
@@ -61,6 +65,8 @@ void ejecutar_sum(char* registro_destino, char* registro_origen){
 Resta al Registro Destino el Registro Origen y deja el resultado en el Registro Destino.
 */
 void ejecutar_sub(char* registro_destino, char* registro_origen){
+    
+    log_debug(log_cpu, "SUB: Iniciando Ejecucion");
 
     void * cpu_reg_destino = string_to_registro(registro_destino);
     void * cpu_reg_origen = string_to_registro(registro_origen);
@@ -91,6 +97,9 @@ Si el valor del registro es distinto de cero,
 actualiza el program counter al número de instrucción pasada por parámetro.v
 */
 void ejecutar_jnz(char* registro, char* str_nuevo_valor_pc){
+
+    log_debug(log_cpu, "JNZ: Iniciando Ejecucion");
+
     void * cpu_reg = string_to_registro(registro);
 
     if (cpu_reg == NULL) {
@@ -118,6 +127,9 @@ void ejecutar_jnz(char* registro, char* str_nuevo_valor_pc){
 
 // Lee de memoria hacia el registro pasado por parametro (usa SI como origen)
 void ejecutar_mov_in(char* registro){
+
+    log_debug(log_cpu, "MOV_IN: Iniciando Ejecucion");
+
     void * cpu_reg_destino = string_to_registro(registro);
     
     if (cpu_reg_destino == NULL) {
@@ -127,11 +139,23 @@ void ejecutar_mov_in(char* registro){
 
     size_t reg_size = get_registro_size(registro);
 
-    //uint32_t direccion_logica = cpu.si;
+    uint32_t direccion_logica = cpu.si;
 
-    //TODO implementar MMU y acceso a memoria
-    //uint32_t direccion_fisica = 0;
-    uint32_t valor_leido = 0; 
+    uint32_t direccion_fisica = mmu_traducir_direccion(direccion_logica, reg_size); 
+
+    if (direccion_fisica == ERROR) {
+        log_error(log_cpu, "MOV_IN - SEG_FAULT: Dirección lógica invalida (%u)", direccion_logica);
+        return;
+    }
+
+    uint32_t valor_leido = 0;
+
+    int resultado = dma_leer_memoria(direccion_fisica, reg_size, (uint8_t*)&valor_leido);
+    
+    if (resultado == ERROR) {
+        log_warning(log_cpu, "MOV_IN: OCURRIÓ UN ERROR EN EL DMA.");
+        return;
+    }
 
     set_reg_value(reg_size, cpu_reg_destino, valor_leido);
 
@@ -140,6 +164,9 @@ void ejecutar_mov_in(char* registro){
 
 // Escribe en memoria desde el registro pasado por parametro (usa DI como destino)
 void ejecutar_mov_out(char* registro){
+
+    log_debug(log_cpu, "MOV_OUT: Iniciando Ejecucion");
+
     void * cpu_reg_origen = string_to_registro(registro);
     
     if (cpu_reg_origen == NULL) {
@@ -147,14 +174,25 @@ void ejecutar_mov_out(char* registro){
         return;
     }
 
-    //size_t reg_size = get_registro_size(registro);
+    size_t reg_size = get_registro_size(registro);
     
-    //uint32_t valor_a_escribir = get_registro_value(reg_size, cpu_reg_origen);
+    uint32_t valor_a_escribir = get_registro_value(reg_size, cpu_reg_origen);
 
-    //uint32_t direccion_logica = cpu.di;
+    uint32_t direccion_logica = cpu.di;
 
-    //TODO implementar MMU y acceso a memoria
-    //uint32_t direccion_fisica = 0; 
+    uint32_t direccion_fisica = mmu_traducir_direccion(direccion_logica, sizeof(valor_a_escribir)); 
+
+    if (direccion_fisica == ERROR) {
+        log_error(log_cpu, "MOV_IN - SEG_FAULT: Dirección lógica invalida (%u)", direccion_logica);
+        return;
+    }
+
+    int resultado = dma_escribir_memoria(direccion_fisica, reg_size, (uint8_t*)&valor_a_escribir);
+    
+    if (resultado == ERROR) {
+        log_warning(log_cpu, "MOV_OUT: OCURRIÓ UN ERROR EN EL DMA.");
+        return;
+    }
 
     log_debug(log_cpu, "MOV_OUT: Ejecutado");
 }
@@ -165,6 +203,9 @@ copia la cantidad de bytes indicadas en el registro tamaño
 a la posición de memoria apuntada por el registro DI
 */
 void ejecutar_copy_mem(char* registro_tamanio) {
+
+    log_debug(log_cpu, "COPY_MEM: Iniciando Ejecucion");
+
     void * cpu_reg_tamanio = string_to_registro(registro_tamanio);
     
     if (cpu_reg_tamanio == NULL) {
@@ -172,23 +213,44 @@ void ejecutar_copy_mem(char* registro_tamanio) {
         return;
     }
 
-    //size_t reg_size = get_registro_size(registro_tamanio);
+    size_t reg_size = get_registro_size(registro_tamanio);
     
-    //uint32_t bytes_a_copiar = get_registro_value(reg_size, cpu_reg_tamanio);
+    uint32_t bytes_a_copiar = get_registro_value(reg_size, cpu_reg_tamanio);
 
-    //uint32_t dir_logica_origen = cpu.si;
-    //uint32_t dir_logica_destino = cpu.di;
+    if (bytes_a_copiar == 0) {
+        log_warning(log_cpu, "COPY_MEM: Intento de copiar 0 bytes. Operación omitida.");
+        return;
+    }
 
-    // TODO: Implementar MMU y acceso a memoria
-    
-    //uint32_t dir_fisica_origen = 0;
-    //uint32_t dir_fisica_destino = 0;
-    //uint32_t valor = 0; 
+    uint32_t dir_logica_origen = cpu.si;
+    uint32_t dir_logica_destino = cpu.di;
+
+    uint32_t dir_fisica_origen = mmu_traducir_direccion(dir_logica_origen, bytes_a_copiar);
+    uint32_t dir_fisica_destino = mmu_traducir_direccion(dir_logica_destino, bytes_a_copiar);
+
+    if (dir_fisica_origen == ERROR) {
+        log_error(log_cpu, "COPY_MEM - SEG_FAULT: Dirección lógica de origen invalida (%u)", dir_logica_origen);
+        return;
+    }
+
+    if (dir_fisica_destino == ERROR) {
+        log_error(log_cpu, "COPY_MEM - SEG_FAULT: Dirección lógica de destino invalida (%u)", dir_logica_origen);
+        return;
+    }
+
+    int resultado = dma_copiar_memoria(dir_fisica_origen, dir_fisica_destino, bytes_a_copiar);
+
+    if (resultado == ERROR) {
+        log_warning(log_cpu, "COPY_MEM: OCURRIÓ UN ERROR EN EL DMA.");
+        return;
+    }
 
     log_debug(log_cpu, "COPY_MEM: Ejecutado");
 }
 
 void ejecutar_sleep(char* parametro_tiempo) {
+
+    log_debug(log_cpu, "SLEEP: Iniciando Ejecucion");
 
     int tiempo = atoi(parametro_tiempo);
     uint32_t pc_actualizado = cpu.pc;
@@ -209,6 +271,8 @@ void ejecutar_sleep(char* parametro_tiempo) {
 }
 
 void ejecutar_stdout(char* reg_direccion, char* reg_tamanio) {
+
+    log_debug(log_cpu, "STDOUT: Iniciando Ejecucion");
 
     void * cpu_reg_direcc = string_to_registro(reg_direccion);
     void * cpu_reg_tamanio = string_to_registro(reg_tamanio);
@@ -234,6 +298,8 @@ void ejecutar_stdout(char* reg_direccion, char* reg_tamanio) {
 }
 
 void ejecutar_exit() {
+
+    log_debug(log_cpu, "EXIT: Iniciando Ejecucion");
     
     op_code cod_op = SYSCALL_EXIT;
     send(conexion_ks, &cod_op, sizeof(op_code), 0);
@@ -244,6 +310,8 @@ void ejecutar_exit() {
 }
 
 void ejecutar_mutex_create(char* nombre_mutex) {
+
+    log_debug(log_cpu, "MUTEX_CREATE: Iniciando Ejecucion");
     
     if(nombre_mutex == NULL){
         log_error(log_cpu, "MUTEX_CREATE: El nombre mutex es null");
@@ -263,6 +331,8 @@ void ejecutar_mutex_create(char* nombre_mutex) {
 
 void ejecutar_mutex_lock(char* nombre_mutex) {
 
+    log_debug(log_cpu, "MUTEX_LOCK: Iniciando Ejecucion");
+
     if(nombre_mutex == NULL){
         log_error(log_cpu, "MUTEX_LOCK: El nombre mutex es null");
         return;
@@ -279,6 +349,8 @@ void ejecutar_mutex_lock(char* nombre_mutex) {
 }
 
 void ejecutar_mutex_unlock(char* nombre_mutex) {
+    
+    log_debug(log_cpu, "MUTEX_UNLOCK: Iniciando Ejecucion");
 
     if(nombre_mutex == NULL){
         log_error(log_cpu, "MUTEX_UNLOCK: El nombre mutex es null");
@@ -297,6 +369,9 @@ void ejecutar_mutex_unlock(char* nombre_mutex) {
 }
 
 void ejecutar_mem_alloc(char* param_id_segmento, char* param_tamanio) {
+
+    log_debug(log_cpu, "MEM_ALLOC: Iniciando Ejecucion");
+
     uint32_t id_segmento = (uint32_t)atoi(param_id_segmento);
     uint32_t tamanio = (uint32_t)atoi(param_tamanio);
 
@@ -311,6 +386,9 @@ void ejecutar_mem_alloc(char* param_id_segmento, char* param_tamanio) {
 }
 
 void ejecutar_mem_free(char* param_id_segmento) {
+
+    log_debug(log_cpu, "MEM_FREE: Iniciando Ejecucion");
+
     uint32_t id_segmento = (uint32_t)atoi(param_id_segmento);
 
     t_paquete* paquete = crear_paquete(SYSCALL_MEM_FREE);
@@ -323,6 +401,8 @@ void ejecutar_mem_free(char* param_id_segmento) {
 }
 
 void ejecutar_stdin(char* reg_direccion, char* reg_tamanio) {
+
+    log_debug(log_cpu, "STDIN: Iniciando Ejecucion");
 
     void * cpu_reg_direcc = string_to_registro(reg_direccion);
     void * cpu_reg_tamanio = string_to_registro(reg_tamanio);
@@ -347,6 +427,8 @@ void ejecutar_stdin(char* reg_direccion, char* reg_tamanio) {
 }
 
 void ejecutar_init_proc(char* archivo_instrucciones, char* param_prioridad) {
+
+    log_debug(log_cpu, "INIT_PROC: Iniciando Ejecucion");
 
     log_debug(log_cpu, "ejecutar_init_proc(%s, %s)", archivo_instrucciones, param_prioridad);
 
