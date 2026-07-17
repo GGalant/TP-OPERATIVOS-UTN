@@ -70,8 +70,10 @@ sem_t sem_respuesta_contenido_km;
 sem_t sem_creacion_segmento;
 sem_t sem_confirmacion_escritura;
 sem_t sem_compactacion_ok;
+sem_t sem_desuspension_proceso;
 sem_t sem_solicitud_mem_free;
 bool compactacion_exitosa;
+bool desuspension_exitosa;
 bool mem_free_exitoso;
 
 void wait_mutex(t_mutex *mutex, pid_t pid_proceso)
@@ -211,4 +213,51 @@ void chequear_desalojo(t_proceso_pcb* proceso_nuevo)
     // TODO: Implementar lógica de interrupción/desalojo
     log_debug(log_debug_ks, "chequear_desalojo: PID<%d> - preemption check (placeholder)", 
               proceso_nuevo->pid);
+}
+
+bool comparar_procesos_para_desuspender(void* a, void* b) {
+    t_proceso_pcb* pcb_a = (t_proceso_pcb*)a;
+    t_proceso_pcb* pcb_b = (t_proceso_pcb*)b;
+
+    if (pcb_a->prioridad < pcb_b->prioridad) {
+        return true;
+    }
+    if (pcb_a->prioridad > pcb_b->prioridad) {
+        return false;
+    }
+    // Misma prioridad, va primero el que lleva mas tiempo suspendido
+    return pcb_a->tiempo_en_suspension < pcb_b->tiempo_en_suspension;
+}
+
+void desuspender_procesos() {
+    pthread_mutex_lock(&mutex_cola_susp_ready);
+    if (list_is_empty(cola_susp_ready)) {
+        pthread_mutex_unlock(&mutex_cola_susp_ready);
+        return;
+    }
+
+    list_sort(cola_susp_ready, comparar_procesos_para_desuspender);
+
+    bool seguir_desuspendiendo = true;
+    while (seguir_desuspendiendo && !list_is_empty(cola_susp_ready)) {
+        t_proceso_pcb* proceso = list_get(cola_susp_ready, 0);
+
+        log_info(log_ks, "Intentando desuspender proceso PID <%d> con prioridad <%d>", proceso->pid, proceso->prioridad);
+
+        op_code op = DESUSPENDER_PROCESO;
+        send(conexion_km, &op, sizeof(op_code), 0);
+        send(conexion_km, &(proceso->pid), sizeof(pid_t), 0);
+
+        sem_wait(&sem_desuspension_proceso);
+
+        if (desuspension_exitosa) {
+            proceso = list_remove(cola_susp_ready, 0);
+            log_info(log_ks, "Proceso PID <%d> desuspendido exitosamente. Moviendo a READY.", proceso->pid);
+            agregar_proceso_a_ready(proceso);
+        } else {
+            log_warning(log_ks, "No hay memoria suficiente para desuspender PID <%d>. Deteniendo proceso de desuspensión.", proceso->pid);
+            seguir_desuspendiendo = false;
+        }
+    }
+    pthread_mutex_unlock(&mutex_cola_susp_ready);
 }
