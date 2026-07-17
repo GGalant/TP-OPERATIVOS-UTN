@@ -127,12 +127,12 @@ typedef enum {
     SOLICITAR_MEM_FREE,
     RESPUESTA_MEM_FREE,
     MEMORIA_CORRUPTA,
+    MEMORIA_DISPONIBLE
     // LECTURA_OK,
     // ESCRITURA_OK,
 
     //* FIN: KERNEL SCHEDULER - KERNEL MEMORY
     // ======================================
-    
 
 }op_code;
 
