@@ -127,14 +127,17 @@ void *handle_connections(void *arg)
 
             int cant_bloques_totales = file_size/block_size;
 
-            int bytes_necesarios = (cant_bloques_totales+7)/8;
+            int bytes_necesarios = cant_bloques_totales/8;
+            if(cant_bloques_totales % 8 != 0){
+                bytes_necesarios++;
+            }
             void* puntero_memoria = malloc(bytes_necesarios);
 
             //0 representa un bloque libre
             memset(puntero_memoria, 0, bytes_necesarios);
 
 
-            bitmap_bloques = bitarray_create_with_mode(bitmap_bloques,bytes_necesarios, LSB_FIRST);
+            bitmap_bloques = bitarray_create_with_mode(puntero_memoria,bytes_necesarios, LSB_FIRST);
 
             log_debug(log_km,"Bitmap de SWAP inicializado con %d bloques",cant_bloques_totales);
 
@@ -488,7 +491,7 @@ void *handle_ks(void *arg)
                 break;
             }
 
-            for(int i = 0, i < list_size(contexto->tabla_segmentos), i++){
+            for(int i = 0; i < list_size(contexto->tabla_segmentos); i++){
                 t_segmento* segmento = list_get(contexto->tabla_segmentos, i);
                 liberar_espacio_en_memoria(segmento);
             }
@@ -506,28 +509,34 @@ void *handle_ks(void *arg)
             free(pid_str);
             log_debug(log_km, "SE liberaron las estructuras del proceso PID %d", pid);
         }
-        
+
             break;
         case SOLICITAR_MEM_FREE:
         {
             t_list* segmento_a_eliminar = recibir_paquete(socket_ks);
-            pid_t pid = list_get(segmento_a_eliminar,0);
-            uint32_t id_segmento = list_get(segmento_a_eliminar, 1);
+            pid_t pid = *(pid_t*)list_get(segmento_a_eliminar,0);
+            uint32_t id_segmento = *(uint32_t*)list_get(segmento_a_eliminar, 1);
 
             char* pid_str = string_itoa(pid);
             t_contextoEjec* contexto = dictionary_get(diccionario_contextos_ejecucion, pid_str);
 
             for(int i=0; i < list_size(contexto->tabla_segmentos); i++){
-                t_segmento* segmento_buscado;
+                t_segmento* segmento_buscado = list_get(contexto->tabla_segmentos, i);
 
                 if(segmento_buscado->id_segmento == id_segmento){
-                    liberar_espacio_en_memoria(id_segmento);
+                    liberar_espacio_en_memoria(segmento_buscado);
+                    list_remove(contexto->tabla_segmentos, i);
+                    free(segmento_buscado);
+
+
                     op_code memoria_liberada = RESPUESTA_MEM_FREE;
-                    send(socket_ks, memoria_liberada, sizeof(memoria_liberada), 0);
+                    send(socket_ks, &memoria_liberada, sizeof(memoria_liberada), 0);
                     log_debug(log_km,"SE libera el segmento solicitado, PID: %d, ID_SEGMENTO: %u", pid, id_segmento);
-                    return;
+                    break;
                 }
             }
+            free(pid_str);
+            list_destroy_and_destroy_elements(segmento_a_eliminar,free);
         }
             break;
 
@@ -1252,14 +1261,13 @@ uint32_t enviar_segmento_a_swap(pid_t pid, t_segmento* segmento, char* contenido
         return -1;
     }
     
-    int id_segmento = segmento->id_segmento;
-    uint32_t base = segmento->base;
+    
     uint32_t limite = segmento->limite;
 
     t_paquete* segmento_a_guardar = crear_paquete(GUARDAR_SEGMENTO);
     agregar_a_paquete(segmento_a_guardar, &bloque_libre, sizeof(uint32_t));
     //agregar_a_paquete(segmento_a_guardar, contenido,sizeof(contenido));
-    agregar_a_paquete(segmento_a_guardar, contenido,segmento->limite); //TODO: PENSAR porque contenido pasa mal el tamaño -->?
+    agregar_a_paquete(segmento_a_guardar, contenido,limite); //TODO: PENSAR porque contenido pasa mal el tamaño -->?
 
     enviar_paquete_send_all(segmento_a_guardar,socket_swap);
     eliminar_paquete(segmento_a_guardar);
