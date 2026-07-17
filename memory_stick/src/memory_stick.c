@@ -40,6 +40,12 @@ int main(int argc, char *argv[]){
 
     //iniciar servidor
     server_ms = iniciar_servidor(log_ms, puerto);
+    if (server_ms == -1) {
+    log_error(log_ms, "No se pudo iniciar el servidor de Memory Stick");
+    config_destroy(config);
+    log_destroy(log_ms);
+    return EXIT_FAILURE;
+}
 
     //malloc del tamaño del ms
     //void* inicio_memoria = malloc(tamanio);
@@ -167,8 +173,9 @@ void* handle_km(void* arg) {
                 op_code escritura_ok = ESCRITURA_OK;
                 send(socket_km, &escritura_ok,sizeof(escritura_ok),0);
 
-                log_info(log_ms, "## Escritura de <%d> bytes",cantidad_bytes);
+                log_info(log_ms, "## Escritura de %d bytes",cantidad_bytes);
                 list_destroy_and_destroy_elements(solicitud_escritura, free);
+
             }
             break;
 
@@ -203,7 +210,7 @@ void* handle_km(void* arg) {
                 send(socket_km, &lectura_ok,sizeof(lectura_ok),0);
                 send(socket_km, buffer_temp, cantidad_bytes,0);
 
-                log_info(log_ms, "## Lectura de <%d> bytes", cantidad_bytes);
+                log_info(log_ms, "## Lectura de %d bytes", cantidad_bytes);
             list_destroy_and_destroy_elements(solicitud_lectura, free);
             }
             break;
@@ -261,7 +268,7 @@ void* handle_cpu(void* arg) {
                 op_code escritura_ok = ESCRITURA_OK;
                 send(socket_cpu, &escritura_ok,sizeof(escritura_ok),0);
 
-                log_info(log_ms, "## Escritura de <%d> bytes",cantidad_bytes);
+                log_info(log_ms, "## Escritura de %d bytes",cantidad_bytes);
                 list_destroy_and_destroy_elements(solicitud_escritura, free);
             }
             break;
@@ -293,7 +300,7 @@ void* handle_cpu(void* arg) {
                 send(socket_cpu, &lectura_ok,sizeof(lectura_ok),0);
                 send(socket_cpu, buffer_temp, cantidad_bytes,0);
 
-                log_info(log_ms, "## Lectura de <%d> bytes", cantidad_bytes);
+                log_info(log_ms, "## Lectura de %d bytes", cantidad_bytes);
                 list_destroy_and_destroy_elements(solicitud_lectura, free);
             }
             break;

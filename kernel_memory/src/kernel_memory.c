@@ -127,14 +127,17 @@ void *handle_connections(void *arg)
 
             int cant_bloques_totales = file_size/block_size;
 
-            int bytes_necesarios = (cant_bloques_totales+7)/8;
+            int bytes_necesarios = cant_bloques_totales/8;
+            if(cant_bloques_totales % 8 != 0){
+                bytes_necesarios++;
+            }
             void* puntero_memoria = malloc(bytes_necesarios);
 
             //0 representa un bloque libre
             memset(puntero_memoria, 0, bytes_necesarios);
 
 
-            bitmap_bloques = bitarray_create_with_mode(bitmap_bloques,bytes_necesarios, LSB_FIRST);
+            bitmap_bloques = bitarray_create_with_mode(puntero_memoria,bytes_necesarios, LSB_FIRST);
 
             log_debug(log_km,"Bitmap de SWAP inicializado con %d bloques",cant_bloques_totales);
 
@@ -151,7 +154,7 @@ void *handle_connections(void *arg)
 
 void *handle_ks(void *arg)
 {
-    int socket_ks = *(int *)arg;
+    socket_ks = *(int *)arg;
 
     log_info(log_km, "## Kernel Scheduler Conectado - FD del socket: %d", socket_ks);
 
@@ -191,7 +194,7 @@ void *handle_ks(void *arg)
             // log_debug(log_km_debug, "Instrucciones del proceso: <%d> guardadas correctamente", pid_recibido);
             log_debug(log_km, "Instrucciones del proceso: <%d> guardadas correctamente", pid_recibido);
 
-            log_info(log_km, "## PID: <%d> - Proceso Creado", pid_recibido);
+            log_info(log_km, "## PID: %d - Proceso Creado", pid_recibido);
 
             t_contextoEjec *contexto_proceso = malloc(sizeof(t_contextoEjec));
             contexto_proceso->pid = pid_recibido;
@@ -338,7 +341,7 @@ void *handle_ks(void *arg)
 
                 if(respuesta_escritura == ESCRITURA_OK){
                 send(socket_ks, &respuesta_escritura, sizeof(respuesta_escritura), 0);
-                log_info(log_km, "## PID: <%d> - <Escritura> - Dir. Física: <%u> - Tamaño: <%d>", pid, direccion_fisica, cantidad_bytes);
+                log_info(log_km, "## PID: %d - Escritura - Dir. Física: %u - Tamaño: %d", pid, direccion_fisica, cantidad_bytes);
 
                 }else{
                 log_error(log_km, "Ocurrio un error: No se pudo escribir el bloque.");
@@ -475,6 +478,68 @@ void *handle_ks(void *arg)
             log_debug(log_km, "Proceso suspendido correctamente. PID <%d>: ",pid);
         }
             break;
+        case FINALIZAR_PROCESO:
+        {
+            pid_t pid;
+            recv(socket_ks, &pid,sizeof(pid), MSG_WAITALL);
+
+            char* pid_str = string_itoa(pid);
+            t_contextoEjec* contexto = dictionary_get(diccionario_contextos_ejecucion, pid_str);
+            if(contexto == NULL){
+                log_error(log_km, "No se encuentra contexto para el PID %d", pid);
+                free(pid_str);
+                break;
+            }
+
+            for(int i = 0; i < list_size(contexto->tabla_segmentos); i++){
+                t_segmento* segmento = list_get(contexto->tabla_segmentos, i);
+                liberar_espacio_en_memoria(segmento);
+            }
+
+            list_destroy_and_destroy_elements(contexto->tabla_segmentos, free);
+
+            dictionary_remove(diccionario_contextos_ejecucion, pid_str);
+            t_list* instrucciones = dictionary_remove(diccionario_instrucciones,pid_str);
+
+            if(instrucciones != NULL){
+                list_destroy_and_destroy_elements(instrucciones, free);
+            }
+
+            free(contexto);
+            free(pid_str);
+            log_debug(log_km, "SE liberaron las estructuras del proceso PID %d", pid);
+        }
+
+            break;
+        case SOLICITAR_MEM_FREE:
+        {
+            t_list* segmento_a_eliminar = recibir_paquete(socket_ks);
+            pid_t pid = *(pid_t*)list_get(segmento_a_eliminar,0);
+            uint32_t id_segmento = *(uint32_t*)list_get(segmento_a_eliminar, 1);
+
+            char* pid_str = string_itoa(pid);
+            t_contextoEjec* contexto = dictionary_get(diccionario_contextos_ejecucion, pid_str);
+
+            for(int i=0; i < list_size(contexto->tabla_segmentos); i++){
+                t_segmento* segmento_buscado = list_get(contexto->tabla_segmentos, i);
+
+                if(segmento_buscado->id_segmento == id_segmento){
+                    liberar_espacio_en_memoria(segmento_buscado);
+                    list_remove(contexto->tabla_segmentos, i);
+                    free(segmento_buscado);
+
+
+                    op_code memoria_liberada = RESPUESTA_MEM_FREE;
+                    send(socket_ks, &memoria_liberada, sizeof(memoria_liberada), 0);
+                    log_debug(log_km,"SE libera el segmento solicitado, PID: %d, ID_SEGMENTO: %u", pid, id_segmento);
+                    break;
+                }
+            }
+            free(pid_str);
+            list_destroy_and_destroy_elements(segmento_a_eliminar,free);
+        }
+            break;
+
         default:
             log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
             break;
@@ -604,12 +669,12 @@ void *handle_cpu(void *arg)
 
             if (strlen(argumentos) > 0)
             {
-                log_info(log_km, "## PID: <%d> - Obtener instrucción: <%d> - Instrucción: <%s> <%s>", pid_recibido, pc, instruccion, argumentos);
+                log_info(log_km, "## PID: %d - Obtener instrucción: %d - Instrucción: %s %s", pid_recibido, pc, instruccion, argumentos);
             }
             else
             {
                 // maneja caso exit, noop
-                log_info(log_km, "## PID: <%d> - Obtener instrucción: <%d> - Instrucción: <%s>", pid_recibido, pc, instruccion);
+                log_info(log_km, "## PID: %d - Obtener instrucción: %d - Instrucción: %s", pid_recibido, pc, instruccion);
             }
 
             op_code rta_pedido_instruccion = RTA_PEDIDO_INSTRUCCION;
@@ -672,12 +737,14 @@ void *handle_ms(void *arg)
             break;
         }
 
-        case DESCONECTAR_MS:
+        case ERROR:
         {
             log_debug(log_km, "## BSOD: BLUE SCREEN OF DEATH");
+            op_code bsod = MEMORIA_CORRUPTA;
+            send(socket_ks,&bsod, sizeof(op_code),0);
+            close(socket_ms);
+            return NULL;
             // avisar a KS
-
-            break;
         }
         default:
             log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
@@ -1196,14 +1263,13 @@ uint32_t enviar_segmento_a_swap(pid_t pid, t_segmento* segmento, char* contenido
         return -1;
     }
     
-    int id_segmento = segmento->id_segmento;
-    uint32_t base = segmento->base;
+    
     uint32_t limite = segmento->limite;
 
     t_paquete* segmento_a_guardar = crear_paquete(GUARDAR_SEGMENTO);
     agregar_a_paquete(segmento_a_guardar, &bloque_libre, sizeof(uint32_t));
     //agregar_a_paquete(segmento_a_guardar, contenido,sizeof(contenido));
-    agregar_a_paquete(segmento_a_guardar, contenido,segmento->limite); //TODO: PENSAR porque contenido pasa mal el tamaño -->?
+    agregar_a_paquete(segmento_a_guardar, contenido,limite); //TODO: PENSAR porque contenido pasa mal el tamaño -->?
 
     enviar_paquete_send_all(segmento_a_guardar,socket_swap);
     eliminar_paquete(segmento_a_guardar);

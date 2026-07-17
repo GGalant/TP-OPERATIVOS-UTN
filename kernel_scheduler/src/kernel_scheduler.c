@@ -82,6 +82,11 @@ void inicializar_ks(int argc, char *argv[]) {
     log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
     log_debug_ks = log_create("scheduler_debug.log", "SCHEDULER_DEBUG", true, 'DEBUG');
 
+    printf("CONFIG USADO: %s\n", config_path);
+    printf("PUERTO_KM LEIDO: <%s>\n",
+    printf("IP_KM LEIDA: <%s>\n", ip_km != NULL ? ip_km : "NULL");
+       puerto_km != NULL ? puerto_km : "NULL");
+
     // Inicializar colas de estados (READY ahora es array_colas_ready)
     cola_block = list_create();
     cola_exec = list_create();
@@ -296,7 +301,7 @@ void mover_cola_a_exit_por_bsod(t_list* cola, pthread_mutex_t* mutex_cola)
         list_add(cola_exit, proceso);
         pthread_mutex_unlock(&mutex_cola_exit);
 
-        log_info(log_ks, "## (<%d>) finalizó su ejecución con motivo de BSOD", proceso->pid);
+        log_info(log_ks, "## (%d) finalizó su ejecución con motivo de BSOD", proceso->pid);
     }
 
     pthread_mutex_unlock(mutex_cola);
@@ -376,7 +381,7 @@ t_proceso_pcb* crear_pcb(pid_t pid, int prioridad) {
     pcb->tiene_hilo_quantum = false;
     pcb->id_hilo_quantum = 0;
  
-    log_info(log_ks, "## (<%d>) Se crea el proceso - Estado: NEW", pid);
+    log_info(log_ks, "## (%d) Se crea el proceso - Estado: NEW", pid);
 
     return pcb;
 }
@@ -398,7 +403,7 @@ void cambiar_estado_proceso(t_proceso_pcb *proceso, t_estado_proceso estado_sigu
     t_estado_proceso estado_anterior = proceso->estado;
     proceso->estado = estado_siguiente;
 
-    log_info(log_ks, "## (<%d>) Pasa del estado <%s> al estado <%s>", proceso->pid, estado_to_string(estado_anterior), estado_to_string(estado_siguiente));
+    log_info(log_ks, "## (%d) Pasa del estado %s al estado %s", proceso->pid, estado_to_string(estado_anterior), estado_to_string(estado_siguiente));
     return;
 }
 

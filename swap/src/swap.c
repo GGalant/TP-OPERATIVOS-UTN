@@ -88,10 +88,7 @@ int main(int argc, char* argv[]) {
             {
                 t_list* segmento_recibido = recibir_paquete(conexion_kernel_memory);
                 uint32_t numero_bloque = *(uint32_t*)list_get(segmento_recibido,0);
-                //recv(conexion_kernel_memory, &numero_bloque, sizeof(uint32_t), MSG_WAITALL);
-
-                //char* contenido = malloc(block_size);
-                //recv(conexion_kernel_memory, contenido, block_size, MSG_WAITALL);
+                
                 char* contenido = (char*)list_get(segmento_recibido,1);
 
                 escribir_en_archivo_swap(numero_bloque, contenido, block_size);
