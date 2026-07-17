@@ -80,7 +80,7 @@ void inicializar_ks(int argc, char *argv[]) {
     log_level = log_level_from_string(str_log_level);
 
     log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
-    log_debug_ks = log_create("scheduler_debug.log", "SCHEDULER_DEBUG", true, 'DEBUG');
+    //log_ks = log_create("scheduler_debug.log", "SCHEDULER_DEBUG", true, 'DEBUG');
 
     printf("CONFIG USADO: %s\n", config_path);
     printf("PUERTO_KM LEIDO: <%s>\n", puerto_km != NULL ? puerto_km : "NULL");
@@ -495,7 +495,7 @@ void solicitar_escritura_a_km(int socket_km, pid_t pid, uint32_t direccion_fisic
 
 void liberar_recursos() {   
     log_destroy(log_ks);
-    log_destroy(log_debug_ks);
+    //log_destroy(log_ks);
     config_destroy(config);
     pthread_mutex_destroy(&mutex_cola_block);
     pthread_mutex_destroy(&mutex_cola_exec);
