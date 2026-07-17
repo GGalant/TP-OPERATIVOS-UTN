@@ -57,9 +57,10 @@ t_list* sticks_conectados;
 
 typedef struct {
     int id;
-    uint32_t inicio;  
     uint32_t tamanio;
+    uint32_t inicio;  
     int socket;
+    int puerto;
 } t_memory_stick;
 
 typedef struct {
@@ -95,7 +96,7 @@ extern t_log* log_cpu;
 extern t_instruccion instruccion_actual;
 extern int conexion_ks;
 extern int conexion_km;
-extern int conexion_ms;
+extern int ip_memory_stick;
 extern int id_cpu;
 extern uint32_t tam_max_segmentos; 
 

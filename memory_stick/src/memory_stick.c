@@ -2,6 +2,7 @@
 int memory_delay;
 void* espacio_memoria;
 int tamanio_int;
+char* puerto;
 
 int main(int argc, char *argv[]){
 
@@ -17,7 +18,7 @@ int main(int argc, char *argv[]){
     char* puerto_scheduler;
     char* ip_km;
     char* puerto_km;
-    char* puerto;
+    
     int log_level;
     int err;
 
@@ -40,12 +41,13 @@ int main(int argc, char *argv[]){
 
     //iniciar servidor
     server_ms = iniciar_servidor(log_ms, puerto);
+
     if (server_ms == -1) {
     log_error(log_ms, "No se pudo iniciar el servidor de Memory Stick");
     config_destroy(config);
     log_destroy(log_ms);
     return EXIT_FAILURE;
-}
+    }
 
     //malloc del tamaño del ms
     //void* inicio_memoria = malloc(tamanio);
@@ -75,7 +77,11 @@ int main(int argc, char *argv[]){
     }
 
     uint32_t tamanio_int = atoi(tamanio);
+    int puerto_int = atoi(puerto);
+    
     send(conexion_km, &tamanio, sizeof(int),0);
+    send(conexion_km, &puerto_int, sizeof(int),0);
+    
     log_info(log_ms, "## Conectado a Kernel Memory");
     
     //TODO mover la creacion de hilos al switch dentro de handle_connections para el siguiente checkpoint
@@ -113,6 +119,11 @@ void* handle_connections(void *arg){
                     log_error(log_ms, "No se pudo recibir la ID de la CPU");
                     break;
                 }
+                int puerto_int = atoi(puerto);
+                
+                send(client_fd, &tamanio_int, sizeof(int),0);
+                send(client_fd, &puerto_int, sizeof(int),0);
+
                 log_info(log_ms, "## CPU %d Conectada", cpu_id);
                 pthread_t hilo_cpu;
 				pthread_create(&hilo_cpu, NULL, handle_cpu, (void*)socket_cliente);

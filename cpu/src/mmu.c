@@ -2,6 +2,11 @@
 
 uint32_t mmu_traducir_direccion(uint32_t direccion_logica_base, size_t bytes_a_copiar) {
 
+    if(tam_max_segmentos <= 0){
+        log_error(log_cpu, "MMU: NO HAY UN TAMANIO MÁXIMO DE SEGMENTO DEFINIDO, rriesgo de división por cero :( )");
+        return 0;
+    }
+
     uint32_t num_segmento = direccion_logica_base / tam_max_segmentos;
     uint32_t desplazamiento_segmento = direccion_logica_base % tam_max_segmentos;
 

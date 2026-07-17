@@ -2,7 +2,7 @@
 
 static char instruccion_buffer[128];
 //Variables extern definidas en el header:
-int conexion_ms = -1;
+int ip_memory_stick = -1;
 int conexion_ks = -1;
 int conexion_km = -1;
 int id_cpu = -1;
@@ -41,6 +41,9 @@ int main(int argc, char *argv[]){
                 syscall_exit_ejecutada = false;
 
                 pid_t pid_recibido = recibir_pid_de_ks();
+                if(pid_recibido == -1){
+                    break;
+                }
 
                 log_debug(log_cpu, "MAIN: pulling context of PID <%d>:", pid_recibido);
                 int status = pull_contexto(pid_recibido);
@@ -181,6 +184,7 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
     map_config_variables(config, &env);
 
     tam_max_segmentos = (uint32_t)atoi(env.tamanio_max_segmento);
+    ip_memory_stick = env.ip_ms;
 
     //TODO2 ver si int puede ser enum de commons
     t_log_level log_level = log_level_from_string(env.str_log_level);
@@ -192,9 +196,9 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
     //Conexiones con modulos
     conexion_ks = conectar_modulo(env.ip_ks, env.puerto_ks, "Kernel Scheduler");
     conexion_km = conectar_modulo(env.ip_km, env.puerto_km, "Kernel Memory");
-    conexion_ms = conectar_modulo(env.ip_ms, env.puerto_ms, "Memory Stick");
+    int conexion_ms = conectar_modulo(env.ip_ms, env.puerto_ms, "Memory Stick");
 
-    if(conexion_ks == -1 || conexion_km == -1 || conexion_ms == -1 ){
+    if(conexion_ks == -1 || conexion_km == -1){
         log_error(log_cpu, "NO FUE POSIBLE CONECTARSE CON TODOS LOS MODULOS");
         config_destroy(config);
         log_destroy(log_cpu);
@@ -212,11 +216,28 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
 
     status = send(conexion_km, &handshake_cpu, sizeof(op_code), 0) != -1 ? status : -1;
     status = send(conexion_km, &id_cpu, sizeof(int), 0) != -1 ? status : -1;
-    
+
+    status = send(conexion_ms, &handshake_cpu, sizeof(op_code), 0) != -1 ? status : -1;
+    status = send(conexion_ms, &id_cpu, sizeof(int), 0) != -1 ? status : -1;
+    int tamanio_ms = -1;
+    int puerto_ms = -1;
+    status = recv(conexion_ms, &tamanio_ms, sizeof(int), 0) != -1 ? status : -1;
+    status = recv(conexion_ms, &puerto_ms, sizeof(int), 0) != -1 ? status : -1;
+
+
     if(status == -1){
         log_error(log_cpu, "Alguna de las conexiones no pudo ser establecida...");
         return -1;
     }
+
+    t_memory_stick* primer_memory_stick;
+    primer_memory_stick->id;
+    primer_memory_stick->inicio;
+    primer_memory_stick->socket;
+    primer_memory_stick->tamanio = (uint32_t) tamanio_ms;
+    primer_memory_stick->puerto = puerto_ms;
+    list_add(cpu.sticks_conectados, primer_memory_stick);
+    log_debug(log_cpu, "Conexion la primera Memory Stick establecida");
 
     log_debug(log_cpu, "INICIALIZACIÓN FINALIZADA EXITOSAMENTE");
     return 0;
@@ -746,35 +767,43 @@ int pull_contexto(pid_t pid_a_pedir) {
 
 }
 
-bool integrar_tabla_memory_sticks(paquete_contexto, nodo_inicial){
+bool integrar_tabla_memory_sticks(t_list* paquete_contexto, int nodo_inicial){
     
     log_debug(log_cpu, "Integrando memory sticks a la tabla global");
     
     uint32_t cantidad_de_sticks = *(uint32_t*)list_get(paquete_contexto, nodo_inicial);
 
-    int diff = cantidad_de_sticks - list_size(cpu.sticks_conectados);
+    log_debug(log_cpu, "Hay %u Memory Stick, iterando sobre ellos para conectar", cantidad_de_sticks);
 
-    log_debug(log_cpu, "Hay %d nuevos Memory Stick, iterando sobre ellos para conectar", diff);
+    int cant_sticks_previamente_conectados = list_size(cpu.sticks_conectados);
 
-    for( int i = list_size(cpu.sticks_conectados); i < cantidad_de_sticks; i++){
+    for( int i = cant_sticks_previamente_conectados; i < cantidad_de_sticks; i++){
 
-        t_memory_stick* nuevo_memory_stick = (t_memory_stick*)list_remove(paquete_contexto, i + nodo_inicial); 
-            
+        t_memory_stick* nuevo_memory_stick = (t_memory_stick*)list_remove(paquete_contexto, nodo_inicial + 1 + cant_sticks_previamente_conectados); 
+
+        int puerto_del_ms = nuevo_memory_stick->puerto;
+        char * puerto_str_ms = string_itoa(puerto_del_ms);
+
         log_debug(log_cpu, "Conectando al nuevo memory Stick:");
+        
         int status = 0;
+        
         op_code handshake_cpu = HANDSHAKE_CPU;
-        status = send(conexion_ms, &handshake_cpu, sizeof(op_code), 0) != -1 ? status : -1;
-        status = send(conexion_ms, &id_cpu, sizeof(int), 0) != -1 ? status : -1;
+
+        int conexion_ms_nuevo = conectar_modulo(ip_memory_stick, puerto_str_ms, "Memory Stick");
+        free(puerto_str_ms);
+
+        status = send(conexion_ms_nuevo, &handshake_cpu, sizeof(op_code), 0) != -1 ? status : -1;
+        status = send(conexion_ms_nuevo, &id_cpu, sizeof(int), 0) != -1 ? status : -1;
         
         if(status == -1){
             log_error(log_cpu, "Memory_stick: Alguna de las conexiones no pudo ser establecida...");
-            return -1;
+            return false;
         }
 
         log_debug(log_cpu, "Conexion con el Memory Stick establecida");
         
         list_add(cpu.sticks_conectados, nuevo_memory_stick);
-
     }
 
     log_debug(log_cpu, "Integracion de Memory Sticks finalizada");
@@ -782,15 +811,20 @@ bool integrar_tabla_memory_sticks(paquete_contexto, nodo_inicial){
     return true;
 }
 
-bool integrar_tabla_segmentos(paquete_contexto, nodo_inicial){
+bool integrar_tabla_segmentos(t_list* paquete_contexto, int nodo_inicial){
 
     log_debug(log_cpu, "Integrando segmentos a la tabla global");
     
     uint32_t cantidad_de_segmentos = *(uint32_t*)list_get(paquete_contexto, nodo_inicial);
 
+    if(cantidad_de_segmentos != list_size(paquete_contexto) - 1 ){
+        log_error(log_cpu, "Los segmentos informados (%d), no se coinciden con el tamanio del paquete -1 (%d)", cantidad_de_segmentos, list_size(paquete_contexto) -1);
+        return false;
+    }
+
     for( int i = 0; i < cantidad_de_segmentos; i++){
 
-        t_segmento* segmento = (t_segmento*)list_remove(paquete_contexto, i + nodo_inicial + 1); // + 1 pq el primer nodo del paquete es la cantidad
+        t_segmento* segmento = (t_segmento*)list_remove(paquete_contexto, nodo_inicial + 1); // + 1 pq el primer nodo del paquete es la cantidad
         
         list_add(cpu.tabla_segmentos, segmento);
 
