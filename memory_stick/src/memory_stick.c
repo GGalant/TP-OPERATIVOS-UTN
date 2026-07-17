@@ -73,7 +73,7 @@ int main(int argc, char *argv[]){
         perror("Error al intentar el handshake con Kernel Memory");
         return EXIT_FAILURE;
     } 
-    log_info(log_ms, "Conectado a Kernel Memory");
+    log_info(log_ms, "## Conectado a Kernel Memory");
     
     //TODO mover la creacion de hilos al switch dentro de handle_connections para el siguiente checkpoint
     //handle_connections();
@@ -103,8 +103,16 @@ void* handle_connections(void *arg){
 
         switch(handshake_modulo){
             case HANDSHAKE_CPU:
+                log_debug(log_ms, "ESTO ES UN DEBUG");
+                int cpu_id;
+                int errores = recv(client_fd, &cpu_id, sizeof(int), MSG_WAITALL);
+                if(errores == -1){
+                    log_error(log_ms, "No se pudo recibir la ID de la CPU");
+                    break;
+                }
+                log_info(log_ms, "## CPU %d Conectada", cpu_id);
                 pthread_t hilo_cpu;
-				pthread_create(&hilo_cpu, NULL, handle_cpu, (void*)&socket_cliente);
+				pthread_create(&hilo_cpu, NULL, handle_cpu, (void*)socket_cliente);
 				pthread_detach(hilo_cpu);
                 break;
             default:
@@ -166,8 +174,10 @@ void* handle_km(void* arg) {
                 send(socket_km, &escritura_ok,sizeof(escritura_ok),0);
 
                 log_info(log_ms, "## Escritura de %d bytes",cantidad_bytes);
+                list_destroy_and_destroy_elements(solicitud_escritura, free);
+
             }
-                break;
+            break;
 
             case SOLICITUD_LECTURA:
             {
@@ -201,8 +211,9 @@ void* handle_km(void* arg) {
                 send(socket_km, buffer_temp, cantidad_bytes,0);
 
                 log_info(log_ms, "## Lectura de %d bytes", cantidad_bytes);
+            list_destroy_and_destroy_elements(solicitud_lectura, free);
             }
-                break;
+            break;
             
             case -1:
                 log_error(log_ms, "El servidor Kernel Memory se desconectó. Terminando hilo.");
@@ -218,21 +229,89 @@ void* handle_km(void* arg) {
 
 void* handle_cpu(void* arg) {    
     int socket_cpu = *(int*)arg;
+    int tamanio_del_stick = tamanio_int;
 
-    int id_cpu;
-    recv(socket_cpu, &id_cpu, sizeof(int), 0);
-    
-    log_info(log_ms, "## CPU %d Conectada", id_cpu);
-
-    while(true) {   
+    while(true) 
+    {   
+        
         int codigo_operacion = recibir_operacion(socket_cpu);
 
         switch(codigo_operacion) {
+            case SOLICITUD_ESCRITURA:
+            {
+
+                t_list* solicitud_escritura = recibir_paquete(socket_cpu);
+                uint32_t direccion_fisica = *(uint32_t*)list_get(solicitud_escritura,0);
+                uint32_t cantidad_bytes = *(uint32_t*)list_get(solicitud_escritura,1);
+                char* contenido_a_escribir = (char*)list_get(solicitud_escritura,2);
+
+                if(cantidad_bytes == 0){
+                    log_warning(log_ms, "handle_cpu CPU FD %d: Se solicio escirbir 0 bytes, omitiendo operación", socket_cpu);
+                }
+
+                bool escritura_valida = cantidad_bytes <= tamanio_del_stick - direccion_fisica;
+
+                if (!escritura_valida) {
+
+                    log_error(log_ms, "handle_cpu CPU FD %d: Escritura fuera de rango", socket_cpu);
+                    op_code error_escritura = ERROR_ESCRITURA;
+                    send(socket_cpu, &error_escritura, sizeof(error_escritura),0);
+
+                    list_destroy_and_destroy_elements(solicitud_escritura, free);
+                    break;
+                    
+                }
+
+                usleep(memory_delay * 1000);
+                memcpy((char*)espacio_memoria + direccion_fisica, contenido_a_escribir,cantidad_bytes);
+
+                op_code escritura_ok = ESCRITURA_OK;
+                send(socket_cpu, &escritura_ok,sizeof(escritura_ok),0);
+
+                log_info(log_ms, "## Escritura de %d bytes",cantidad_bytes);
+                list_destroy_and_destroy_elements(solicitud_escritura, free);
+            }
+            break;
+
+            case SOLICITUD_LECTURA:
+            {
+                t_list* solicitud_lectura = recibir_paquete(socket_cpu);
+                uint32_t direccion_fisica = *(uint32_t*)list_get(solicitud_lectura,0);
+                int cantidad_bytes = *(int*)list_get(solicitud_lectura,1);
+
+                bool lectura_valida = cantidad_bytes > 0 && direccion_fisica < tamanio_int && (uint32_t) cantidad_bytes <= tamanio_int - direccion_fisica;
+                
+                if (!lectura_valida) {
+                    log_error(log_ms, "handle_cpu CPU FD %d: Lectura fuera de rango", socket_cpu);
+                    op_code error_lectura = ERROR_ESCRITURA;
+                    send(socket_cpu, &error_lectura, sizeof(error_lectura), 0);
+
+                    list_destroy_and_destroy_elements(solicitud_lectura, free);
+                    break;
+                    
+                }
+
+                usleep(memory_delay * 1000);
+                void* buffer_temp = malloc(cantidad_bytes);
+
+                memcpy(buffer_temp, espacio_memoria + direccion_fisica,cantidad_bytes);
+
+                op_code lectura_ok = LECTURA_OK;
+                send(socket_cpu, &lectura_ok,sizeof(lectura_ok),0);
+                send(socket_cpu, buffer_temp, cantidad_bytes,0);
+
+                log_info(log_ms, "## Lectura de %d bytes", cantidad_bytes);
+                list_destroy_and_destroy_elements(solicitud_lectura, free);
+            }
+            break;
+            
             case -1:
-                log_error(log_ms, "CPU FD %d se desconectó. Terminando handle", socket_cpu);
+                log_error(log_ms, "handle_cpu CPU CPU FD %d se desconectó. Terminando handle", socket_cpu);
+                close(socket_cpu);
                 return NULL;
+            
             default:
-                log_warning(log_ms, "operacion desconocida: %d", codigo_operacion);
+                log_warning(log_ms, "handle_cpu CPU FD %d: operacion desconocida: %d", codigo_operacion);
                 break;
         }
     }

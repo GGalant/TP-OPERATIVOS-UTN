@@ -38,19 +38,31 @@ int main(int argc, char *argv[]){
             case EJECUTAR_PROCESO: {
                 pid_t pid_recibido = recibir_pid_de_ks();
 
+                log_debug(log_cpu, "MAIN: pushing context");
                 pull_contexto(pid_recibido);
 
                 do { 
 
-                fetch();
-                decode();
-                execute();
-                flush_buffers();
+                    log_debug(log_cpu, "MAIN: FETCH:");
+                    fetch();
+                    log_debug(log_cpu, "MAIN: DECODE:");
+                    decode();
+                    log_debug(log_cpu, "MAIN: EXECUTE:");
+                    execute();
+                    log_debug(log_cpu, "MAIN: flushing buffers");
+                    flush_buffers();
+
+                    if(error_fatal){
+                        log_error(log_cpu, "Ocurrio un error irrecuperable en el ciclo de instruccion.");
+                        break;
+                    }
 
                 } while (!check_interrupt());
 
+                log_debug(log_cpu, "MAIN: pushing context");
                 push_contexto();
                 
+                log_debug(log_cpu, "MAIN: flushing local context");
                 limpiar_contexto();
 
                 //TODO hace falta enviar el pid a KS?
@@ -181,22 +193,28 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
     //Envio de handshakes
     op_code handshake_cpu = HANDSHAKE_CPU;
     
-    send(conexion_ks, &handshake_cpu, sizeof(op_code), 0);
-    send(conexion_ks, &id_cpu,        sizeof(int), 0);
+    int status = 0;
+    status = send(conexion_ks, &handshake_cpu, sizeof(op_code), 0) != -1 ? status : -1;
+    status = send(conexion_ks, &id_cpu, sizeof(int), 0) != -1 ? status : -1;
 
-    send(conexion_km, &handshake_cpu, sizeof(op_code), 0);
-    send(conexion_km, &id_cpu,        sizeof(int), 0);
+    status = send(conexion_km, &handshake_cpu, sizeof(op_code), 0) != -1 ? status : -1;
+    status = send(conexion_km, &id_cpu, sizeof(int), 0) != -1 ? status : -1;
     
-    send(conexion_ms, &handshake_cpu, sizeof(op_code), 0);
+    status = send(conexion_ms, &handshake_cpu, sizeof(op_code), 0) != -1 ? status : -1;
+    status = send(conexion_ms, &id_cpu, sizeof(int), 0) != -1 ? status : -1;
+    
+    if(status == -1){
+        log_error(log_cpu, "Alguna de las conexiones no pudo ser establecida...");
+        return -1;
+    }
+
     //hardcodeo MS
-        log_debug(log_cpu, "Esto es un debug");
     //Estos datos nos los deberia enviar Kernel Memory tal vez.
     t_memory_stick* stick_hardcodeado = malloc(sizeof(t_memory_stick));
     stick_hardcodeado->id = 0;
     stick_hardcodeado->inicio = 0;
     stick_hardcodeado->tamanio = 1024;
     stick_hardcodeado->socket = conexion_ms;
-        log_debug(log_cpu, "Esto es un debug");
     list_add(cpu.sticks_conectados, stick_hardcodeado);
     //TODO BORRAR AQUI ARRIBA LUEGO NO OLVIDARSE
     log_debug(log_cpu, "INICIALIZACIÓN FINALIZADA EXITOSAMENTE");
@@ -355,11 +373,13 @@ void execute(){
         cpu.pc++;
     break;
     case MOV_IN:
-        ejecutar_mov_in(instruccion_actual.params[1]);
+        {bool exito = ejecutar_mov_in(instruccion_actual.params[1]);
+        error_fatal = exito ? error_fatal : true;}
         cpu.pc++;
     break;
     case MOV_OUT:
-        ejecutar_mov_out(instruccion_actual.params[1]);
+        {bool exito = ejecutar_mov_out(instruccion_actual.params[1]);
+        error_fatal = exito ? error_fatal : true;}
         cpu.pc++;
     break;
     case SUM:
@@ -374,7 +394,8 @@ void execute(){
         ejecutar_jnz(instruccion_actual.params[1], instruccion_actual.params[2]);
     break;
     case COPY_MEM:
-        ejecutar_copy_mem(instruccion_actual.params[1]);
+        {bool exito = ejecutar_copy_mem(instruccion_actual.params[1]);
+        error_fatal = exito ? error_fatal : true;}
         cpu.pc++;
     break;
     case MUTEX_CREATE:

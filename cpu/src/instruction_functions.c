@@ -126,7 +126,7 @@ void ejecutar_jnz(char* registro, char* str_nuevo_valor_pc){
 }
 
 // Lee de memoria hacia el registro pasado por parametro (usa SI como origen)
-void ejecutar_mov_in(char* registro){
+bool ejecutar_mov_in(char* registro){
 
     log_debug(log_cpu, "MOV_IN: Iniciando Ejecucion");
 
@@ -134,7 +134,7 @@ void ejecutar_mov_in(char* registro){
     
     if (cpu_reg_destino == NULL) {
         log_error(log_cpu, "MOV_IN: Registro destino invalido (%s)", registro);
-        return;
+        return false;
     }
 
     size_t reg_size = get_registro_size(registro);
@@ -145,7 +145,7 @@ void ejecutar_mov_in(char* registro){
 
     if (direccion_fisica == ERROR) {
         log_error(log_cpu, "MOV_IN - SEG_FAULT: Dirección lógica invalida (%u)", direccion_logica);
-        return;
+        return false;
     }
 
     uint32_t valor_leido = 0;
@@ -154,16 +154,19 @@ void ejecutar_mov_in(char* registro){
     
     if (resultado == ERROR) {
         log_warning(log_cpu, "MOV_IN: OCURRIÓ UN ERROR EN EL DMA.");
-        return;
+        return false;
     }
 
     set_reg_value(reg_size, cpu_reg_destino, valor_leido);
 
     log_debug(log_cpu, "MOV_IN: Ejecutado");
+
+    return true;
+
 }
 
 // Escribe en memoria desde el registro pasado por parametro (usa DI como destino)
-void ejecutar_mov_out(char* registro){
+bool ejecutar_mov_out(char* registro){
 
     log_debug(log_cpu, "MOV_OUT: Iniciando Ejecucion");
 
@@ -171,7 +174,7 @@ void ejecutar_mov_out(char* registro){
     
     if (cpu_reg_origen == NULL) {
         log_error(log_cpu, "MOV_OUT: Registro origen invalido (%s)", registro);
-        return;
+        return false;
     }
 
     size_t reg_size = get_registro_size(registro);
@@ -184,17 +187,20 @@ void ejecutar_mov_out(char* registro){
 
     if (direccion_fisica == ERROR) {
         log_error(log_cpu, "MOV_IN - SEG_FAULT: Dirección lógica invalida (%u)", direccion_logica);
-        return;
+        return false;
     }
 
     int resultado = dma_escribir_memoria(direccion_fisica, reg_size, (uint8_t*)&valor_a_escribir);
     
     if (resultado == ERROR) {
         log_warning(log_cpu, "MOV_OUT: OCURRIÓ UN ERROR EN EL DMA.");
-        return;
+        return false;
     }
 
     log_debug(log_cpu, "MOV_OUT: Ejecutado");
+
+    return true;
+
 }
 
 /*
@@ -202,7 +208,7 @@ Toma la dirección apuntada por el registro SI y
 copia la cantidad de bytes indicadas en el registro tamaño 
 a la posición de memoria apuntada por el registro DI
 */
-void ejecutar_copy_mem(char* registro_tamanio) {
+bool ejecutar_copy_mem(char* registro_tamanio) {
 
     log_debug(log_cpu, "COPY_MEM: Iniciando Ejecucion");
 
@@ -210,7 +216,7 @@ void ejecutar_copy_mem(char* registro_tamanio) {
     
     if (cpu_reg_tamanio == NULL) {
         log_error(log_cpu, "COPY_MEM: Registro de tamaño invalido (%s)", registro_tamanio);
-        return;
+        return false;
     }
 
     size_t reg_size = get_registro_size(registro_tamanio);
@@ -219,7 +225,7 @@ void ejecutar_copy_mem(char* registro_tamanio) {
 
     if (bytes_a_copiar == 0) {
         log_warning(log_cpu, "COPY_MEM: Intento de copiar 0 bytes. Operación omitida.");
-        return;
+        return false;
     }
 
     uint32_t dir_logica_origen = cpu.si;
@@ -230,22 +236,24 @@ void ejecutar_copy_mem(char* registro_tamanio) {
 
     if (dir_fisica_origen == ERROR) {
         log_error(log_cpu, "COPY_MEM - SEG_FAULT: Dirección lógica de origen invalida (%u)", dir_logica_origen);
-        return;
+        return false;
     }
 
     if (dir_fisica_destino == ERROR) {
         log_error(log_cpu, "COPY_MEM - SEG_FAULT: Dirección lógica de destino invalida (%u)", dir_logica_origen);
-        return;
+        return false;
     }
 
     int resultado = dma_copiar_memoria(dir_fisica_origen, dir_fisica_destino, bytes_a_copiar);
 
     if (resultado == ERROR) {
         log_warning(log_cpu, "COPY_MEM: OCURRIÓ UN ERROR EN EL DMA.");
-        return;
+        return false;
     }
 
     log_debug(log_cpu, "COPY_MEM: Ejecutado");
+
+    return true;
 }
 
 void ejecutar_sleep(char* parametro_tiempo) {
