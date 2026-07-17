@@ -249,14 +249,15 @@ void *handle_cpu(void *arg)
             // Se recibe el paquete de contexto de ejecución que envía la CPU después de los argumentos.
             // Esto es crucial para limpiar el buffer del socket. De lo contrario, estos datos
             // se leerían en la siguiente iteración como una operación desconocida.
-            t_list* paquete_contexto_ignorado = recibir_paquete(cpu->socket_cpu);
-            list_destroy(paquete_contexto_ignorado);
+            // t_list* paquete_contexto_ignorado = recibir_paquete(cpu->socket_cpu);
+            // list_destroy(paquete_contexto_ignorado);
             list_destroy_and_destroy_elements(paquete_mem_alloc, free); // Liberar memoria del paquete
 
             pthread_mutex_lock(&mutex_cola_exec);
             t_proceso_pcb* proceso_en_alloc = buscar_proceso_por_id(pid, cola_exec);
             if (proceso_en_alloc != NULL) {
                 cancelar_hilo_quantum_si_existe(proceso_en_alloc, "SYSCALL_MEM_ALLOC");
+                log_debug(log_ks, "Se cancela el hilo de quantum del proceso en mem_alloc");
             } else {
                 log_warning(log_ks, "No se encontró el PID <%d> en EXEC durante SYSCALL_MEM_ALLOC", pid);
             }
