@@ -246,6 +246,12 @@ void *handle_cpu(void *arg)
             pid_t pid = cpu->pid_actual;
             uint32_t id_segmento = *(uint32_t*)list_get(paquete_mem_alloc, 0);
             uint32_t tamanio_segmento = *(uint32_t*)list_get(paquete_mem_alloc, 1);
+
+            // Se recibe el paquete de contexto de ejecución que envía la CPU después de los argumentos.
+            // Esto es crucial para limpiar el buffer del socket. De lo contrario, estos datos
+            // se leerían en la siguiente iteración como una operación desconocida.
+            t_list* paquete_contexto_ignorado = recibir_paquete(cpu->socket_cpu);
+            list_destroy(paquete_contexto_ignorado);
             list_destroy_and_destroy_elements(paquete_mem_alloc, free); // Liberar memoria del paquete
 
             pthread_mutex_lock(&mutex_mem_alloc);
