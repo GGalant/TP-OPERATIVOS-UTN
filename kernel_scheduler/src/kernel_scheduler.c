@@ -82,6 +82,11 @@ void inicializar_ks(int argc, char *argv[]) {
     log_ks = log_create("scheduler.log", "SCHEDULER", true, log_level);
     log_debug_ks = log_create("scheduler_debug.log", "SCHEDULER_DEBUG", true, 'DEBUG');
 
+    printf("CONFIG USADO: %s\n", config_path);
+    printf("PUERTO_KM LEIDO: <%s>\n",
+    printf("IP_KM LEIDA: <%s>\n", ip_km != NULL ? ip_km : "NULL");
+       puerto_km != NULL ? puerto_km : "NULL");
+
     // Inicializar colas de estados (READY ahora es array_colas_ready)
     cola_block = list_create();
     cola_exec = list_create();
