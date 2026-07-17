@@ -254,7 +254,14 @@ void *handle_cpu(void *arg)
             list_destroy(paquete_contexto_ignorado);
             list_destroy_and_destroy_elements(paquete_mem_alloc, free); // Liberar memoria del paquete
 
-            cancelar_hilo_quantum_si_existe(pid, "SYSCALL_MEM_ALLOC");
+            pthread_mutex_lock(&mutex_cola_exec);
+            t_proceso_pcb* proceso_en_alloc = buscar_proceso_por_id(pid, cola_exec);
+            if (proceso_en_alloc != NULL) {
+                cancelar_hilo_quantum_si_existe(proceso_en_alloc, "SYSCALL_MEM_ALLOC");
+            } else {
+                log_warning(log_ks, "No se encontró el PID <%d> en EXEC durante SYSCALL_MEM_ALLOC", pid);
+            }
+            pthread_mutex_unlock(&mutex_cola_exec);
 
             pthread_mutex_lock(&mutex_mem_alloc);
 
