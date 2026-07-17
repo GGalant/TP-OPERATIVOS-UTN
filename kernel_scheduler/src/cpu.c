@@ -78,7 +78,7 @@ void *handle_cpu(void *arg)
 
             break;
         case SYSCALL_EXIT:
-            log_info(log_debug_ks, "Finaliza el proceso %d - Motivo: EXIT", cpu->pid_actual);
+            log_info(log_ks, "Finaliza el proceso %d - Motivo: EXIT", cpu->pid_actual);
             // Cpu queda libre, liberar el struct del pcb
             //No solo le vamos a mandar a cpu aviso, si no también a km.
             
@@ -94,6 +94,13 @@ void *handle_cpu(void *arg)
 
             cancelar_hilo_quantum_si_existe(proceso_exit, "SYSCALL_EXIT");
 
+            pid_t pid = cpu->pid_actual;
+            
+            op_code codigo_operacion = FINALIZAR_PROCESO;
+
+            send(conexion_km, &codigo_operacion, sizeof(op_code), 0);
+            send(conexion_km, &pid, sizeof(pid_t), 0);
+
             pthread_mutex_lock(&mutex_lista_cpu_conectadas);
             cpu->estado = CPU_LIBRE;
             cpu->pid_actual = -1;
@@ -104,6 +111,9 @@ void *handle_cpu(void *arg)
             cambiar_estado_proceso(proceso_exit, EXIT);
             list_add(cola_exit, proceso_exit);
             pthread_mutex_unlock(&mutex_cola_exit);
+
+             log_info(log_ks, "## (<%d>) finalizó su ejecución con motivo de EXIT", pid);
+
             break;
         case SYSCALL_SLEEP: {
             t_list *paquete_sleep = recibir_paquete(cpu->socket_cpu);
