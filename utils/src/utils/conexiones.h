@@ -40,6 +40,8 @@ typedef enum {
     PEDIDO_INSTRUCCION,
     RTA_PEDIDO_INSTRUCCION,
     SOLICITAR_TRADUCCION,
+    ENVIAR_TABLA_MEMORY_STICKS,
+    ENVIAR_TABLA_MEMORY_STICKS_OK,
 
     //*FIN: KERNEL MEMORY - CPU
     // ======================================
@@ -125,7 +127,6 @@ typedef enum {
     SOLICITAR_MEM_FREE,
     RESPUESTA_MEM_FREE,
     MEMORIA_CORRUPTA,
-    FINALIZAR_PROCESO,
     // LECTURA_OK,
     // ESCRITURA_OK,
 

@@ -146,6 +146,10 @@ void decode();
 void execute();
 bool check_interrupt();
 
+bool solicitar_tabla_de_sticks_a_k_memory();
+bool integrar_tabla_memory_sticks(paquete_contexto, nodo_inicial);
+bool integrar_tabla_segmentos(paquete_contexto, nodo_inicial);
+
 pid_t recibir_pid_de_ks();
 /* 
 * Espera un tamanio y un string de Kernel Memory y lo carga en el buffer de instruccion.
@@ -164,7 +168,6 @@ int map_config_variables(t_config* config, t_cpu_env* env);
 /*
  * Solicita el contexto del proceso actual a Kernel Memoty y lo integra en la CPU.
  * Retorna 0 (éxito) o -1 (error);
- * setea error_fatal a true para detener la ejecución del módulo
  */
 int pull_contexto(pid_t pid_a_pedir);
 
@@ -199,9 +202,9 @@ void ejecutar_set(char* registro, char* valor_set);
 void ejecutar_sum(char* registro_destino, char* registro_origen);
 void ejecutar_sub(char* registro_destino, char* registro_origen);
 void ejecutar_jnz(char* registro, char* str_nuevo_valor_pc);
-bool ejecutar_mov_in(char* registro);
-bool ejecutar_mov_out(char* registro);
-bool ejecutar_copy_mem(char* registro_tamanio);
+void ejecutar_mov_in(char* registro);
+void ejecutar_mov_out(char* registro);
+void ejecutar_copy_mem(char* registro_tamanio);
 
 //INSTRUCCIONES SYSCALLS:
 

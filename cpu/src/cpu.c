@@ -38,6 +38,7 @@ int main(int argc, char *argv[]){
 
             case EJECUTAR_PROCESO: {
                 error_fatal = false;
+                syscall_exit_ejecutada = false;
 
                 pid_t pid_recibido = recibir_pid_de_ks();
 
@@ -52,13 +53,13 @@ int main(int argc, char *argv[]){
                 do { 
 
                     log_debug(log_cpu, "MAIN: FETCH:");
-                    fetch();
+                fetch();
                     log_debug(log_cpu, "MAIN: DECODE:");
-                    decode();
+                decode();
                     log_debug(log_cpu, "MAIN: EXECUTE:");
-                    execute();
+                execute();
                     log_debug(log_cpu, "MAIN: flushing buffers");
-                    flush_buffers();
+                flush_buffers();
 
                     if(error_fatal){
                         log_error(log_cpu, "Ocurrio un error irrecuperable en el ciclo de instruccion.");
@@ -385,13 +386,47 @@ void execute(){
         cpu.pc++;
     break;
     case MOV_IN:
-        {bool exito = ejecutar_mov_in(instruccion_actual.params[1]);
-        error_fatal = exito ? error_fatal : true;}
+        {
+        bool exito = true;
+        exito = solicitar_tabla_de_sticks_a_k_memory();
+        
+        if(!exito){
+            log_error("cpu.c COPY_MEM: El pedido de todos los sticks a KM falló");
+            error_fatal = true;
+            break;
+        }
+        
+        exito = ejecutar_mov_in(instruccion_actual.params[1]);
+
+        if(!exito){
+            log_error("cpu.c ejecutar_COPY_MEM: falló");
+            error_fatal = true;
+            break;
+        }
+        }
         cpu.pc++;
     break;
     case MOV_OUT:
-        {bool exito = ejecutar_mov_out(instruccion_actual.params[1]);
-        error_fatal = exito ? error_fatal : true;}
+
+        {
+            bool exito = true;
+            exito = solicitar_tabla_de_sticks_a_k_memory();
+            
+            if(!exito){
+                log_error("cpu.c COPY_MEM: El pedido de todos los sticks a KM falló");
+                error_fatal = true;
+                break;
+            }
+        
+            exito = ejecutar_mov_out(instruccion_actual.params[1]);
+
+            if(!exito){
+                log_error("cpu.c ejecutar_COPY_MEM: falló");
+                error_fatal = true;
+                break;
+            }
+        }
+
         cpu.pc++;
     break;
     case SUM:
@@ -406,8 +441,26 @@ void execute(){
         ejecutar_jnz(instruccion_actual.params[1], instruccion_actual.params[2]);
     break;
     case COPY_MEM:
-        {bool exito = ejecutar_copy_mem(instruccion_actual.params[1]);
-        error_fatal = exito ? error_fatal : true;}
+
+        {
+        bool exito = true;
+        exito = solicitar_tabla_de_sticks_a_k_memory();
+        
+        if(!exito){
+            log_error("cpu.c COPY_MEM: El pedido de todos los sticks a KM falló");
+            error_fatal = true;
+            break;
+        }
+        
+        exito = ejecutar_copy_mem(instruccion_actual.params[1]);
+
+        if(!exito){
+            log_error("cpu.c ejecutar_COPY_MEM: falló");
+            error_fatal = true;
+            break;
+        }
+
+        }
         cpu.pc++;
     break;
     case MUTEX_CREATE:
@@ -569,6 +622,7 @@ void integrar_contexto(t_list* paquete_contexto) {
     cpu.edx = *(uint32_t*)list_get(paquete_contexto, 9);
     cpu.si = *(uint32_t*)list_get(paquete_contexto, 10);
     cpu.di = *(uint32_t*)list_get(paquete_contexto, 11);
+    integrar_tabla_segmentos(paquete_contexto, 12);
     //cpu.tabla_segmentos = *(t_list**)list_get(paquete_contexto, 12);
 
 }
@@ -615,9 +669,48 @@ void limpiar_contexto(){
     cpu.edx = 0;
     cpu.si = 0;
     cpu.di = 0;
+    list_destroy_and_destroy_elements(cpu.tabla_segmentos, free);
     cpu.tabla_segmentos = NULL;
+    cpu.tabla_segmentos = list_create();
     //cpu.tabla_segmentos = *(t_list**)list_get(paquete_contexto, 12);
 
+}
+
+bool solicitar_tabla_de_sticks_a_k_memory(){
+
+    op_code operacion = ENVIAR_TABLA_MEMORY_STICKS;
+
+    send(conexion_km, &operacion, sizeof(op_code), 0);
+
+    op_code resp_km = recibir_operacion(conexion_km);
+
+    if (resp_km == -1) {
+        log_error(log_cpu, "pull_Memory_Sticks: Error Kernel Memory se desconectó al pedir tabla de Memory Sticks.");
+        error_fatal = true;
+        return -1;
+    }
+
+    if (resp_km != ENVIAR_TABLA_MEMORY_STICKS_OK) {
+        log_error(log_cpu, "pull_Memory_Sticks: Error KM devolvió operacion %d en vez de ENVIAR_TABLA_MEMORY_STICKS", resp_km);
+        error_fatal = true;
+        return -1;
+    }
+
+    t_list* paquete_contexto = recibir_paquete(conexion_km);
+    
+    if (paquete_contexto == NULL) {
+        log_error(log_cpu, "pull_Memory_Sticks: Error al recibir el buffer de tabla de Memoru Sticks de Kernel Memory");
+        error_fatal = true;
+        return -1;
+    }
+    
+    integrar_tabla_memory_sticks(paquete_contexto, 0);
+    
+    list_destroy_and_destroy_elements(paquete_contexto, free);
+
+    log_debug(log_cpu, "pull_Memory_Sticks: El la tabla fue recibida e integrada correctamente. ");
+
+    return 0;
 }
 
 int pull_contexto(pid_t pid_a_pedir) {
@@ -663,4 +756,42 @@ int pull_contexto(pid_t pid_a_pedir) {
 
     return 0;
 
+}
+
+bool integrar_tabla_memory_sticks(paquete_contexto, nodo_inicial){
+    
+    log_debug(log_cpu, "Integrando memory sticks a la tabla global");
+    
+    cantidad_de_sticks = *(uint32_t*)list_get(paquete_contexto, nodo_inicial);
+
+    for( int i = 0; i < cantidad_de_sticks; i++){
+
+        t_memory_stick* nuevo_memory_stick = (t_memory_stick*)list_remove(paquete_contexto, i + nodo_inicial + 1); // i + 1 pq el primer nodo del paquete es la cantidad
+        
+        list_add(cpu.sticks_conectados, nuevo_memory_stick);
+
+    }
+
+    log_debug(log_cpu, "Integracion de Memory Sticks finalizada");
+
+    return true;
+}
+
+bool integrar_tabla_segmentos(paquete_contexto, nodo_inicial){
+
+    log_debug(log_cpu, "Integrando segmentos a la tabla global");
+    
+    cantidad_de_segmentos = *(uint32_t*)list_get(paquete_contexto, nodo_inicial);
+
+    for( int i = 0; i < cantidad_de_segmentos; i++){
+
+        t_segmento* segmento = (t_segmento*)list_remove(paquete_contexto, i + nodo_inicial + 1); // + 1 pq el primer nodo del paquete es la cantidad
+        
+        list_add(cpu.tabla_segmentos, segmento);
+
+    }
+
+    log_debug(log_cpu, "Integracion de Segmentos finalizada");
+
+    return true;
 }
