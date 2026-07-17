@@ -695,14 +695,40 @@ void *handle_cpu(void *arg)
             break;
         }
 
-        default:
-            log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
+        case ENVIAR_TABLA_MEMORY_STICKS:
+        {
+            t_paquete *paquete_sticks =
+                crear_paquete(ENVIAR_TABLA_MEMORY_STICKS_OK);
+
+            int cantidad_sticks = list_size(sticks_conectados);
+
+            agregar_a_paquete(
+                paquete_sticks,
+                &cantidad_sticks,
+                sizeof(int));
+
+            for (int i = 0; i < cantidad_sticks; i++)
+            {
+                t_memory_stick *stick =
+                    list_get(sticks_conectados, i);
+
+                agregar_a_paquete(
+                    paquete_sticks,
+                    stick,
+                    sizeof(t_memory_stick));
+            }
+
+            enviar_paquete_send_all(
+                paquete_sticks,
+                socket_cpu);
+
+            eliminar_paquete(paquete_sticks);
 
             break;
         }
+        }
     }
 }
-
 ////////////////////////////////////////
 
 void *handle_ms(void *arg)
@@ -713,17 +739,27 @@ void *handle_ms(void *arg)
     int tamanio_ms;
     //recv(socket_ms, &id_ms, sizeof(int), 0);
     recv(socket_ms, &tamanio_ms, sizeof(int), 0);
+    recv(
+        socket_ms,
+        &puerto_ms,
+        sizeof(int),
+        MSG_WAITALL
+    );
+
     contador_sticks += 1;
     id_ms = contador_sticks;
 
 
     // creamos el stick nuevo que se agrega
     // malloc para estructura, no para memoria
-    t_memory_stick *nuevo_memory_stick = malloc(sizeof(t_memory_stick));
+    t_memory_stick *nuevo_memory_stick =
+        malloc(sizeof(t_memory_stick));
+    
     nuevo_memory_stick->id = id_ms;
     nuevo_memory_stick->inicio = posicion_memoria;
     nuevo_memory_stick->tamanio = tamanio_ms;
     nuevo_memory_stick->socket = socket_ms;
+    nuevo_memory_stick->puerto = puerto_ms;
     // la primera vez, pos_mem = 0, luego se actualiza con cada MemStick agregado
     // avanzamos +1 para no pisar el ultimo byte
     agregar_espacio_libre_de_stick(nuevo_memory_stick->inicio,tamanio_ms);

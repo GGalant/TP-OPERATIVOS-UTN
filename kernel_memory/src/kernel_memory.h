@@ -75,8 +75,9 @@ t_list* sticks_conectados;
 typedef struct {
     int id;
     uint32_t tamanio;
-    uint32_t inicio;   // dentro del espacio total
+    uint32_t inicio;
     int socket;
+    int puerto;
 } t_memory_stick;
 
 typedef struct{
