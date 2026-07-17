@@ -244,8 +244,8 @@ void *handle_cpu(void *arg)
             t_list* paquete_mem_alloc = recibir_paquete(cpu->socket_cpu);
             
             pid_t pid = cpu->pid_actual;
-            int id_segmento = *(int*)list_get(paquete_mem_alloc, 0);
-            int tamanio_segmento = *(int*)list_get(paquete_mem_alloc, 1);
+            uint32_t id_segmento = *(uint32_t*)list_get(paquete_mem_alloc, 0);
+            uint32_t tamanio_segmento = *(uint32_t*)list_get(paquete_mem_alloc, 1);
             list_destroy_and_destroy_elements(paquete_mem_alloc, free); // Liberar memoria del paquete
 
             pthread_mutex_lock(&mutex_mem_alloc);
