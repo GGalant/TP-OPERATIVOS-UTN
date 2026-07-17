@@ -40,6 +40,12 @@ int main(int argc, char *argv[]){
 
     //iniciar servidor
     server_ms = iniciar_servidor(log_ms, puerto);
+    if (server_ms == -1) {
+    log_error(log_ms, "No se pudo iniciar el servidor de Memory Stick");
+    config_destroy(config);
+    log_destroy(log_ms);
+    return EXIT_FAILURE;
+}
 
     //malloc del tamaño del ms
     //void* inicio_memoria = malloc(tamanio);

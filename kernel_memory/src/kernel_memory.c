@@ -475,6 +475,62 @@ void *handle_ks(void *arg)
             log_debug(log_km, "Proceso suspendido correctamente. PID <%d>: ",pid);
         }
             break;
+        case FINALIZAR_PROCESO:
+        {
+            pid_t pid;
+            recv(socket_ks, &pid,sizeof(pid), MSG_WAITALL);
+
+            char* pid_str = string_itoa(pid);
+            t_contextoEjec* contexto = dictionary_get(diccionario_contextos_ejecucion, pid_str);
+            if(contexto == NULL){
+                log_error(log_km, "No se encuentra contexto para el PID %d", pid);
+                free(pid_str);
+                break;
+            }
+
+            for(int i = 0, i < list_size(contexto->tabla_segmentos), i++){
+                t_segmento* segmento = list_get(contexto->tabla_segmentos, i);
+                liberar_espacio_en_memoria(segmento);
+            }
+
+            list_destroy_and_destroy_elements(contexto->tabla_segmentos, free);
+
+            dictionary_remove(diccionario_contextos_ejecucion, pid_str);
+            t_list* instrucciones = dictionary_remove(diccionario_instrucciones,pid_str);
+
+            if(instrucciones != NULL){
+                list_destroy_and_destroy_elements(instrucciones, free);
+            }
+
+            free(contexto);
+            free(pid_str);
+            log_debug(log_km, "SE liberaron las estructuras del proceso PID %d", pid);
+        }
+        
+            break;
+        case SOLICITAR_MEM_FREE:
+        {
+            t_list* segmento_a_eliminar = recibir_paquete(socket_ks);
+            pid_t pid = list_get(segmento_a_eliminar,0);
+            uint32_t id_segmento = list_get(segmento_a_eliminar, 1);
+
+            char* pid_str = string_itoa(pid);
+            t_contextoEjec* contexto = dictionary_get(diccionario_contextos_ejecucion, pid_str);
+
+            for(int i=0; i < list_size(contexto->tabla_segmentos); i++){
+                t_segmento* segmento_buscado;
+
+                if(segmento_buscado->id_segmento == id_segmento){
+                    liberar_espacio_en_memoria(id_segmento);
+                    op_code memoria_liberada = RESPUESTA_MEM_FREE;
+                    send(socket_ks, memoria_liberada, sizeof(memoria_liberada), 0);
+                    log_debug(log_km,"SE libera el segmento solicitado, PID: %d, ID_SEGMENTO: %u", pid, id_segmento);
+                    return;
+                }
+            }
+        }
+            break;
+
         default:
             log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
             break;
