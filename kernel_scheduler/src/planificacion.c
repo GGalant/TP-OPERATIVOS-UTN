@@ -185,7 +185,7 @@ void* hilo_planificador_principal(void* arg)
             list_add(cola_exit, proceso);
             pthread_mutex_unlock(&mutex_cola_exit);
 
-            log_info(log_ks, "## (<%d>) finalizó su ejecución con motivo de BSOD", proceso->pid);
+            log_info(log_ks, "## (%d) finalizó su ejecución con motivo de BSOD", proceso->pid);
             
             break;
         }

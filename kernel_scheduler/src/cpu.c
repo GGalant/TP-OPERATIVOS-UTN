@@ -28,7 +28,7 @@ void *handle_cpu(void *arg)
         // aca iria la logica de operaciones con CPU
         op_code codigo_operacion = recibir_operacion(cpu->socket_cpu);
 
-        log_info(log_ks, "## Proceso ID(<%d>) - Solicitó syscall: <%s>", cpu->pid_actual, operacion_to_string(codigo_operacion));
+        log_info(log_ks, "## (%d) - Solicitó syscall: %s", cpu->pid_actual, operacion_to_string(codigo_operacion));
 
         switch (codigo_operacion)
         {
@@ -78,7 +78,7 @@ void *handle_cpu(void *arg)
 
             break;
         case SYSCALL_EXIT:
-            log_info(log_ks, "Finaliza el proceso %d - Motivo: EXIT", cpu->pid_actual);
+            log_debug(log_debug_ks, "Finaliza el proceso %d - Motivo: EXIT", cpu->pid_actual);
             // Cpu queda libre, liberar el struct del pcb
             //No solo le vamos a mandar a cpu aviso, si no también a km.
             
@@ -112,7 +112,7 @@ void *handle_cpu(void *arg)
             list_add(cola_exit, proceso_exit);
             pthread_mutex_unlock(&mutex_cola_exit);
 
-             log_info(log_ks, "## (<%d>) finalizó su ejecución con motivo de EXIT", pid);
+             log_info(log_ks, "## (%d) finalizó su ejecución con motivo de EXIT", pid);
 
             break;
         case SYSCALL_SLEEP: {
@@ -162,8 +162,6 @@ void *handle_cpu(void *arg)
             break;
         }
         case SYSCALL_STDOUT: {
-            log_info(log_ks, "## (%d) - Solicitó syscall: STDOUT", cpu->pid_actual);
-
             t_list *paquete_stdout = recibir_paquete(cpu->socket_cpu);
             pid_t pid;
             uint32_t direccion_fisica = *(uint32_t *)list_get(paquete_stdout, 0);
@@ -268,6 +266,8 @@ void *handle_cpu(void *arg)
                 break; 
             } 
             else if (strcmp(buffer_respuesta_creacion_segmento, "DESALOJAR_CPU") == 0) {
+               
+                log_info(log_ks, "## Inicio de compactación");
                 pthread_mutex_lock(&mutex_lista_cpu_conectadas);
                 
                 t_list* cola_auxiliar_ready = list_create();
@@ -333,6 +333,8 @@ void *handle_cpu(void *arg)
                      pthread_mutex_unlock(&mutex_mem_alloc);
                     break;
                 }
+
+                log_info(log_ks, "## Fin de compactación");
                  
                 // Restaurar el proceso original a ready
                 cpu->estado = CPU_OCUPADA;
@@ -390,7 +392,7 @@ void *handle_cpu(void *arg)
                 mutex->pid_proceso = pid;
                 pthread_mutex_unlock(&mutex_lista_mutex);
 
-                log_info(log_ks, "## (%d) - Adquiere Mutex: '%s'. Continúa ejecución.", pid, nombre_mutex);
+                log_info(log_ks, "## (%d) Toma el Mutex %s", pid, nombre_mutex);
 
                 // Devuelve el proceso a la CPU para que continúe
                 enviar_proceso_a_cpu(cpu->socket_cpu, pid);
@@ -417,7 +419,7 @@ void *handle_cpu(void *arg)
 
                 iniciar_temporizador_timeout(cpu->pid_actual);
 
-                log_info(log_ks, "## (%d) - Intenta tomar Mutex '%s' y se bloquea.", pid, nombre_mutex);
+                log_debug(log_debug_ks, "## (%d) - Intenta tomar Mutex '%s' y se bloquea.", pid, nombre_mutex);
 
                 // Liberar la CPU
                 pthread_mutex_lock(&mutex_lista_cpu_conectadas);
@@ -444,24 +446,27 @@ void *handle_cpu(void *arg)
                 log_error(log_ks, "## (%d) - Intenta liberar Mutex '%s' que no le pertenece. Se ignora.", pid, nombre_mutex);
             } else {
                 // Restaurar prioridad original si fue heredada
+                log_info(log_ks, "## (%d) Libera el Mutex %s", pid, nombre_mutex);
                 pthread_mutex_lock(&mutex_cola_exec);
                 t_proceso_pcb* proceso_liberador = buscar_proceso_por_id(pid, cola_exec);
                 if (proceso_liberador != NULL && proceso_liberador->prioridad != proceso_liberador->prioridad_original) {
-                    log_info(log_ks, "## Herencia de Prioridad: PID <%d> restaura su prioridad original a %d.", 
-                             proceso_liberador->pid, proceso_liberador->prioridad_original);
-                    proceso_liberador->prioridad = proceso_liberador->prioridad_original;
+
+                    int prioridad_anterior = proceso_liberador->prioridad;
+                    proceso_liberador->prioridad= proceso_liberador->prioridad_original;
+                    log_info(log_ks, "## %d Cambio de prioridad: %d - %d", 
+                             proceso_liberador->pid, prioridad_anterior ,proceso_liberador->prioridad);
+                  
                 }
                 pthread_mutex_unlock(&mutex_cola_exec);
 
                 if (!list_is_empty(mutex->cola_procesos)) {
                     t_proceso_pcb* desbloqueado = list_remove(mutex->cola_procesos, 0);
                     mutex->pid_proceso = desbloqueado->pid;
-                    log_info(log_ks, "## (%d) - Libera Mutex '%s'. Se lo cede a PID <%d>.", pid, nombre_mutex, desbloqueado->pid);
+                    log_info(log_ks, "## (%d) Toma el Mutex %s", desbloqueado->pid ,nombre_mutex);
                     agregar_proceso_a_ready(desbloqueado);
                 } else {
                     mutex->estado = 0;
                     mutex->pid_proceso = -1;
-                    log_info(log_ks, "## (%d) - Libera Mutex '%s'. Queda libre.", pid, nombre_mutex);
                 }
                 pthread_mutex_unlock(&mutex_lista_mutex);
             }
@@ -543,7 +548,7 @@ t_cpu *crear_cpu(int socket_cpu, int cpu_id) {
     list_add(lista_cpu_conectadas, cpu);
     pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
 
-    log_info(log_ks, "## CPU ID<%d> Conectada", cpu->cpu_id);
+    log_info(log_ks, "## CPU %d Conectada", cpu->cpu_id);
 
     return cpu;
 }
@@ -574,6 +579,8 @@ const char *operacion_to_string(op_code operacion)
         return "SYSCALL_INIT_PROC";
     case SYSCALL_MEM_FREE:
         return "MEM_FREE";
+    case SYSCALL_MEM_ALLOC:
+        return "MEM_ALLOC";
     default:
         return "DESCONOCIDO";
     }
@@ -700,8 +707,7 @@ void actualizar_prioridad_proceso(pid_t pid_duenio, int prioridad_heredada) {
     // 4. Actualizar prioridad
     int prioridad_anterior = proceso_duenio->prioridad;
     proceso_duenio->prioridad = prioridad_heredada;
-    log_info(log_ks, "## Herencia de Prioridad: PID <%d> hereda prioridad %d (antes %d).", 
-             proceso_duenio->pid, proceso_duenio->prioridad, prioridad_anterior);
+    log_info(log_ks, "## %d Cambio de prioridad: %d - %d", proceso_duenio->pid, prioridad_anterior, proceso_duenio->prioridad);
 
     // 5. Si estaba en READY, moverlo de cola (sin afectar el semáforo del planificador)
     if (encontrado_en_ready) {
