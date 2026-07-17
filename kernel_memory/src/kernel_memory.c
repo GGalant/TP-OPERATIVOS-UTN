@@ -626,7 +626,6 @@ void *handle_cpu(void *arg)
                 free(str_pid_recibido);
                 // return EXIT_FAILURE;
 
-                free(str_pid_recibido);
                 list_destroy_and_destroy_elements(contexto_cpu, free);
                 return NULL;
             }
