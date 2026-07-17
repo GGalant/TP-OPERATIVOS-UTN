@@ -194,7 +194,7 @@ void *handle_ks(void *arg)
             // log_debug(log_km_debug, "Instrucciones del proceso: <%d> guardadas correctamente", pid_recibido);
             log_debug(log_km, "Instrucciones del proceso: <%d> guardadas correctamente", pid_recibido);
 
-            log_info(log_km, "## PID: <%d> - Proceso Creado", pid_recibido);
+            log_info(log_km, "## PID: %d - Proceso Creado", pid_recibido);
 
             t_contextoEjec *contexto_proceso = malloc(sizeof(t_contextoEjec));
             contexto_proceso->pid = pid_recibido;
@@ -341,7 +341,7 @@ void *handle_ks(void *arg)
 
                 if(respuesta_escritura == ESCRITURA_OK){
                 send(socket_ks, &respuesta_escritura, sizeof(respuesta_escritura), 0);
-                log_info(log_km, "## PID: <%d> - <Escritura> - Dir. Física: <%u> - Tamaño: <%d>", pid, direccion_fisica, cantidad_bytes);
+                log_info(log_km, "## PID: %d - Escritura - Dir. Física: %u - Tamaño: %d", pid, direccion_fisica, cantidad_bytes);
 
                 }else{
                 log_error(log_km, "Ocurrio un error: No se pudo escribir el bloque.");
@@ -669,12 +669,12 @@ void *handle_cpu(void *arg)
 
             if (strlen(argumentos) > 0)
             {
-                log_info(log_km, "## PID: <%d> - Obtener instrucción: <%d> - Instrucción: <%s> <%s>", pid_recibido, pc, instruccion, argumentos);
+                log_info(log_km, "## PID: %d - Obtener instrucción: %d - Instrucción: %s %s", pid_recibido, pc, instruccion, argumentos);
             }
             else
             {
                 // maneja caso exit, noop
-                log_info(log_km, "## PID: <%d> - Obtener instrucción: <%d> - Instrucción: <%s>", pid_recibido, pc, instruccion);
+                log_info(log_km, "## PID: %d - Obtener instrucción: %d - Instrucción: %s", pid_recibido, pc, instruccion);
             }
 
             op_code rta_pedido_instruccion = RTA_PEDIDO_INSTRUCCION;

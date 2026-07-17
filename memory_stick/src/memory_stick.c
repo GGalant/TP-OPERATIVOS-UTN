@@ -165,7 +165,7 @@ void* handle_km(void* arg) {
                 op_code escritura_ok = ESCRITURA_OK;
                 send(socket_km, &escritura_ok,sizeof(escritura_ok),0);
 
-                log_info(log_ms, "## Escritura de <%d> bytes",cantidad_bytes);
+                log_info(log_ms, "## Escritura de %d bytes",cantidad_bytes);
             }
                 break;
 
@@ -200,7 +200,7 @@ void* handle_km(void* arg) {
                 send(socket_km, &lectura_ok,sizeof(lectura_ok),0);
                 send(socket_km, buffer_temp, cantidad_bytes,0);
 
-                log_info(log_ms, "## Lectura de <%d> bytes", cantidad_bytes);
+                log_info(log_ms, "## Lectura de %d bytes", cantidad_bytes);
             }
                 break;
             
@@ -218,8 +218,11 @@ void* handle_km(void* arg) {
 
 void* handle_cpu(void* arg) {    
     int socket_cpu = *(int*)arg;
+
+    int id_cpu;
+    recv(socket_cpu, &id_cpu, sizeof(int), 0);
     
-    log_info(log_ms, "CPU <CPU_ID> Conectada");
+    log_info(log_ms, "## CPU %d Conectada", id_cpu);
 
     while(true) {   
         int codigo_operacion = recibir_operacion(socket_cpu);
