@@ -726,10 +726,13 @@ void *handle_ms(void *arg)
     nuevo_memory_stick->socket = socket_ms;
     // la primera vez, pos_mem = 0, luego se actualiza con cada MemStick agregado
     // avanzamos +1 para no pisar el ultimo byte
-    posicion_memoria += tamanio_ms; // TODO: PENSAR
+    agregar_espacio_libre_de_stick(nuevo_memory_stick->inicio,tamanio_ms);
+
     list_add(sticks_conectados, nuevo_memory_stick);
+    posicion_memoria += tamanio_ms; // TODO: PENSAR
 
 
+    //hacemos funcion para agrandar espacio de memoria cada vez que se un stick
     t_hueco_libre* nuevo_hueco = malloc(sizeof(t_hueco_libre));
     nuevo_hueco->base = nuevo_memory_stick->inicio;
     nuevo_hueco->tamanio = nuevo_memory_stick->tamanio;
@@ -1465,4 +1468,26 @@ void liberar_espacio_en_memoria(t_segmento* segmento){
             i--; //para reanalizar cuando borro un elemento de la lista
         }
     }
+}
+
+
+void agregar_espacio_libre_de_stick(uint32_t inicio_nuevo_stick, uint32_t tamanio_nuevo_stick){
+    for (int i = 0; i < list_size(huecos); i++) {
+        t_hueco_libre *hueco = list_get(huecos, i);
+
+        uint32_t fin_hueco = hueco->base + hueco->tamanio;
+
+        if (fin_hueco == inicio_nuevo_stick) {
+            hueco->tamanio += tamanio_nuevo_stick;
+            return;
+        }
+    }
+
+    t_hueco_libre *nuevo_hueco = malloc(sizeof(t_hueco_libre));
+
+    nuevo_hueco->base = inicio_nuevo_stick;
+    nuevo_hueco->tamanio = tamanio_nuevo_stick;
+
+    list_add(huecos, nuevo_hueco);
+    list_sort(huecos, comparar_huecos_por_base);
 }

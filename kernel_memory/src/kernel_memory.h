@@ -134,3 +134,4 @@ uint32_t obtener_bloque_libre_swap();
 
 void iniciar_compactacion(int socket_ks);
 void liberar_espacio_en_memoria(t_segmento* segmento);
+void agregar_espacio_libre_de_stick(uint32_t inicio_nuevo_stick, uint32_t tamanio_nuevo_stick);
