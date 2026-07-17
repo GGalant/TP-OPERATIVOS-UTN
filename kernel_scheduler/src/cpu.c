@@ -137,7 +137,7 @@ void *handle_cpu(void *arg)
             }
 
             cancelar_hilo_quantum_si_existe(proceso, "SYSCALL_SLEEP");
-
+            sem_post(&sem_procesos_ready);
             // Actualizar PCB, cambiar estado y mover a la cola de BLOCK
             // la cola de block es gestionada por el planificador de mediano plazo
             pthread_mutex_lock(&mutex_cola_block);
