@@ -15,7 +15,6 @@ int main(int argc, char *argv[]){
     char* tamanio = argv[2];
     t_config* config = config_create(config_path);
     char* str_log_level;
-    char* puerto_scheduler;
     char* ip_km;
     char* puerto_km;
     
@@ -79,7 +78,7 @@ int main(int argc, char *argv[]){
     uint32_t tamanio_int = atoi(tamanio);
     int puerto_int = atoi(puerto);
     
-    send(conexion_km, &tamanio, sizeof(int),0);
+    send(conexion_km, &tamanio_int, sizeof(uint32_t) ,0);
     send(conexion_km, &puerto_int, sizeof(int),0);
     
     log_info(log_ms, "## Conectado a Kernel Memory");
@@ -120,7 +119,7 @@ void* handle_connections(void *arg){
                     break;
                 }
                 int puerto_int = atoi(puerto);
-                
+
                 send(client_fd, &tamanio_int, sizeof(int),0);
                 send(client_fd, &puerto_int, sizeof(int),0);
 
@@ -235,7 +234,7 @@ void* handle_km(void* arg) {
             
             
             default:
-                log_warning(log_ms, "operacion desconocida: %d", codigo_operacion);
+                log_warning(log_ms, "operacion desconocida: %u", codigo_operacion);
                 break;
         }
     }

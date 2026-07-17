@@ -96,7 +96,7 @@ extern t_log* log_cpu;
 extern t_instruccion instruccion_actual;
 extern int conexion_ks;
 extern int conexion_km;
-extern int ip_memory_stick;
+extern char* ip_memory_stick;
 extern int id_cpu;
 extern uint32_t tam_max_segmentos; 
 
@@ -148,8 +148,8 @@ void execute();
 bool check_interrupt();
 
 bool solicitar_tabla_de_sticks_a_k_memory();
-bool integrar_tabla_memory_sticks(paquete_contexto, nodo_inicial);
-bool integrar_tabla_segmentos(paquete_contexto, nodo_inicial);
+bool integrar_tabla_memory_sticks(t_list* paquete_contexto, int nodo_inicial);
+bool integrar_tabla_segmentos(t_list* paquete_contexto, int nodo_inicial);
 
 pid_t recibir_pid_de_ks();
 /* 

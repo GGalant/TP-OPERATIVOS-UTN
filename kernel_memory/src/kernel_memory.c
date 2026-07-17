@@ -604,7 +604,14 @@ void *handle_cpu(void *arg)
                 agregar_a_paquete(paquete_contexto, &(contexto_a_enviar->si), sizeof(uint32_t));
                 agregar_a_paquete(paquete_contexto, &(contexto_a_enviar->di), sizeof(uint32_t));
 
-                agregar_a_paquete(paquete_contexto, &(contexto_a_enviar->tabla_segmentos), sizeof(&(contexto_a_enviar->tabla_segmentos)));
+                int cantidad_de_segmentos = list_size(contexto_a_enviar->tabla_segmentos);
+                agregar_a_paquete(paquete_contexto, &cantidad_de_segmentos, sizeof(int));
+                
+                for(int i = 0; i< cantidad_de_segmentos; i++){
+                    t_segmento* segmento_enviar = list_get(contexto_a_enviar->tabla_segmentos, i);
+                    agregar_a_paquete(paquete_contexto, segmento_enviar, sizeof(t_segmento));
+                }
+                
                 enviar_paquete_send_all(paquete_contexto, socket_cpu);
                 eliminar_paquete(paquete_contexto);
             }
@@ -726,6 +733,10 @@ void *handle_cpu(void *arg)
 
             break;
         }
+
+        default:
+        log_warning(log_km, "Operacion desconocida: %d", codigo_operacion);
+        break;
         }
     }
 }
@@ -737,6 +748,7 @@ void *handle_ms(void *arg)
     int socket_ms = *(int *)arg;
     int id_ms;
     int tamanio_ms;
+    int puerto_ms;
     //recv(socket_ms, &id_ms, sizeof(int), 0);
     recv(socket_ms, &tamanio_ms, sizeof(int), 0);
     recv(

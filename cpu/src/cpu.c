@@ -2,7 +2,7 @@
 
 static char instruccion_buffer[128];
 //Variables extern definidas en el header:
-int ip_memory_stick = -1;
+char* ip_memory_stick = NULL;
 int conexion_ks = -1;
 int conexion_km = -1;
 int id_cpu = -1;
@@ -184,7 +184,7 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
     map_config_variables(config, &env);
 
     tam_max_segmentos = (uint32_t)atoi(env.tamanio_max_segmento);
-    ip_memory_stick = env.ip_ms;
+    ip_memory_stick = string_duplicate(env.ip_ms);
 
     //TODO2 ver si int puede ser enum de commons
     t_log_level log_level = log_level_from_string(env.str_log_level);
@@ -230,10 +230,10 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
         return -1;
     }
 
-    t_memory_stick* primer_memory_stick;
-    primer_memory_stick->id;
-    primer_memory_stick->inicio;
-    primer_memory_stick->socket;
+    t_memory_stick* primer_memory_stick = malloc(sizeof(t_memory_stick));
+    primer_memory_stick->id = 0;
+    primer_memory_stick->inicio = 0;
+    primer_memory_stick->socket = conexion_ms;
     primer_memory_stick->tamanio = (uint32_t) tamanio_ms;
     primer_memory_stick->puerto = puerto_ms;
     list_add(cpu.sticks_conectados, primer_memory_stick);
@@ -790,11 +790,13 @@ bool integrar_tabla_memory_sticks(t_list* paquete_contexto, int nodo_inicial){
         
         op_code handshake_cpu = HANDSHAKE_CPU;
 
-        int conexion_ms_nuevo = conectar_modulo(ip_memory_stick, puerto_str_ms, "Memory Stick");
+        int conexion_ms_nuevo = conectar_modulo(ip_memory_stick, ip_memory_stick, "Memory Stick");
         free(puerto_str_ms);
 
         status = send(conexion_ms_nuevo, &handshake_cpu, sizeof(op_code), 0) != -1 ? status : -1;
         status = send(conexion_ms_nuevo, &id_cpu, sizeof(int), 0) != -1 ? status : -1;
+
+        nuevo_memory_stick->socket = conexion_ms_nuevo;
         
         if(status == -1){
             log_error(log_cpu, "Memory_stick: Alguna de las conexiones no pudo ser establecida...");
@@ -818,7 +820,7 @@ bool integrar_tabla_segmentos(t_list* paquete_contexto, int nodo_inicial){
     uint32_t cantidad_de_segmentos = *(uint32_t*)list_get(paquete_contexto, nodo_inicial);
 
     if(cantidad_de_segmentos != list_size(paquete_contexto) - 1 ){
-        log_error(log_cpu, "Los segmentos informados (%d), no se coinciden con el tamanio del paquete -1 (%d)", cantidad_de_segmentos, list_size(paquete_contexto) -1);
+        log_error(log_cpu, "Los segmentos informados (%u), no se coinciden con el tamanio del paquete -1 (%d)", cantidad_de_segmentos, list_size(paquete_contexto) -1);
         return false;
     }
 

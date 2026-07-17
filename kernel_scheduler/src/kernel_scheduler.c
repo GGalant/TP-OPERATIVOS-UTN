@@ -275,11 +275,11 @@ void* handle_km(void* arg) {
                 sem_post(&sem_desuspension_proceso);
                 break;
             }
-            // case MEMORIA_DISPONIBLE: {
-            //     log_info(log_ks, "KM informó que se conectó un nuevo Memory Stick. Intentando desuspender procesos.");
-            //     desuspender_procesos();
-            //     break;
-            // }
+            case MEMORIA_DISPONIBLE: {
+                log_info(log_ks, "KM informó que se conectó un nuevo Memory Stick. Intentando desuspender procesos.");
+                desuspender_procesos();
+                break;
+            }
             default:
                 log_warning(log_ks, "Operacion desconocida: %d", codigo_operacion);
                 break;
