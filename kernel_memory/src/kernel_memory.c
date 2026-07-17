@@ -680,13 +680,15 @@ void *handle_cpu(void *arg)
 
             if (strlen(argumentos) > 0)
             {
-                log_info(log_km, "## PID: %d - Obtener instrucción: %d - Instrucción: %s %s", pid_recibido, pc, instruccion, argumentos);
+                log_info(log_km, "## PID: %d - Obtener instrucción: %d - Instrucción: %s %s", pid_recibido, pc, instruccion_separada[0], argumentos);
             }
             else
             {
                 // maneja caso exit, noop
                 log_info(log_km, "## PID: %d - Obtener instrucción: %d - Instrucción: %s", pid_recibido, pc, instruccion);
             }
+
+            free(argumentos);
 
             op_code rta_pedido_instruccion = RTA_PEDIDO_INSTRUCCION;
             send(socket_cpu, &rta_pedido_instruccion, sizeof(op_code), 0);
@@ -895,7 +897,6 @@ char *armar_argumentos(char **tokens)
 
     return argumentos;
 
-    free(argumentos);
 }
 
 // no abrir el archivo cada vez que cpu quiere una instruccion,
