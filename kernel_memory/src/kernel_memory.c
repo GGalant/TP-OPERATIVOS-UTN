@@ -421,9 +421,12 @@ void *handle_ks(void *arg)
 
         case SUSPENDER_PROCESO:
         {
+            log_debug(log_km, "ESTO ES UN DEBUG");
 
             pid_t pid;
             recv(socket_ks, &pid, sizeof(pid_t), MSG_WAITALL);
+
+            log_debug(log_km, "Suspender Proceso solicitado con pid: %d", pid);
 
             //1. BUscar en diccionario el pid
             char* pid_str = string_itoa(pid);
@@ -573,8 +576,10 @@ void *handle_cpu(void *arg)
             pid_t pid_recibido;
 
             recv(socket_cpu, &pid_recibido, sizeof(pid_recibido), MSG_WAITALL);
+            printf("PID INT: %d", pid_recibido);
 
             char *str_pid_enviado = string_itoa(pid_recibido);
+            printf("PID STR %s", str_pid_enviado);
             t_contextoEjec *contexto_a_enviar = dictionary_get(diccionario_contextos_ejecucion, str_pid_enviado);
             if (contexto_a_enviar == NULL)
             {

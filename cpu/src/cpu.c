@@ -11,6 +11,7 @@ t_cpu cpu = {0};
 t_log* log_cpu = NULL;
 t_instruccion instruccion_actual = {0};
 bool error_fatal = false;
+bool syscall_exit_ejecutada = false;
 uint32_t tam_max_segmentos = 0; 
 
 int main(int argc, char *argv[]){
@@ -36,10 +37,17 @@ int main(int argc, char *argv[]){
         switch(codigo_operacion) {  
 
             case EJECUTAR_PROCESO: {
+                error_fatal = false;
+
                 pid_t pid_recibido = recibir_pid_de_ks();
 
-                log_debug(log_cpu, "MAIN: pushing context");
-                pull_contexto(pid_recibido);
+                log_debug(log_cpu, "MAIN: pulling context of PID <%d>:", pid_recibido);
+                int status = pull_contexto(pid_recibido);
+
+                if(status == -1){
+                    log_error(log_cpu, "Ocurrio un error al pullear el contexto... finalizando ciclo");
+                    break;
+                }
 
                 do { 
 
@@ -60,7 +68,11 @@ int main(int argc, char *argv[]){
                 } while (!check_interrupt());
 
                 log_debug(log_cpu, "MAIN: pushing context");
+
+                if(!syscall_exit_ejecutada){
                 push_contexto();
+                }
+                syscall_exit_ejecutada = false;
                 
                 log_debug(log_cpu, "MAIN: flushing local context");
                 limpiar_contexto();
@@ -127,7 +139,7 @@ pid_t recibir_pid_de_ks(){
         return pid_recibido;
     } 
     
-    log_debug(log_cpu, "Se recibio el PID: %u", pid_recibido);
+    log_debug(log_cpu, "Se recibio el PID: %d", pid_recibido);
 
     return pid_recibido;
 
@@ -236,7 +248,7 @@ void enviar_pid_actual_a_KS(){ //TODO mejorar manejo
 
 void* fetch(){
 
-    log_info(log_cpu, "## PID: %u - FETCH - Program Counter: %u", cpu.pid, cpu.pc);
+    log_info(log_cpu, "## PID: %d - FETCH - Program Counter: %u", cpu.pid, cpu.pc);
 
     t_paquete* paquete = crear_paquete(PEDIDO_INSTRUCCION);
     agregar_a_paquete(paquete, &cpu.pid, sizeof(pid_t));
@@ -356,7 +368,7 @@ void decode(){
 
 void execute(){
 
-    log_info(log_cpu, "## PID: %u - Ejecutando: %s - %s %s",
+    log_info(log_cpu, "## PID: %d - Ejecutando: %s - %s %s",
         cpu.pid,
         instruccion_actual.params[0],
         instruccion_actual.cant_params > 1 ? instruccion_actual.params[1] : "",
@@ -437,6 +449,7 @@ void execute(){
     case EXIT:
     //TODO HAY QUE HACER PC++ ACA??
         ejecutar_exit();
+        syscall_exit_ejecutada = true;
     break;
     case INSTRUCTION_ERROR:
         error_fatal = true;
@@ -590,7 +603,7 @@ void push_contexto() { //TODO validar si cpu deberia encargarse de que esto no f
 
 void limpiar_contexto(){
 
-    cpu.pid = 0;
+    cpu.pid = -1;
     cpu.pc = 0;
     cpu.ax = 0;
     cpu.bx = 0;
@@ -641,7 +654,7 @@ int pull_contexto(pid_t pid_a_pedir) {
     list_destroy_and_destroy_elements(paquete_contexto, free);
 
     if(pid_a_pedir != cpu.pid){
-        log_error(log_cpu, "El contexto recibido e integrado no corresponde al pid solicitado !");
+        log_error(log_cpu, "El contexto recibido e integrado no corresponde al pid solicitado ! (%d ; %d)", cpu.pid, pid_a_pedir);
         error_fatal = true;
         return -1;
     }

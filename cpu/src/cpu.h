@@ -164,6 +164,7 @@ int map_config_variables(t_config* config, t_cpu_env* env);
 /*
  * Solicita el contexto del proceso actual a Kernel Memoty y lo integra en la CPU.
  * Retorna 0 (éxito) o -1 (error);
+ * setea error_fatal a true para detener la ejecución del módulo
  */
 int pull_contexto(pid_t pid_a_pedir);
 

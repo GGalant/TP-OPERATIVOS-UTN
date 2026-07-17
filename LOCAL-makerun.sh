@@ -137,8 +137,8 @@ run_make "kernel_memory"    "./kernel_memory"
 run_make "kernel_scheduler" "./kernel_scheduler"
 run_make "memory_stick"     "./memory_stick"
 run_make "cpu"              "./cpu"
-# run_make "io"   "./io"
-# run_make "swap" "./swap"
+run_make "io"   "./io"
+run_make "swap" "./swap"
 
 
 #──── CORREMOS LAS TERMINALES──────────────────────────────────────────────────────────
@@ -157,8 +157,8 @@ open_xterm "MEMORY STICK" \
 open_xterm "CPU 100" \
     "sleep 1; ./cpu/bin/cpu ./cpu/src/cpu-LOCAL.config 100"
 
-# open_xterm "IO" \
-#     "sleep 1; ./io/bin/io"
+open_xterm "IO" \
+    "sleep 1; ./io/bin/io ./io/src/io-LOCAL.config SLEEP"
 
-# open_xterm "SWAP" \
-#     "sleep 1; ./swap/bin/swap"
+open_xterm "SWAP " \
+    "sleep 1; ./swap/bin/swap ./swap/src/swap-LOCAL.config"
