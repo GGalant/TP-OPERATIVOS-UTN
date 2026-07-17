@@ -213,23 +213,11 @@ int inicializacion_y_pasos_iniciales(int argc, char* argv[]){
     status = send(conexion_km, &handshake_cpu, sizeof(op_code), 0) != -1 ? status : -1;
     status = send(conexion_km, &id_cpu, sizeof(int), 0) != -1 ? status : -1;
     
-    status = send(conexion_ms, &handshake_cpu, sizeof(op_code), 0) != -1 ? status : -1;
-    status = send(conexion_ms, &id_cpu, sizeof(int), 0) != -1 ? status : -1;
-    
     if(status == -1){
         log_error(log_cpu, "Alguna de las conexiones no pudo ser establecida...");
         return -1;
     }
 
-    //hardcodeo MS
-    //Estos datos nos los deberia enviar Kernel Memory tal vez.
-    t_memory_stick* stick_hardcodeado = malloc(sizeof(t_memory_stick));
-    stick_hardcodeado->id = 0;
-    stick_hardcodeado->inicio = 0;
-    stick_hardcodeado->tamanio = 1024;
-    stick_hardcodeado->socket = conexion_ms;
-    list_add(cpu.sticks_conectados, stick_hardcodeado);
-    //TODO BORRAR AQUI ARRIBA LUEGO NO OLVIDARSE
     log_debug(log_cpu, "INICIALIZACIÓN FINALIZADA EXITOSAMENTE");
     return 0;
 }
@@ -764,9 +752,25 @@ bool integrar_tabla_memory_sticks(paquete_contexto, nodo_inicial){
     
     cantidad_de_sticks = *(uint32_t*)list_get(paquete_contexto, nodo_inicial);
 
-    for( int i = 0; i < cantidad_de_sticks; i++){
+    int diff = cantidad_de_sticks - list_size(cpu.sticks_conectados);
 
-        t_memory_stick* nuevo_memory_stick = (t_memory_stick*)list_remove(paquete_contexto, i + nodo_inicial + 1); // i + 1 pq el primer nodo del paquete es la cantidad
+    log_debug(log_cpu, "Hay %d nuevos Memory Stick, iterando sobre ellos para conectar", diff);
+
+    for( int i = list_size(cpu.sticks_conectados); i < cantidad_de_sticks; i++){
+
+        t_memory_stick* nuevo_memory_stick = (t_memory_stick*)list_remove(paquete_contexto, i + nodo_inicial); 
+            
+        log_debug(log_cpu, "Conectando al nuevo memory Stick:")
+
+        status = send(conexion_ms, &handshake_cpu, sizeof(op_code), 0) != -1 ? status : -1;
+        status = send(conexion_ms, &id_cpu, sizeof(int), 0) != -1 ? status : -1;
+        
+        if(status == -1){
+            log_error(log_cpu, "Memory_stick: Alguna de las conexiones no pudo ser establecida...");
+            return -1;
+        }
+
+        log_debug(log_cpu, "Conexion con el Memory Stick establecida")
         
         list_add(cpu.sticks_conectados, nuevo_memory_stick);
 
