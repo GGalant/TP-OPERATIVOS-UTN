@@ -237,10 +237,9 @@ void chequear_desalojo(t_proceso_pcb* proceso_nuevo) {
             proceso_en_ejecucion = buscar_proceso_por_id(pid_en_ejecucion, cola_exec);
 
             if (proceso_en_ejecucion != NULL && proceso_nuevo->prioridad < proceso_en_ejecucion->prioridad) {
-                log_info(log_ks, "## Desalojo por prioridad: PID<%d> (prio %d) desaloja a PID<%d> (prio %d) en CPU<%d>",
-                         proceso_nuevo->pid, proceso_nuevo->prioridad,
+                log_info(log_ks, "## (%d) Prioridad: %d - Desalojado por cola más prioritaria por el proceso %d con prioridad %d",
                          proceso_en_ejecucion->pid, proceso_en_ejecucion->prioridad,
-                         cpu->cpu_id);
+                         proceso_nuevo->pid, proceso_nuevo->prioridad);
 
                 // 1. Enviar interrupción a la CPU
                 op_code codigo = INTERRUPCION_DESALOJO;
