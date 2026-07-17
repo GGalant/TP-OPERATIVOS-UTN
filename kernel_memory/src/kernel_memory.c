@@ -972,16 +972,16 @@ bool verificar_tamanio_valido(int tamanio_segmento)
 uint32_t calcular_memoria_libre()
 {
     uint32_t memoria_libre_total = 0;
-    log_debug(log_km, "ESta es la memoria libre total antes del for %u", memoria_libre_total);
+    printf("ESta es la memoria libre total antes del for %u", memoria_libre_total);
 
     for (int i = 0; i < list_size(huecos); i++)
     {
         t_hueco_libre *hueco = list_get(huecos, i);
         memoria_libre_total += hueco->tamanio;
-        log_debug(log_km, "ESta es la memoria libre total DENTRO del for %u", memoria_libre_total);
+        printf("ESta es la memoria libre total DENTRO del for %u", memoria_libre_total);
 
     }
-    log_debug(log_km, "ESta es la memoria libre total despues del for %u, la que se retorna", memoria_libre_total);
+    printf("ESta es la memoria libre total despues del for %u, la que se retorna", memoria_libre_total);
 
     return memoria_libre_total;
 }
