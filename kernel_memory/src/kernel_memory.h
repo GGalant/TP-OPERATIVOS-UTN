@@ -16,6 +16,7 @@ int server_km;
 int socket_memory_stick;
 int socket_swap;
 int socket_cpu;
+int socket_ks;
 t_bitarray* bitmap_bloques;
 
 ///////////////////////

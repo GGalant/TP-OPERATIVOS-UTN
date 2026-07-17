@@ -7,6 +7,7 @@
 //void * buffer[128];
 
 int dma_copiar_memoria(uint32_t dir_fisica_origen, uint32_t dir_fisica_destino, uint32_t bytes_a_copiar){
+    log_debug(log_cpu, "DMA_copiar_memoria solicitado");
 
     if(bytes_a_copiar == 0){
         return 0;
@@ -41,6 +42,7 @@ int dma_copiar_memoria(uint32_t dir_fisica_origen, uint32_t dir_fisica_destino, 
 }
 
 int dma_leer_memoria(uint32_t dir_fisica, uint32_t bytes_a_leer, uint8_t* buffer_de_tamanio_exacto){ //TODO tipo de buffer
+    log_debug(log_cpu, "DMA_leer_memoria solicitado");
 
     uint32_t bytes_restantes = bytes_a_leer;
     uint32_t offset_bytes_leidos = 0;
@@ -76,6 +78,7 @@ int dma_leer_memoria(uint32_t dir_fisica, uint32_t bytes_a_leer, uint8_t* buffer
 }
 
 int dma_escribir_memoria(uint32_t dir_fisica, uint32_t bytes_a_escribir, uint8_t* buffer){
+    log_debug(log_cpu, "DMA_escribir_memoria solicitado");
 
     uint32_t bytes_restantes = bytes_a_escribir;
     uint32_t offset_bytes_escritos = 0;
@@ -132,14 +135,12 @@ bool solicitar_escritura_a_stick(t_memory_stick *stick, uint32_t base_en_stick, 
     t_paquete* pedido = crear_paquete(SOLICITUD_ESCRITURA);
 
     agregar_a_paquete(pedido, &base_en_stick, sizeof(uint32_t));
-    agregar_a_paquete(pedido, &tamanio,sizeof(uint32_t));
+    agregar_a_paquete(pedido, &tamanio, sizeof(uint32_t));
     agregar_a_paquete(pedido, buffer_origen, tamanio);
     
     enviar_paquete_send_all(pedido, stick->socket);
 
     eliminar_paquete(pedido);
-
-    //TODO tengo que recibir confirmacion supongo, pero no se como
 
     op_code respuesta;
     int recibidos = recv(stick->socket, &respuesta, sizeof(respuesta), MSG_WAITALL);

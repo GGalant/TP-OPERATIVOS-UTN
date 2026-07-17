@@ -154,7 +154,7 @@ void *handle_connections(void *arg)
 
 void *handle_ks(void *arg)
 {
-    int socket_ks = *(int *)arg;
+    socket_ks = *(int *)arg;
 
     log_info(log_km, "## Kernel Scheduler Conectado - FD del socket: %d", socket_ks);
 
@@ -737,12 +737,14 @@ void *handle_ms(void *arg)
             break;
         }
 
-        case DESCONECTAR_MS:
+        case ERROR:
         {
             log_debug(log_km, "## BSOD: BLUE SCREEN OF DEATH");
+            op_code bsod = MEMORIA_CORRUPTA;
+            send(socket_ks,&bsod, sizeof(op_code),0);
+            close(socket_ms);
+            return NULL;
             // avisar a KS
-
-            break;
         }
         default:
             log_warning(log_km, "operacion desconocida: %d", codigo_operacion);
