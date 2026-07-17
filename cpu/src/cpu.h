@@ -202,9 +202,9 @@ void ejecutar_set(char* registro, char* valor_set);
 void ejecutar_sum(char* registro_destino, char* registro_origen);
 void ejecutar_sub(char* registro_destino, char* registro_origen);
 void ejecutar_jnz(char* registro, char* str_nuevo_valor_pc);
-void ejecutar_mov_in(char* registro);
-void ejecutar_mov_out(char* registro);
-void ejecutar_copy_mem(char* registro_tamanio);
+bool ejecutar_mov_in(char* registro);
+bool ejecutar_mov_out(char* registro);
+bool ejecutar_copy_mem(char* registro_tamanio);
 
 //INSTRUCCIONES SYSCALLS:
 
