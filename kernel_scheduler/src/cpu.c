@@ -257,7 +257,6 @@ void *handle_cpu(void *arg)
             t_proceso_pcb* proceso_en_alloc = buscar_proceso_por_id(pid, cola_exec);
             if (proceso_en_alloc != NULL) {
                 cancelar_hilo_quantum_si_existe(proceso_en_alloc, "SYSCALL_MEM_ALLOC");
-                sem_post(&sem_procesos_ready);
             } else {
                 log_warning(log_ks, "No se encontró el PID <%d> en EXEC durante SYSCALL_MEM_ALLOC", pid);
             }
