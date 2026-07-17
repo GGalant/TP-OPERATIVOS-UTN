@@ -16,4 +16,4 @@ void* espacio_swap_mmap;
 void escribir_en_archivo_swap(uint32_t numero_bloque, char* contenido, int block_size);
 
 void leer_archivo_swap(uint32_t numero_bloque, char* contenido_leido, int block_size);
-inicializar_swap(char* file_path, int file_size);
+void inicializar_swap(char* file_path, int file_size);

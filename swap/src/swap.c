@@ -129,7 +129,7 @@ void leer_archivo_swap(uint32_t numero_bloque, char* contenido_leido, int block_
     memcpy(contenido_leido, espacio_swap_mmap + desplazamiento, block_size);
 }
 
-inicializar_swap(char* file_path, int file_size){
+void inicializar_swap(char* file_path, int file_size){
     FILE *archivo = fopen(file_path, "a+");
     int fildes = fileno(archivo);
     ftruncate(fildes,file_size);

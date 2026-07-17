@@ -324,7 +324,7 @@ void* handle_cpu(void* arg) {
                 return NULL;
             
             default:
-                log_warning(log_ms, "handle_cpu CPU FD %d: operacion desconocida: %d", codigo_operacion);
+                log_warning(log_ms, "handle_cpu CPU FD %d: operacion desconocida: %d", socket_cpu, codigo_operacion);
                 break;
         }
     }
