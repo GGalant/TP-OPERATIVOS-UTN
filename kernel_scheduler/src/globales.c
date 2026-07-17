@@ -20,7 +20,7 @@ t_list *cola_susp_block;
 t_list *cola_susp_ready;
 t_list *lista_mutex;
 t_log *log_ks;
-t_log *log_debug_ks;
+t_log *log_ks;
 t_config *config;
 char *config_path;
 char *path_proceso_inicial;
@@ -155,7 +155,7 @@ void agregar_proceso_a_ready(t_proceso_pcb* proceso)
     cambiar_estado_proceso(proceso, READY);
     pthread_mutex_unlock(&array_colas_ready[indice_cola].mutex);
 
-    log_debug(log_debug_ks, "Proceso PID<%d> agregado a READY en cola nivel %d", 
+    log_debug(log_ks, "Proceso PID<%d> agregado a READY en cola nivel %d", 
               proceso->pid, indice_cola);
 
     // Si CMN y queue_preemption está habilitado, chequear desalojo
@@ -199,7 +199,7 @@ void agregar_proceso_a_ready_al_inicio(t_proceso_pcb* proceso)
     cambiar_estado_proceso(proceso, READY);
     pthread_mutex_unlock(&array_colas_ready[indice_cola].mutex);
 
-    log_debug(log_debug_ks, "Proceso PID<%d> agregado al INICIO de READY en cola nivel %d", proceso->pid, indice_cola);
+    log_debug(log_ks, "Proceso PID<%d> agregado al INICIO de READY en cola nivel %d", proceso->pid, indice_cola);
 
     // Signal al semáforo contador
     sem_post(&sem_procesos_ready);
@@ -219,7 +219,7 @@ t_proceso_pcb *buscar_proceso_por_id(pid_t pid, t_list *cola)
  * chequear_desalojo: Placeholder para lógica de preemption en CMN.
  */
 void chequear_desalojo(t_proceso_pcb* proceso_nuevo) {
-    log_debug(log_debug_ks, "Chequeando desalojo para nuevo proceso PID<%d> con prioridad %d",
+    log_debug(log_ks, "Chequeando desalojo para nuevo proceso PID<%d> con prioridad %d",
               proceso_nuevo->pid, proceso_nuevo->prioridad);
 
     pthread_mutex_lock(&mutex_lista_cpu_conectadas);
@@ -270,7 +270,7 @@ void chequear_desalojo(t_proceso_pcb* proceso_nuevo) {
         }
     }
     pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-    log_debug(log_debug_ks, "No se encontraron procesos para desalojar para PID<%d>", proceso_nuevo->pid);
+    log_debug(log_ks, "No se encontraron procesos para desalojar para PID<%d>", proceso_nuevo->pid);
 }
 
 bool comparar_procesos_para_desuspender(void* a, void* b) {

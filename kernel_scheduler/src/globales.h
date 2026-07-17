@@ -89,7 +89,7 @@ extern t_list *cola_espera_stdout;
 extern t_list *cola_espera_stdin;
 extern t_list *lista_mutex;
 extern t_log *log_ks;
-extern t_log *log_debug_ks;
+extern t_log *log_ks;
 extern t_config *config;
 extern char *config_path;
 extern char *path_proceso_inicial;

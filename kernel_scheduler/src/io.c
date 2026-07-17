@@ -41,13 +41,13 @@ void* handle_io(void* arg) {
 
 void handle_io_sleep(t_io *io) {    
     while(true) {   
-        log_debug(log_debug_ks, "Esperando peticion de sleep");
+        log_debug(log_ks, "Esperando peticion de sleep");
         pthread_mutex_lock(&mutex_sleep);
         while (list_is_empty(cola_espera_sleep)) {
             pthread_cond_wait(&cond_sleep, &mutex_sleep);
         }
         
-        log_debug(log_debug_ks, "LLega una peticion de sleep");
+        log_debug(log_ks, "LLega una peticion de sleep");
         t_peticion_sleep* peticion = list_remove(cola_espera_sleep, 0); 
         
         pthread_mutex_unlock(&mutex_sleep);
@@ -62,7 +62,7 @@ void handle_io_sleep(t_io *io) {
         agregar_a_paquete(paquete_sleep, &peticion->tiempo_sleep, sizeof(int));
         enviar_paquete_send_all(paquete_sleep, io->socket_io);
         eliminar_paquete(paquete_sleep);
-        log_debug(log_debug_ks, "Se envia una peticion de sleep");
+        log_debug(log_ks, "Se envia una peticion de sleep");
         
         pid_t pid_actual = peticion->pid; // Guardamos el PID para la validación
         free(peticion); 
@@ -75,7 +75,7 @@ void handle_io_sleep(t_io *io) {
 
 void handle_io_stdout(t_io *io) {   
     while(true) {   
-        log_debug(log_debug_ks, "Esperando peticion de stdout");
+        log_debug(log_ks, "Esperando peticion de stdout");
         pthread_mutex_lock(&mutex_stdout);
         while (list_is_empty(cola_espera_stdout)) {
             pthread_cond_wait(&cond_stdout, &mutex_stdout);
@@ -107,7 +107,7 @@ void handle_io_stdout(t_io *io) {
 
 void handle_io_stdin(t_io *io) {
     while (true) {
-        log_debug(log_debug_ks, "Esperando peticion de stdin");
+        log_debug(log_ks, "Esperando peticion de stdin");
         pthread_mutex_lock(&mutex_stdin);
         while (list_is_empty(cola_espera_stdin)) {
             pthread_cond_wait(&cond_stdin, &mutex_stdin);
@@ -228,7 +228,7 @@ bool esperar_y_procesar_respuesta_io(t_io* io, pid_t pid_esperado) {
             if (pid_recibido == pid_esperado) {
                 finalizar_io(pid_recibido);
             } else {
-                log_error(log_debug_ks, "IO <%d> devolvió FIN_IO para PID %d, pero se esperaba %d", io->io_id, pid_recibido, pid_esperado);
+                log_error(log_ks, "IO <%d> devolvió FIN_IO para PID %d, pero se esperaba %d", io->io_id, pid_recibido, pid_esperado);
             }
             break; 
         }
@@ -248,7 +248,7 @@ bool esperar_y_procesar_respuesta_io(t_io* io, pid_t pid_esperado) {
                 solicitar_escritura_a_km(conexion_km, pid_recibido, direccion_fisica, contenido);
                 finalizar_io(pid_recibido);
             } else {
-                log_error(log_debug_ks, "IO <%d> devolvió FIN_IO_STDIN para PID %d, pero se esperaba %d", io->io_id, pid_recibido, pid_esperado);
+                log_error(log_ks, "IO <%d> devolvió FIN_IO_STDIN para PID %d, pero se esperaba %d", io->io_id, pid_recibido, pid_esperado);
             }
 
             break;

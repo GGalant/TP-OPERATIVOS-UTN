@@ -8,7 +8,7 @@
 # > Para poder ejecutar este script deben de dársele permisos de ejecución, mediante el comando en la terminal:
 # > chmod +x makerun.sh
 
-path_proceso_inicial="PLANI_PRE_0.prc"
+path_proceso_inicial="MEMORIA_PRE_0.prc"
 
 
 # Este script crea terminales Xterm

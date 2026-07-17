@@ -78,7 +78,7 @@ void *handle_cpu(void *arg)
 
             break;
         case SYSCALL_EXIT:
-            log_debug(log_debug_ks, "Finaliza el proceso %d - Motivo: EXIT", cpu->pid_actual);
+            log_debug(log_ks, "Finaliza el proceso %d - Motivo: EXIT", cpu->pid_actual);
             // Cpu queda libre, liberar el struct del pcb
             //No solo le vamos a mandar a cpu aviso, si no también a km.
             
@@ -120,7 +120,7 @@ void *handle_cpu(void *arg)
             int tiempo_sleep = *(int *)list_get(paquete_sleep, 0);
             list_destroy_and_destroy_elements(paquete_sleep, free);
 
-            log_debug(log_debug_ks,"REcibo paquete luego de SYSCALL_SLEEP");
+            log_debug(log_ks,"REcibo paquete luego de SYSCALL_SLEEP");
             
             // Guardamos el PID antes de modificar la CPU
             pid_t pid = cpu->pid_actual;
@@ -152,11 +152,11 @@ void *handle_cpu(void *arg)
             cpu->pid_actual = -1;
             pthread_cond_signal(&cond_lista_cpu_conectadas);
             pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-            log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
+            log_debug(log_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
 
             enviar_proceso_a_io_sleep(pid, tiempo_sleep);
 
-            log_info(log_debug_ks, "PID: %d - Bloqueado por: SLEEP", pid);
+            log_info(log_ks, "PID: %d - Bloqueado por: SLEEP", pid);
 
             break;
         }
@@ -193,7 +193,7 @@ void *handle_cpu(void *arg)
             cpu->pid_actual = -1;
             pthread_cond_signal(&cond_lista_cpu_conectadas);
             pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-            log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
+            log_debug(log_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
 
             char *contenido = solicitar_contenido_a_km(conexion_km, proceso->pid, direccion_fisica, tamanio);
 
@@ -232,7 +232,7 @@ void *handle_cpu(void *arg)
             cpu->pid_actual = -1;
             pthread_cond_signal(&cond_lista_cpu_conectadas);
             pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-            log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
+            log_debug(log_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
 
             enviar_proceso_a_io_stdin(pid, tamanio, direccion_fisica);
 
@@ -370,7 +370,7 @@ void *handle_cpu(void *arg)
                 cpu->pid_actual = -1;
                 pthread_cond_signal(&cond_lista_cpu_conectadas);
                 pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
-                log_debug(log_debug_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
+                log_debug(log_ks, "## CPU ID<%d> liberada.", cpu->cpu_id);
 
                 // Aquí se debería finalizar el proceso, similar a SYSCALL_EXIT
             }
@@ -435,7 +435,7 @@ void *handle_cpu(void *arg)
 
                 iniciar_temporizador_timeout(cpu->pid_actual);
 
-                log_debug(log_debug_ks, "## (%d) - Intenta tomar Mutex '%s' y se bloquea.", pid, nombre_mutex);
+                log_debug(log_ks, "## (%d) - Intenta tomar Mutex '%s' y se bloquea.", pid, nombre_mutex);
 
                 // Liberar la CPU
                 pthread_mutex_lock(&mutex_lista_cpu_conectadas);
@@ -536,7 +536,7 @@ int recibir_cpu_id(int socket) {
     int tamanio_recibido = recv(socket, &cpu_id, sizeof(int), MSG_WAITALL);
     if (tamanio_recibido > 0) 
     {
-        log_debug(log_debug_ks, "cpu_id que me llega: %d", cpu_id);
+        log_debug(log_ks, "cpu_id que me llega: %d", cpu_id);
         return cpu_id;
     }
     else 
@@ -733,7 +733,7 @@ void actualizar_prioridad_proceso(pid_t pid_duenio, int prioridad_heredada) {
             list_add(array_colas_ready[indice_cola_nueva].cola, pcb_removido);
             pthread_mutex_unlock(&array_colas_ready[indice_cola_nueva].mutex);
 
-            log_debug(log_debug_ks, "Proceso PID<%d> movido de cola READY %d a %d por herencia de prioridad.",
+            log_debug(log_ks, "Proceso PID<%d> movido de cola READY %d a %d por herencia de prioridad.",
                       pcb_removido->pid, indice_cola_original, indice_cola_nueva);
         }
     }
