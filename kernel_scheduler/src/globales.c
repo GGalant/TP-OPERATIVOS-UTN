@@ -205,14 +205,73 @@ void agregar_proceso_a_ready_al_inicio(t_proceso_pcb* proceso)
     sem_post(&sem_procesos_ready);
 }
 
+t_proceso_pcb *buscar_proceso_por_id(pid_t pid, t_list *cola)
+{
+    for (int i = 0; i < list_size(cola); i++)
+    {
+        t_proceso_pcb *proceso = list_get(cola, i);
+        if (proceso->pid == pid) return proceso;
+    }
+    return NULL;
+}
+
 /**
  * chequear_desalojo: Placeholder para lógica de preemption en CMN.
  */
-void chequear_desalojo(t_proceso_pcb* proceso_nuevo)
-{
-    // TODO: Implementar lógica de interrupción/desalojo
-    log_debug(log_debug_ks, "chequear_desalojo: PID<%d> - preemption check (placeholder)", 
-              proceso_nuevo->pid);
+void chequear_desalojo(t_proceso_pcb* proceso_nuevo) {
+    log_debug(log_debug_ks, "Chequeando desalojo para nuevo proceso PID<%d> con prioridad %d",
+              proceso_nuevo->pid, proceso_nuevo->prioridad);
+
+    pthread_mutex_lock(&mutex_lista_cpu_conectadas);
+
+    // Iteramos para encontrar un proceso de menor prioridad a desalojar
+    for (int i = 0; i < list_size(lista_cpu_conectadas); i++) {
+        t_cpu* cpu = list_get(lista_cpu_conectadas, i);
+
+        if (cpu->estado == CPU_OCUPADA) {
+            pid_t pid_en_ejecucion = cpu->pid_actual;
+            t_proceso_pcb* proceso_en_ejecucion = NULL;
+
+            // Buscamos el PCB del proceso en ejecución
+            pthread_mutex_lock(&mutex_cola_exec);
+            proceso_en_ejecucion = buscar_proceso_por_id(pid_en_ejecucion, cola_exec);
+
+            if (proceso_en_ejecucion != NULL && proceso_nuevo->prioridad < proceso_en_ejecucion->prioridad) {
+                log_info(log_ks, "## Desalojo por prioridad: PID<%d> (prio %d) desaloja a PID<%d> (prio %d) en CPU<%d>",
+                         proceso_nuevo->pid, proceso_nuevo->prioridad,
+                         proceso_en_ejecucion->pid, proceso_en_ejecucion->prioridad,
+                         cpu->cpu_id);
+
+                // 1. Enviar interrupción a la CPU
+                op_code codigo = INTERRUPCION_DESALOJO;
+                send(cpu->socket_cpu, &codigo, sizeof(op_code), 0);
+
+                // 2. Sacar el proceso de EXEC
+                t_proceso_pcb* proceso_desalojado = remover_proceso_por_pid(cola_exec, pid_en_ejecucion);
+
+                // 3. Cancelar su quantum si lo tuviera (algoritmo RR en una de las colas)
+                cancelar_hilo_quantum_si_existe(proceso_desalojado, "Desalojo por prioridad");
+
+                // 4. Liberar la CPU
+                cpu->estado = CPU_LIBRE;
+                cpu->pid_actual = -1;
+                pthread_cond_signal(&cond_lista_cpu_conectadas);
+
+                pthread_mutex_unlock(&mutex_cola_exec);
+                pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+
+                if (proceso_desalojado != NULL) {
+                    agregar_proceso_a_ready(proceso_desalojado);
+                }
+
+                // Desalojamos solo a uno y salimos. El planificador se encargará del resto.
+                return;
+            }
+            pthread_mutex_unlock(&mutex_cola_exec);
+        }
+    }
+    pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
+    log_debug(log_debug_ks, "No se encontraron procesos para desalojar para PID<%d>", proceso_nuevo->pid);
 }
 
 bool comparar_procesos_para_desuspender(void* a, void* b) {

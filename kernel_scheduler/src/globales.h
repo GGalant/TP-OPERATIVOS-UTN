@@ -148,6 +148,9 @@ void wait_mutex(t_mutex *mutex, pid_t pid_proceso);
 void signal_mutex(t_mutex *mutex);
 void agregar_proceso_a_ready(t_proceso_pcb* proceso);
 void chequear_desalojo(t_proceso_pcb* proceso_nuevo);
+t_proceso_pcb* remover_proceso_por_pid(t_list* cola, pid_t pid);
+t_proceso_pcb* buscar_proceso_por_id(pid_t pid, t_list* cola);
+void cancelar_hilo_quantum_si_existe(t_proceso_pcb* proceso, const char* motivo);
 
 void desuspender_procesos();
 #endif /* GLOBALES_H_ */

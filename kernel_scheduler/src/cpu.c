@@ -590,16 +590,6 @@ const char *operacion_to_string(op_code operacion)
     }
 }
 
-t_proceso_pcb *buscar_proceso_por_id(pid_t pid, t_list *cola)
-{
-    for (int i = 0; i < list_size(cola); i++)
-    {
-        t_proceso_pcb *proceso = list_get(cola, i);
-        if (proceso->pid == pid) return proceso;
-    }
-    return NULL;
-}
-
 // REFACTOR: estas funciones de enviar peticiones a IO podrían unificarse en una sola función que reciba el tipo de IO y los parametros necesarios. 
 //enviar_peticion_io(tipo_io tipo, ...param restantes)
 
