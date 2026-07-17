@@ -13,7 +13,7 @@ void cancelar_hilo_quantum_si_existe(t_proceso_pcb* proceso, const char* motivo)
         // No es necesario hacer join, el hilo se cancelará en el usleep
         pthread_cancel(proceso->id_hilo_quantum);
         proceso->tiene_hilo_quantum = false;
-        log_debug(log_debug_ks, "Hebra quantum para PID<%d> cancelada. Motivo: %s.", proceso->pid, motivo);
+        log_debug(log_ks, "Hebra quantum para PID<%d> cancelada. Motivo: %s.", proceso->pid, motivo);
     }
 }
 
@@ -24,7 +24,7 @@ void cancelar_hilo_quantum_si_existe(t_proceso_pcb* proceso, const char* motivo)
  */
 void inicializar_planificador()
 {
-    log_debug(log_debug_ks, "Inicializando planificador con algoritmo: %d", algoritmo_global);
+    log_debug(log_ks, "Inicializando planificador con algoritmo: %d", algoritmo_global);
 
     if (algoritmo_global == FIFO || algoritmo_global == RR) {
         cantidad_niveles = 1;
@@ -60,7 +60,7 @@ void inicializar_planificador()
             cantidad_niveles++;
         }
 
-        log_debug(log_debug_ks, "CMN: cantidad_niveles = %d", cantidad_niveles);
+        log_debug(log_ks, "CMN: cantidad_niveles = %d", cantidad_niveles);
 
         // Asignar memoria para el array de colas
         array_colas_ready = malloc(sizeof(t_cola_nivel) * cantidad_niveles);
@@ -77,7 +77,7 @@ void inicializar_planificador()
             t_algoritmo_planificacion algo = string_to_algoritmo(queues_algorithms[i]);
             array_colas_ready[i].algoritmo = algo;
 
-            log_debug(log_debug_ks, "Cola %d inicializada con algoritmo: %d", i, algo);
+            log_debug(log_ks, "Cola %d inicializada con algoritmo: %d", i, algo);
         }
 
         log_info(log_ks, "Planificador CMN inicializado con %d niveles", cantidad_niveles);
@@ -90,7 +90,7 @@ void inicializar_planificador()
 
     // Inicializar semáforo contador
     sem_init(&sem_procesos_ready, 0, 0);
-    log_debug(log_debug_ks, "Semáforo sem_procesos_ready inicializado");
+    log_debug(log_ks, "Semáforo sem_procesos_ready inicializado");
 }
 
 /**
@@ -108,7 +108,7 @@ void liberar_planificador()
     }
     
     sem_destroy(&sem_procesos_ready);
-    log_debug(log_debug_ks, "Planificador liberado");
+    log_debug(log_ks, "Planificador liberado");
 }
 
 /**
@@ -131,11 +131,11 @@ void* hilo_planificador_principal(void* arg)
         sem_wait(&sem_procesos_ready);
 
         if (bsod_activo) {
-            log_debug(log_debug_ks, "BSOD activo. Finalizando hilo planificador principal.");
+            log_debug(log_ks, "BSOD activo. Finalizando hilo planificador principal.");
             break;
         }
 
-        log_debug(log_debug_ks, "Semáforo decrementado, buscando proceso en colas ready...");
+        log_debug(log_ks, "Semáforo decrementado, buscando proceso en colas ready...");
 
         // PASO 2: Buscar proceso respetando prioridad (FIFO sobre CMN)
         t_proceso_pcb* proceso = NULL;
@@ -150,7 +150,7 @@ void* hilo_planificador_principal(void* arg)
                 algoritmo_cola = array_colas_ready[i].algoritmo;
                 indice_cola_obtenida = i;
                 
-                log_debug(log_debug_ks, "Proceso PID<%d> extraído de cola nivel %d", 
+                log_debug(log_ks, "Proceso PID<%d> extraído de cola nivel %d", 
                          proceso->pid, i);
             }
 
@@ -164,7 +164,7 @@ void* hilo_planificador_principal(void* arg)
 
         // Validar que se extrajo un proceso
         if (proceso == NULL) {
-            log_error(log_debug_ks, "ERROR: sem_wait retornó pero no hay proceso en ninguna cola");
+            log_error(log_ks, "ERROR: sem_wait retornó pero no hay proceso en ninguna cola");
             continue; // Reintentar
         }
 
@@ -173,7 +173,7 @@ void* hilo_planificador_principal(void* arg)
         //Terminar BSOD
         t_cpu* cpu = NULL;
         while (!bsod_activo && (cpu = buscar_cpu_libre()) == NULL) {
-            log_debug(log_debug_ks, "Esperando por CPU libre para PID<%d>...", proceso->pid);
+            log_debug(log_ks, "Esperando por CPU libre para PID<%d>...", proceso->pid);
             pthread_cond_wait(&cond_lista_cpu_conectadas, &mutex_lista_cpu_conectadas);
         }
 
@@ -195,7 +195,7 @@ void* hilo_planificador_principal(void* arg)
         
         pthread_mutex_unlock(&mutex_lista_cpu_conectadas);
 
-        log_debug(log_debug_ks, "CPU ID<%d> asignada a PID<%d>", cpu->cpu_id, proceso->pid);
+        log_debug(log_ks, "CPU ID<%d> asignada a PID<%d>", cpu->cpu_id, proceso->pid);
 
         // PASO 4: Enviar proceso a CPU y mover a EXEC
         enviar_proceso_a_cpu(cpu->socket_cpu, proceso->pid);
@@ -205,13 +205,13 @@ void* hilo_planificador_principal(void* arg)
         list_add(cola_exec, proceso);
         pthread_mutex_unlock(&mutex_cola_exec);
 
-        log_info(log_debug_ks, "Proceso PID<%d> enviado a CPU ID<%d>", 
+        log_info(log_ks, "Proceso PID<%d> enviado a CPU ID<%d>", 
                 proceso->pid, cpu->cpu_id);
 
         // PASO 5: Si es RR, iniciar el quantum
         if (algoritmo_cola == RR) {
             iniciar_hilo_quantum(proceso, cpu->cpu_id);
-            log_debug(log_debug_ks, "Quantum iniciado para PID<%d> en CPU<%d>", 
+            log_debug(log_ks, "Quantum iniciado para PID<%d> en CPU<%d>", 
                      proceso->pid, cpu->cpu_id);
         }
     }
@@ -225,17 +225,17 @@ void* hilo_planificador_principal(void* arg)
  */
 t_cpu* buscar_cpu_libre()
 {
-    log_debug(log_debug_ks, "Buscando CPU libre...");
+    log_debug(log_ks, "Buscando CPU libre...");
     
     for (int i = 0; i < list_size(lista_cpu_conectadas); i++) {
         t_cpu* cpu = list_get(lista_cpu_conectadas, i);
         if (cpu != NULL && cpu->estado == CPU_LIBRE) {
-            log_debug(log_debug_ks, "¡CPU ID<%d> libre encontrada!", cpu->cpu_id);
+            log_debug(log_ks, "¡CPU ID<%d> libre encontrada!", cpu->cpu_id);
             return cpu;
         }
     }
     
-    log_debug(log_debug_ks, "No se encontraron CPUs libres");
+    log_debug(log_ks, "No se encontraron CPUs libres");
     return NULL;
 }
 
@@ -268,7 +268,7 @@ void enviar_proceso_a_cpu(int socket_cpu, pid_t pid_proceso)
     send(socket_cpu, &operation_code, sizeof(op_code), 0);
     send(socket_cpu, &pid_proceso, sizeof(int), 0);
 
-    log_debug(log_debug_ks, "Operación EJECUTAR_PROCESO enviada a CPU con PID<%d>", 
+    log_debug(log_ks, "Operación EJECUTAR_PROCESO enviada a CPU con PID<%d>", 
              pid_proceso);
 }
 
@@ -309,7 +309,7 @@ void* controlar_quantum(void* arg)
     // Convertir microsegundos a milisegundos
     usleep(rr_quantum * 1000);
 
-    log_debug(log_debug_ks, "Quantum agotado para PID<%d>", pid);
+    log_debug(log_ks, "Quantum agotado para PID<%d>", pid);
 
     // Buscar la CPU correspondiente
     pthread_mutex_lock(&mutex_lista_cpu_conectadas);
@@ -350,11 +350,11 @@ void* controlar_quantum(void* arg)
 
         log_info(log_ks, "## (%d) - Desalojado por fin de quantum", pid);
 
-        log_debug(log_debug_ks, 
+        log_debug(log_ks, 
                  "Interrupción de fin de quantum enviada a CPU ID<%d> para PID<%d>",
                  cpu_id, pid);
     } else {
-        log_debug(log_debug_ks, 
+        log_debug(log_ks, 
                  "CPU o proceso no coincide para fin de quantum (PID<%d> esperado en CPU<%d>)",
                  pid, cpu_id);
     }
