@@ -193,7 +193,6 @@ void* handle_connections(void* arg){
 
 void* handle_km(void* arg) {    
     int socket_km = *(int*)arg;
-    free(arg);
 
     while(true) {   
         // aca iria la logica de operaciones con Kernel Memory
@@ -527,13 +526,6 @@ void liberar_recursos() {
     sem_destroy(&sem_solicitud_mem_free);
     sem_destroy(&sem_desuspension_proceso);
     free(conexion_km_ptr);
-    free(config_path);
-    free(path_proceso_inicial);
-    free(puerto);
-    free(str_log_level);
-    free(puerto_km);
-    free(ip_km);
-    free(algoritmo_planificacion);
     liberar_planificador();
     free(buffer_global_contenido_km);
     free(buffer_respuesta_creacion_segmento);
