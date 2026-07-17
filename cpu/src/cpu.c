@@ -379,7 +379,7 @@ void execute(){
         exito = solicitar_tabla_de_sticks_a_k_memory();
         
         if(!exito){
-            log_error("cpu.c COPY_MEM: El pedido de todos los sticks a KM falló");
+            log_error(log_cpu,"cpu.c COPY_MEM: El pedido de todos los sticks a KM falló");
             error_fatal = true;
             break;
         }
@@ -387,7 +387,7 @@ void execute(){
         exito = ejecutar_mov_in(instruccion_actual.params[1]);
 
         if(!exito){
-            log_error("cpu.c ejecutar_COPY_MEM: falló");
+            log_error(log_cpu, "cpu.c ejecutar_COPY_MEM: falló");
             error_fatal = true;
             break;
         }
@@ -401,7 +401,7 @@ void execute(){
             exito = solicitar_tabla_de_sticks_a_k_memory();
             
             if(!exito){
-                log_error("cpu.c COPY_MEM: El pedido de todos los sticks a KM falló");
+                log_error(log_cpu,"cpu.c COPY_MEM: El pedido de todos los sticks a KM falló");
                 error_fatal = true;
                 break;
             }
@@ -409,7 +409,7 @@ void execute(){
             exito = ejecutar_mov_out(instruccion_actual.params[1]);
 
             if(!exito){
-                log_error("cpu.c ejecutar_COPY_MEM: falló");
+                log_error(log_cpu,"cpu.c ejecutar_COPY_MEM: falló");
                 error_fatal = true;
                 break;
             }
@@ -435,7 +435,7 @@ void execute(){
         exito = solicitar_tabla_de_sticks_a_k_memory();
         
         if(!exito){
-            log_error("cpu.c COPY_MEM: El pedido de todos los sticks a KM falló");
+            log_error(log_cpu, "cpu.c COPY_MEM: El pedido de todos los sticks a KM falló");
             error_fatal = true;
             break;
         }
@@ -443,7 +443,7 @@ void execute(){
         exito = ejecutar_copy_mem(instruccion_actual.params[1]);
 
         if(!exito){
-            log_error("cpu.c ejecutar_COPY_MEM: falló");
+            log_error(log_cpu, "cpu.c ejecutar_COPY_MEM: falló");
             error_fatal = true;
             break;
         }
@@ -750,7 +750,7 @@ bool integrar_tabla_memory_sticks(paquete_contexto, nodo_inicial){
     
     log_debug(log_cpu, "Integrando memory sticks a la tabla global");
     
-    cantidad_de_sticks = *(uint32_t*)list_get(paquete_contexto, nodo_inicial);
+    uint32_t cantidad_de_sticks = *(uint32_t*)list_get(paquete_contexto, nodo_inicial);
 
     int diff = cantidad_de_sticks - list_size(cpu.sticks_conectados);
 
@@ -760,8 +760,9 @@ bool integrar_tabla_memory_sticks(paquete_contexto, nodo_inicial){
 
         t_memory_stick* nuevo_memory_stick = (t_memory_stick*)list_remove(paquete_contexto, i + nodo_inicial); 
             
-        log_debug(log_cpu, "Conectando al nuevo memory Stick:")
-
+        log_debug(log_cpu, "Conectando al nuevo memory Stick:");
+        int status = 0;
+        op_code handshake_cpu = HANDSHAKE_CPU;
         status = send(conexion_ms, &handshake_cpu, sizeof(op_code), 0) != -1 ? status : -1;
         status = send(conexion_ms, &id_cpu, sizeof(int), 0) != -1 ? status : -1;
         
@@ -770,7 +771,7 @@ bool integrar_tabla_memory_sticks(paquete_contexto, nodo_inicial){
             return -1;
         }
 
-        log_debug(log_cpu, "Conexion con el Memory Stick establecida")
+        log_debug(log_cpu, "Conexion con el Memory Stick establecida");
         
         list_add(cpu.sticks_conectados, nuevo_memory_stick);
 
@@ -785,7 +786,7 @@ bool integrar_tabla_segmentos(paquete_contexto, nodo_inicial){
 
     log_debug(log_cpu, "Integrando segmentos a la tabla global");
     
-    cantidad_de_segmentos = *(uint32_t*)list_get(paquete_contexto, nodo_inicial);
+    uint32_t cantidad_de_segmentos = *(uint32_t*)list_get(paquete_contexto, nodo_inicial);
 
     for( int i = 0; i < cantidad_de_segmentos; i++){
 
