@@ -972,16 +972,19 @@ bool verificar_tamanio_valido(int tamanio_segmento)
 uint32_t calcular_memoria_libre()
 {
     uint32_t memoria_libre_total = 0;
-    printf("ESta es la memoria libre total antes del for %u", memoria_libre_total);
+    printf("ESta es la memoria libre total ANTES del for %u", memoria_libre_total);
+    log_info(log_km,"ESta es la memoria libre total ANTES del for %u", memoria_libre_total);
 
     for (int i = 0; i < list_size(huecos); i++)
     {
         t_hueco_libre *hueco = list_get(huecos, i);
         memoria_libre_total += hueco->tamanio;
         printf("ESta es la memoria libre total DENTRO del for %u", memoria_libre_total);
+        log_info(log_km,"ESta es la memoria libre total DENTRO del for %u", memoria_libre_total);
 
     }
-    printf("ESta es la memoria libre total despues del for %u, la que se retorna", memoria_libre_total);
+    printf("ESta es la memoria libre total DESPUES del for %u, la que se retorna", memoria_libre_total);
+    log_info(log_km,"ESta es la memoria libre total DESPUES del for %u, la que se retorna", memoria_libre_total);
 
     return memoria_libre_total;
 }
@@ -1315,31 +1318,37 @@ t_segmento* iniciar_creacion_segmento(pid_t pid, int id_segmento, uint32_t taman
     t_segmento* segmento_creado;
 
     printf("paso x aca antes de verificar tamanio valido");
+    log_info(log_km,"paso x aca antes de verificar tamanio valido");
 
       if (verificar_tamanio_valido(tamanio_segmento))
             {
                 printf("paso x aca despues de verificar tamanio valido, dentro del if");
+                log_info(log_km, "paso x aca despues de verificar tamanio valido, dentro del if");
 
                 if (existe_hueco_contiguo(tamanio_segmento))
                 {
                     // TODO: meter comparacion de algoritmos en una funcion
 
                     printf("paso x aca despues de verificar huecos contiguos");
+                    log_info(log_km,"paso x aca despues de verificar huecos contiguos");
 
 
                     segmento_creado = elegir_algoritmo(pid_string, id_segmento, tamanio_segmento);
 
+                    log_info(log_km, "paso por aca despues de elegir el algoritmo, el segmento creado es ID: %d ", segmento_creado->id_segmento);
                     printf("paso por aca despues de elegir el algoritmo, el segmento creado es ID: %d ", segmento_creado->id_segmento);
                 }
                 else
                 {
                     printf("paso x aca CUANDO NO HAY HUECOS CONTIGUOS");
+                    log_info(log_km, "paso x aca CUANDO NO HAY HUECOS CONTIGUOS");
 
                     // buscamos si hay espacio libre en toda la memoria
                     uint32_t memoria_libre_total = calcular_memoria_libre();
                     if (memoria_libre_total >= tamanio_segmento)
                     {
-                        log_debug(log_km, "Hay espacio en memoria pero no contiguo. Es necesario compactar");
+                        log_info(log_km, "Hay espacio en memoria pero no contiguo. Es necesario compactar");
+
                         printf("paso x aca HAY QUE COMPACTAR COMPAS");
 
                         op_code desalojar = DESALOJAR_CPU; // TODO FIJARSE CON GABI Q LO MANDE ASI
