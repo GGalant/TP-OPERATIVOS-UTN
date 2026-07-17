@@ -129,6 +129,7 @@ void inicializar_ks(int argc, char *argv[]) {
     sem_init(&sem_confirmacion_escritura, 0, 0);
     sem_init(&sem_compactacion_ok, 0, 0);
     sem_init(&sem_solicitud_mem_free, 0, 0);
+    sem_init(&sem_desuspension_proceso, 0, 0);
     // Se aloca una única vez el buffer para las respuestas de creación de segmento
     buffer_respuesta_creacion_segmento = malloc(64);
 
@@ -262,6 +263,23 @@ void* handle_km(void* arg) {
                 sem_post(&sem_solicitud_mem_free);
                 break;
             }
+            case DESUSPENDER_PROCESO_OK: {
+                log_debug(log_ks, "KM confirmo DESUSPENDER_PROCESO_OK");
+                desuspension_exitosa = true;
+                sem_post(&sem_desuspension_proceso);
+                break;
+            }
+            case DESUSPENDER_PROCESO_FAIL: {
+                log_debug(log_ks, "KM informo DESUSPENDER_PROCESO_FAIL");
+                desuspension_exitosa = false;
+                sem_post(&sem_desuspension_proceso);
+                break;
+            }
+            case MEMORIA_DISPONIBLE: {
+                log_info(log_ks, "KM informó que se conectó un nuevo Memory Stick. Intentando desuspender procesos.");
+                desuspender_procesos();
+                break;
+            }
             default:
                 log_warning(log_ks, "Operacion desconocida: %d", codigo_operacion);
                 break;
@@ -379,6 +397,7 @@ t_proceso_pcb* crear_pcb(pid_t pid, int prioridad) {
     pcb->quantum = 0; 
     pcb->tiene_hilo_quantum = false;
     pcb->id_hilo_quantum = 0;
+    pcb->tiempo_en_suspension = 0;
  
     log_info(log_ks, "## (%d) Se crea el proceso - Estado: NEW", pid);
 
@@ -506,6 +525,7 @@ void liberar_recursos() {
     sem_destroy(&sem_confirmacion_escritura);
     sem_destroy(&sem_compactacion_ok);
     sem_destroy(&sem_solicitud_mem_free);
+    sem_destroy(&sem_desuspension_proceso);
     free(conexion_km_ptr);
     free(config_path);
     free(path_proceso_inicial);
@@ -566,8 +586,8 @@ void* temporizador_timeout(void* arg) {
         pthread_mutex_lock(&mutex_cola_susp_block);
         cambiar_estado_proceso(proceso, SUSP_BLOCK);
         list_add(cola_susp_block, proceso);
+        proceso->tiempo_en_suspension = time(NULL);
         pthread_mutex_unlock(&mutex_cola_susp_block);
-        
         pthread_mutex_unlock(&mutex_cola_block); 
 
         log_info(log_ks, "Timeout agotado. El proceso %d pasa a SUSP_BLOCK", pid);

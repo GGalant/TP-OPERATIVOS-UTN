@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <commons/collections/list.h>
 #include <stdbool.h>
+#include <time.h>
 
 typedef enum {
     FIFO,
@@ -32,6 +33,7 @@ typedef struct t_proceso_pcb {
     char* nombre_mutex;
     pthread_t id_hilo_quantum;
     bool tiene_hilo_quantum;
+    time_t tiempo_en_suspension;
 } t_proceso_pcb;
 typedef struct
 {
@@ -135,9 +137,11 @@ extern sem_t sem_respuesta_contenido_km;
 extern sem_t sem_creacion_segmento;
 extern sem_t sem_confirmacion_escritura;
 extern sem_t sem_compactacion_ok;
+extern sem_t sem_desuspension_proceso;
 extern sem_t sem_solicitud_mem_free;
 extern bool bsod_activo;
 extern bool compactacion_exitosa;
+extern bool desuspension_exitosa;
 extern bool mem_free_exitoso;
 
 void wait_mutex(t_mutex *mutex, pid_t pid_proceso);
@@ -145,4 +149,5 @@ void signal_mutex(t_mutex *mutex);
 void agregar_proceso_a_ready(t_proceso_pcb* proceso);
 void chequear_desalojo(t_proceso_pcb* proceso_nuevo);
 
+void desuspender_procesos();
 #endif /* GLOBALES_H_ */

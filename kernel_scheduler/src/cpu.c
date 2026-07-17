@@ -335,6 +335,8 @@ void *handle_cpu(void *arg)
                 }
 
                 log_info(log_ks, "## Fin de compactación");
+
+                desuspender_procesos();
                  
                 // Restaurar el proceso original a ready
                 cpu->estado = CPU_OCUPADA;
@@ -493,6 +495,8 @@ void *handle_cpu(void *arg)
             if (mem_free_exitoso)
             {
                 log_debug(log_ks, "MEM_FREE exitoso, devolviendo el PID <%d> a la CPU <%d>", pid, cpu->cpu_id);
+
+                desuspender_procesos();
 
                 enviar_proceso_a_cpu(cpu->socket_cpu, pid);
 
