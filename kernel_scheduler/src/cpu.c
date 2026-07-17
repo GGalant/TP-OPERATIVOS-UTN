@@ -254,6 +254,8 @@ void *handle_cpu(void *arg)
             list_destroy(paquete_contexto_ignorado);
             list_destroy_and_destroy_elements(paquete_mem_alloc, free); // Liberar memoria del paquete
 
+            cancelar_hilo_quantum_si_existe(pid, "SYSCALL_MEM_ALLOC");
+
             pthread_mutex_lock(&mutex_mem_alloc);
 
             t_paquete *paquete_segmento = crear_paquete(CREACION_DE_SEGMENTO);
