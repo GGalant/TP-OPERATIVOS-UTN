@@ -72,7 +72,10 @@ int main(int argc, char *argv[]){
     if(err == -1){
         perror("Error al intentar el handshake con Kernel Memory");
         return EXIT_FAILURE;
-    } 
+    }
+
+    uint32_t tamanio_int = atoi(tamanio);
+    send(conexion_km, &tamanio, sizeof(int),0);
     log_info(log_ms, "## Conectado a Kernel Memory");
     
     //TODO mover la creacion de hilos al switch dentro de handle_connections para el siguiente checkpoint

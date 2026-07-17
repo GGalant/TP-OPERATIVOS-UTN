@@ -711,11 +711,36 @@ void *handle_ms(void *arg)
     int socket_ms = *(int *)arg;
     int id_ms;
     int tamanio_ms;
-    recv(socket_ms, &id_ms, sizeof(int), 0);
+    //recv(socket_ms, &id_ms, sizeof(int), 0);
     recv(socket_ms, &tamanio_ms, sizeof(int), 0);
+    contador_sticks += 1;
+    id_ms = contador_sticks;
+
+
+    // creamos el stick nuevo que se agrega
+    // malloc para estructura, no para memoria
+    t_memory_stick *nuevo_memory_stick = malloc(sizeof(t_memory_stick));
+    nuevo_memory_stick->id = id_ms;
+    nuevo_memory_stick->inicio = posicion_memoria;
+    nuevo_memory_stick->tamanio = tamanio_ms;
+    nuevo_memory_stick->socket = socket_ms;
+    // la primera vez, pos_mem = 0, luego se actualiza con cada MemStick agregado
+    // avanzamos +1 para no pisar el ultimo byte
+    posicion_memoria += tamanio_ms; // TODO: PENSAR
+    list_add(sticks_conectados, nuevo_memory_stick);
+
+
+    t_hueco_libre* nuevo_hueco = malloc(sizeof(t_hueco_libre));
+    nuevo_hueco->base = nuevo_memory_stick->inicio;
+    nuevo_hueco->tamanio = nuevo_memory_stick->tamanio;
+    list_add(huecos, nuevo_hueco);
 
     log_info(log_km, "## Memory Stick de %d bytes Conectada", tamanio_ms);
     log_debug(log_km, "Se conecta memory stick %d", id_ms);
+
+    op_code mem_disponible = MEMORIA_DISPONIBLE;
+    send(socket_ks,&mem_disponible, sizeof(op_code),0);
+
     while (true)
     {
         op_code codigo_operacion = recibir_operacion(socket_ms);
@@ -724,19 +749,19 @@ void *handle_ms(void *arg)
 
         case CONECTAR_MS:
         {
-            contador_sticks += 1;
+            //contador_sticks += 1;
 
-            // creamos el stick nuevo que se agrega
-            // malloc para estructura, no para memoria
-            t_memory_stick *nuevo_memory_stick = malloc(sizeof(t_memory_stick));
-            nuevo_memory_stick->id = contador_sticks;
-            nuevo_memory_stick->inicio = posicion_memoria;
-            nuevo_memory_stick->tamanio = tamanio_ms;
-            nuevo_memory_stick->socket = socket_ms;
-            // la primera vez, pos_mem = 0, luego se actualiza con cada MemStick agregado
-            // avanzamos +1 para no pisar el ultimo byte
-            posicion_memoria += tamanio_ms + 1; // TODO: PENSAR
-            list_add(sticks_conectados, nuevo_memory_stick);
+            // // creamos el stick nuevo que se agrega
+            // // malloc para estructura, no para memoria
+            // t_memory_stick *nuevo_memory_stick = malloc(sizeof(t_memory_stick));
+            // nuevo_memory_stick->id = contador_sticks;
+            // nuevo_memory_stick->inicio = posicion_memoria;
+            // nuevo_memory_stick->tamanio = tamanio_ms;
+            // nuevo_memory_stick->socket = socket_ms;
+            // // la primera vez, pos_mem = 0, luego se actualiza con cada MemStick agregado
+            // // avanzamos +1 para no pisar el ultimo byte
+            // posicion_memoria += tamanio_ms + 1; // TODO: PENSAR
+            // list_add(sticks_conectados, nuevo_memory_stick);
 
             break;
         }

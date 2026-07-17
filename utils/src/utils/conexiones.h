@@ -135,7 +135,6 @@ typedef enum {
 
     //* FIN: KERNEL SCHEDULER - KERNEL MEMORY
     // ======================================
-    
 
 }op_code;
 
