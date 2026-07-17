@@ -819,7 +819,7 @@ bool integrar_tabla_segmentos(t_list* paquete_contexto, int nodo_inicial){
     
     uint32_t cantidad_de_segmentos = *(uint32_t*)list_get(paquete_contexto, nodo_inicial);
 
-    if(cantidad_de_segmentos != list_size(paquete_contexto) - 1 ){
+    if(cantidad_de_segmentos != list_size(paquete_contexto) - nodo_inicial - 1 ){
         log_error(log_cpu, "Los segmentos informados (%u), no se coinciden con el tamanio del paquete -1 (%d)", cantidad_de_segmentos, list_size(paquete_contexto) - nodo_inicial - 1);
         return false;
     }
