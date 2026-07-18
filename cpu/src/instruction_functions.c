@@ -266,8 +266,6 @@ void ejecutar_sleep(char* parametro_tiempo) {
 
     t_paquete* paquete = crear_paquete(SYSCALL_SLEEP); 
 
-    agregar_a_paquete(paquete, &pid, sizeof(pid_t));
-    agregar_a_paquete(paquete, &pc_actualizado, sizeof(uint32_t));
     agregar_a_paquete(paquete, &tiempo, sizeof(int));
 
     enviar_paquete_send_all(paquete, conexion_ks);

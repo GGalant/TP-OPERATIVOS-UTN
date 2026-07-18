@@ -118,6 +118,7 @@ void *handle_cpu(void *arg)
         case SYSCALL_SLEEP: {
             t_list *paquete_sleep = recibir_paquete(cpu->socket_cpu);
             int tiempo_sleep = *(int *)list_get(paquete_sleep, 0);
+            printf("SOy un printf %d ", tiempo_sleep);
             list_destroy_and_destroy_elements(paquete_sleep, free);
 
             log_debug(log_ks,"REcibo paquete luego de SYSCALL_SLEEP");

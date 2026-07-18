@@ -696,13 +696,13 @@ bool solicitar_tabla_de_sticks_a_k_memory(){
     if (resp_km == -1) {
         log_error(log_cpu, "pull_Memory_Sticks: Error Kernel Memory se desconectó al pedir tabla de Memory Sticks.");
         error_fatal = true;
-        return -1;
+        return false;
     }
 
     if (resp_km != ENVIAR_TABLA_MEMORY_STICKS_OK) {
         log_error(log_cpu, "pull_Memory_Sticks: Error KM devolvió operacion %d en vez de ENVIAR_TABLA_MEMORY_STICKS", resp_km);
         error_fatal = true;
-        return -1;
+        return false;
     }
 
     t_list* paquete_contexto = recibir_paquete(conexion_km);
@@ -710,7 +710,7 @@ bool solicitar_tabla_de_sticks_a_k_memory(){
     if (paquete_contexto == NULL) {
         log_error(log_cpu, "pull_Memory_Sticks: Error al recibir el buffer de tabla de Memoru Sticks de Kernel Memory");
         error_fatal = true;
-        return -1;
+        return false;
     }
     
     integrar_tabla_memory_sticks(paquete_contexto, 0);
@@ -719,7 +719,7 @@ bool solicitar_tabla_de_sticks_a_k_memory(){
 
     log_debug(log_cpu, "pull_Memory_Sticks: El la tabla fue recibida e integrada correctamente. ");
 
-    return 0;
+    return true;
 }
 
 int pull_contexto(pid_t pid_a_pedir) {
@@ -817,7 +817,9 @@ bool integrar_tabla_segmentos(t_list* paquete_contexto, int nodo_inicial){
 
     log_debug(log_cpu, "Integrando segmentos a la tabla global");
     
-    uint32_t cantidad_de_segmentos = *(uint32_t*)list_get(paquete_contexto, nodo_inicial);
+    int cantidad_de_segmentos = *(int*)list_get(paquete_contexto, nodo_inicial);
+
+    log_debug(log_cpu, "Se recibieron %d ", cantidad_de_segmentos);
 
     if(cantidad_de_segmentos != list_size(paquete_contexto) - nodo_inicial - 1 ){
         log_error(log_cpu, "Los segmentos informados (%u), no se coinciden con el tamanio del paquete -1 (%d)", cantidad_de_segmentos, list_size(paquete_contexto) - nodo_inicial - 1);
@@ -827,10 +829,15 @@ bool integrar_tabla_segmentos(t_list* paquete_contexto, int nodo_inicial){
     for( int i = 0; i < cantidad_de_segmentos; i++){
 
         t_segmento* segmento = (t_segmento*)list_remove(paquete_contexto, nodo_inicial + 1); // + 1 pq el primer nodo del paquete es la cantidad
-        
+        log_debug(log_cpu,"ID SEGMENTO:%d", segmento->id_segmento);
+        log_debug(log_cpu,"BASE: %d", segmento->base);
+        log_debug(log_cpu,"LIMITE: %d", segmento->limite);
+
         list_add(cpu.tabla_segmentos, segmento);
 
     }
+
+
 
     log_debug(log_cpu, "Integracion de Segmentos finalizada");
 

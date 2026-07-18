@@ -112,14 +112,14 @@ char* obtener_instruccion(t_list* instrucciones, uint32_t pc_actual);
 char* armar_argumentos(char** tokens);
 
 
-t_segmento* buscar_best_bloque(char* pid_string, int id_segmento, int tamanio_segmento);
-t_segmento* buscar_worst_bloque(char* pid_string, int id_segmento, int tamanio_segmento);
+t_segmento* buscar_best_bloque(char* pid_string, int id_segmento, uint32_t tamanio_segmento);
+t_segmento* buscar_worst_bloque(char* pid_string, int id_segmento, uint32_t tamanio_segmento);
 t_segmento* crear_segmento(t_hueco_libre* hueco_hallado,char* pid, uint32_t id_segmento, uint32_t tamanio_segmento);
-bool verificar_tamanio_valido(int tamanio_seg);
+bool verificar_tamanio_valido(uint32_t tamanio_seg);
 uint32_t calcular_memoria_libre();
 uint32_t calcular_memoria_total();
 bool existe_hueco_contiguo(uint32_t tamanio_segmento);
-t_segmento* elegir_algoritmo(char* pid_string, int id_segmento, int tamanio_segmento);
+t_segmento* elegir_algoritmo(char* pid_string, int id_segmento, uint32_t tamanio_segmento);
 
 t_list* obtener_todos_los_segmentos();
 void obtener_segmentos(char* pid_str, void* contexto_ejec);

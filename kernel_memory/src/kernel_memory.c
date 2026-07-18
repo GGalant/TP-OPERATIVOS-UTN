@@ -364,11 +364,28 @@ void *handle_ks(void *arg)
             int tamanio_segmento = *(int *)list_get(pedido_creacion_seg, 2);
             char *pid_string = string_itoa(pid);
 
-            iniciar_creacion_segmento(pid, id_segmento, tamanio_segmento, socket_ks);
+            t_segmento* segmento_creado = iniciar_creacion_segmento(pid, id_segmento, (uint32_t)tamanio_segmento, socket_ks);
+            printf("ESTO ES ANTES DEL ERROR22");
+            printf("ESTE ES EL ID RECIEN CREADO %d",segmento_creado->id_segmento);
 
-            op_code creacion_ok = CREACION_DE_SEGMENTO_OK;
-            send(socket_ks,&creacion_ok, sizeof(creacion_ok),0);
-            log_info(log_km, "## PID: %d - Segmento Creado %d - Tamaño: %d", pid, id_segmento, tamanio_segmento);
+            if (segmento_creado != NULL) {
+
+                list_add(contexto_proceso->tabla_segmentos, segmento_creado);
+
+                op_code creacion_ok = CREACION_DE_SEGMENTO_OK;
+                send(socket_ks, &creacion_ok, sizeof(op_code), 0);
+
+                log_info(log_km,
+                    "## PID: %d - Segmento Creado %d - Tamaño: %d",
+                    pid,
+                    id_segmento,
+                    tamanio_segmento
+                );
+            }
+
+            // op_code creacion_ok = CREACION_DE_SEGMENTO_OK;
+            // send(socket_ks,&creacion_ok, sizeof(creacion_ok),0);
+            // log_info(log_km, "## PID: %d - Segmento Creado %d - Tamaño: %d", pid, id_segmento, tamanio_segmento);
 
            
             free(pid_string);
@@ -605,6 +622,7 @@ void *handle_cpu(void *arg)
                 agregar_a_paquete(paquete_contexto, &(contexto_a_enviar->di), sizeof(uint32_t));
 
                 int cantidad_de_segmentos = list_size(contexto_a_enviar->tabla_segmentos);
+                log_debug(log_km, "ESTO ES LA CANTIDAD DE SEGMENTOS: %d", cantidad_de_segmentos);
                 agregar_a_paquete(paquete_contexto, &cantidad_de_segmentos, sizeof(int));
                 
                 for(int i = 0; i< cantidad_de_segmentos; i++){
@@ -908,19 +926,28 @@ char *armar_argumentos(char **tokens)
 
 ///////////////////////////////////////////
 
-t_segmento* buscar_best_bloque(char *pid_string, int id_segmento, int tamanio_segmento)
+t_segmento* buscar_best_bloque(char *pid_string, int id_segmento, uint32_t tamanio_segmento)
 {
     // 2. Buscar el mejor hueco: el más chico donde entre el segmento
     t_hueco_libre *mejor_hueco = NULL;
 
     for (int i = 0; i < list_size(huecos); i++)
     {
+        printf("loopeando");
         t_hueco_libre *hueco_actual = list_get(huecos, i);
 
+        printf("tamanio> %u", tamanio_segmento);
+        printf("huecoactual tamanio> %u", hueco_actual->tamanio);
         if (hueco_actual->tamanio >= tamanio_segmento)
         {
+        printf("IF1");
+
+
+
             if (mejor_hueco == NULL || hueco_actual->tamanio < mejor_hueco->tamanio)
             {
+                printf("IF2");
+
                 mejor_hueco = hueco_actual;
             }
         }
@@ -941,14 +968,15 @@ t_segmento* buscar_best_bloque(char *pid_string, int id_segmento, int tamanio_se
         // Si no hay memoria total suficiente -> responder error al Kernel Scheduler.
         return NULL;
     }
-
+    printf("INTENTO CREAR SEGMENTO");
     // 4. Si encontró hueco, crea el segmento usando ese hueco
     t_segmento* nuevo_segmento = crear_segmento(mejor_hueco, pid_string, id_segmento, tamanio_segmento);
+
 
     return nuevo_segmento;
 }
 
-t_segmento* buscar_worst_bloque(char *pid_string, int id_segmento, int tamanio_segmento)
+t_segmento* buscar_worst_bloque(char *pid_string, int id_segmento, uint32_t tamanio_segmento)
 {
 
     // 2. Encontrar bloque
@@ -1029,7 +1057,7 @@ t_segmento* crear_segmento(t_hueco_libre *hueco_hallado, char *pid, uint32_t id_
     return nuevo_segmento;
 }
 
-bool verificar_tamanio_valido(int tamanio_segmento)
+bool verificar_tamanio_valido(uint32_t tamanio_segmento)
 {
     if (tamanio_segmento <= 0)
     {
@@ -1081,16 +1109,23 @@ bool existe_hueco_contiguo(uint32_t tamanio_segmento)
     return false;
 }
 
-t_segmento* elegir_algoritmo(char *pid_string, int id_segmento, int tamanio_segmento)
+t_segmento* elegir_algoritmo(char *pid_string, int id_segmento, uint32_t tamanio_segmento)
 {
     t_segmento* nuevo_segmento;
     if (strcmp(config_km.alloc_strategy, "BEST") == 0)
     {
+        printf("VOY A BUSCAR BEST BLOQUE");
         nuevo_segmento = buscar_best_bloque(pid_string, id_segmento, tamanio_segmento);
+        printf("okVOY A BUSCAR BEST BLOQUEok");
+
     }
     else if (strcmp(config_km.alloc_strategy, "WORST") == 0)
     {
+        printf("VOY A BUSCAR WORST BLOQUE");
+
         nuevo_segmento = buscar_worst_bloque(pid_string, id_segmento, tamanio_segmento);
+        printf("okVOY A BUSCAR WORST BLOQUEok");
+
     }
     else
     {
@@ -1146,7 +1181,7 @@ void iniciar_compactacion(int socket_ks)
 
     log_debug(log_km, "## Fin de compactación");
 
-    op_code compactacion_ok;
+    op_code compactacion_ok = COMPACTACION_OK;
     send(socket_ks, &compactacion_ok,sizeof(compactacion_ok),0);
 
 }
@@ -1429,14 +1464,32 @@ t_segmento* iniciar_creacion_segmento(pid_t pid, int id_segmento, uint32_t taman
                         printf("paso x aca HAY QUE COMPACTAR COMPAS");
 
                         op_code desalojar = DESALOJAR_CPU; // TODO FIJARSE CON GABI Q LO MANDE ASI
+                        printf("PRINTF2 ENVIO DESALOJAR CPUS");
                         send(socket_ks, &desalojar, sizeof(desalojar), 0);
                         // TODO: COMPACTAR
                         // 1. avisar al KS de la compactacion. Solicitar desalojo de cpus
                         op_code desalojo_ok;
+                        printf("PRINTF2 ESPERO OKAY DE DESALOJAR CPUS");
+                        
                         recv(socket_ks, &desalojo_ok, sizeof(desalojo_ok), 0);
                         // 2. Compactar memoria despues de confirmacion de desalojo
+
+                        printf("COMPACTANDOOOO");
+
                         iniciar_compactacion(socket_ks);
+
+                        printf("ELEGIMOS ALGORITMO");
+
                         // 3. Avisar compactacion OK
+
+                        segmento_creado = elegir_algoritmo(
+                            pid_string,
+                            id_segmento,
+                            tamanio_segmento
+                        );
+
+                        printf("SALIO TODO BIEN OWO");
+                        
                     }
                     else
                     {
